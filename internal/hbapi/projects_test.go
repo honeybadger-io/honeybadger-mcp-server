@@ -9,10 +9,12 @@ import (
 )
 
 func TestListProjects(t *testing.T) {
-	mockProjects := `[
-		{"id": "1", "name": "Project 1", "api_key": "abc123"},
-		{"id": "2", "name": "Project 2", "api_key": "def456"}
-	]`
+	mockProjects := `{
+		"results": [
+			{"id": "1", "name": "Project 1", "api_key": "abc123"},
+			{"id": "2", "name": "Project 2", "api_key": "def456"}
+		]
+	}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -40,14 +42,9 @@ func TestListProjects(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	result, err := client.ListProjects("")
+	projects, err := client.ListProjects("")
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
-	}
-
-	var projects []map[string]interface{}
-	if err := json.Unmarshal(result, &projects); err != nil {
-		t.Fatalf("failed to unmarshal result: %v", err)
 	}
 
 	if len(projects) != 2 {
@@ -83,10 +80,12 @@ func TestListProjects_Error(t *testing.T) {
 }
 
 func TestListProjects_WithAccountID(t *testing.T) {
-	mockProjects := `[
-		{"id": "1", "name": "Project 1", "api_key": "abc123"},
-		{"id": "2", "name": "Project 2", "api_key": "def456"}
-	]`
+	mockProjects := `{
+		"results": [
+			{"id": "1", "name": "Project 1", "api_key": "abc123"},
+			{"id": "2", "name": "Project 2", "api_key": "def456"}
+		]
+	}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -115,14 +114,9 @@ func TestListProjects_WithAccountID(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	result, err := client.ListProjects("12345")
+	projects, err := client.ListProjects("12345")
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
-	}
-
-	var projects []map[string]interface{}
-	if err := json.Unmarshal(result, &projects); err != nil {
-		t.Fatalf("failed to unmarshal result: %v", err)
 	}
 
 	if len(projects) != 2 {
@@ -133,6 +127,7 @@ func TestListProjects_WithAccountID(t *testing.T) {
 		t.Errorf("expected first project name 'Project 1', got %v", projects[0]["name"])
 	}
 }
+
 
 func TestGetProject(t *testing.T) {
 	mockProject := `{"id": "123", "name": "Test Project", "api_key": "abc123"}`
@@ -152,14 +147,9 @@ func TestGetProject(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	result, err := client.GetProject("123")
+	project, err := client.GetProject("123")
 	if err != nil {
 		t.Fatalf("GetProject() error = %v", err)
-	}
-
-	var project map[string]interface{}
-	if err := json.Unmarshal(result, &project); err != nil {
-		t.Fatalf("failed to unmarshal result: %v", err)
 	}
 
 	if project["id"] != "123" {
@@ -238,14 +228,9 @@ func TestCreateProject(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	result, err := client.CreateProject("New Project")
+	project, err := client.CreateProject("New Project")
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
-	}
-
-	var project map[string]interface{}
-	if err := json.Unmarshal(result, &project); err != nil {
-		t.Fatalf("failed to unmarshal result: %v", err)
 	}
 
 	if project["name"] != "New Project" {
@@ -324,14 +309,9 @@ func TestUpdateProject(t *testing.T) {
 		"name": "Updated Project",
 	}
 
-	result, err := client.UpdateProject("123", updates)
+	project, err := client.UpdateProject("123", updates)
 	if err != nil {
 		t.Fatalf("UpdateProject() error = %v", err)
-	}
-
-	var project map[string]interface{}
-	if err := json.Unmarshal(result, &project); err != nil {
-		t.Fatalf("failed to unmarshal result: %v", err)
 	}
 
 	if project["name"] != "Updated Project" {

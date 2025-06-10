@@ -12,10 +12,10 @@ import (
 
 // APIClient interface for testing
 type APIClient interface {
-	ListProjects(accountID string) (json.RawMessage, error)
-	GetProject(id string) (json.RawMessage, error)
-	CreateProject(name string) (json.RawMessage, error)
-	UpdateProject(id string, updates map[string]interface{}) (json.RawMessage, error)
+	ListProjects(accountID string) ([]map[string]interface{}, error)
+	GetProject(id string) (map[string]interface{}, error)
+	CreateProject(name string) (map[string]interface{}, error)
+	UpdateProject(id string, updates map[string]interface{}) (map[string]interface{}, error)
 	DeleteProject(id string) error
 }
 
@@ -107,9 +107,17 @@ func handleListProjects(client APIClient, args map[string]interface{}) (*mcp.Cal
 	}
 
 	// Sanitize the response to remove API tokens
-	sanitized := sanitizeProjects(projects)
+	for _, project := range projects {
+		sanitizeProjectData(project)
+	}
 
-	return mcp.NewToolResultText(string(sanitized)), nil
+	// Return JSON response
+	jsonBytes, err := json.Marshal(projects)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 func handleGetProject(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
@@ -124,9 +132,15 @@ func handleGetProject(client APIClient, args map[string]interface{}) (*mcp.CallT
 	}
 
 	// Sanitize the response to remove API tokens
-	sanitized := sanitizeProject(project)
+	sanitizeProjectData(project)
 
-	return mcp.NewToolResultText(string(sanitized)), nil
+	// Return JSON response
+	jsonBytes, err := json.Marshal(project)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 func handleCreateProject(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
@@ -141,9 +155,15 @@ func handleCreateProject(client APIClient, args map[string]interface{}) (*mcp.Ca
 	}
 
 	// Sanitize the response to remove API tokens
-	sanitized := sanitizeProject(project)
+	sanitizeProjectData(project)
 
-	return mcp.NewToolResultText(string(sanitized)), nil
+	// Return JSON response
+	jsonBytes, err := json.Marshal(project)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 func handleUpdateProject(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
@@ -163,9 +183,15 @@ func handleUpdateProject(client APIClient, args map[string]interface{}) (*mcp.Ca
 	}
 
 	// Sanitize the response to remove API tokens
-	sanitized := sanitizeProject(project)
+	sanitizeProjectData(project)
 
-	return mcp.NewToolResultText(string(sanitized)), nil
+	// Return JSON response
+	jsonBytes, err := json.Marshal(project)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 func handleDeleteProject(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
@@ -184,8 +210,13 @@ func handleDeleteProject(client APIClient, args map[string]interface{}) (*mcp.Ca
 		"message": fmt.Sprintf("Project %s deleted successfully", id),
 	}
 
-	resultJSON, _ := json.Marshal(result)
-	return mcp.NewToolResultText(string(resultJSON)), nil
+	// Return JSON response
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 // Helper functions for parameter validation
@@ -225,44 +256,7 @@ func validateObjectParam(args map[string]interface{}, paramName string) (map[str
 	return obj, nil
 }
 
-// Sanitization functions to remove sensitive data like API tokens
-func sanitizeProjects(projectsJSON json.RawMessage) json.RawMessage {
-	var projects []map[string]interface{}
-	if err := json.Unmarshal(projectsJSON, &projects); err != nil {
-		// If we can't unmarshal, return as-is (better than failing)
-		return projectsJSON
-	}
-
-	for _, project := range projects {
-		sanitizeProjectData(project)
-	}
-
-	sanitized, err := json.Marshal(projects)
-	if err != nil {
-		// If we can't marshal, return original (better than failing)
-		return projectsJSON
-	}
-
-	return sanitized
-}
-
-func sanitizeProject(projectJSON json.RawMessage) json.RawMessage {
-	var project map[string]interface{}
-	if err := json.Unmarshal(projectJSON, &project); err != nil {
-		// If we can't unmarshal, return as-is (better than failing)
-		return projectJSON
-	}
-
-	sanitizeProjectData(project)
-
-	sanitized, err := json.Marshal(project)
-	if err != nil {
-		// If we can't marshal, return original (better than failing)
-		return projectJSON
-	}
-
-	return sanitized
-}
+// Sanitization function to remove sensitive data like API tokens
 
 func sanitizeProjectData(project map[string]interface{}) {
 	// Remove token field

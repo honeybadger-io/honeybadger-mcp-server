@@ -25,30 +25,30 @@ func getResultText(result *mcp.CallToolResult) string {
 
 // Mock API client for testing
 type mockAPIClient struct {
-	listProjectsResult json.RawMessage
+	listProjectsResult []map[string]interface{}
 	listProjectsError  error
-	getProjectResult   json.RawMessage
+	getProjectResult   map[string]interface{}
 	getProjectError    error
-	createProjectResult json.RawMessage
+	createProjectResult map[string]interface{}
 	createProjectError  error
-	updateProjectResult json.RawMessage
+	updateProjectResult map[string]interface{}
 	updateProjectError  error
 	deleteProjectError  error
 }
 
-func (m *mockAPIClient) ListProjects(accountID string) (json.RawMessage, error) {
+func (m *mockAPIClient) ListProjects(accountID string) ([]map[string]interface{}, error) {
 	return m.listProjectsResult, m.listProjectsError
 }
 
-func (m *mockAPIClient) GetProject(id string) (json.RawMessage, error) {
+func (m *mockAPIClient) GetProject(id string) (map[string]interface{}, error) {
 	return m.getProjectResult, m.getProjectError
 }
 
-func (m *mockAPIClient) CreateProject(name string) (json.RawMessage, error) {
+func (m *mockAPIClient) CreateProject(name string) (map[string]interface{}, error) {
 	return m.createProjectResult, m.createProjectError
 }
 
-func (m *mockAPIClient) UpdateProject(id string, updates map[string]interface{}) (json.RawMessage, error) {
+func (m *mockAPIClient) UpdateProject(id string, updates map[string]interface{}) (map[string]interface{}, error) {
 	return m.updateProjectResult, m.updateProjectError
 }
 
@@ -57,10 +57,10 @@ func (m *mockAPIClient) DeleteProject(id string) error {
 }
 
 func TestHandleListProjects(t *testing.T) {
-	mockProjects := json.RawMessage(`[
+	mockProjects := []map[string]interface{}{
 		{"id": "1", "name": "Project 1", "token": "secret123"},
-		{"id": "2", "name": "Project 2", "token": "secret456"}
-	]`)
+		{"id": "2", "name": "Project 2", "token": "secret456"},
+	}
 
 	client := &mockAPIClient{
 		listProjectsResult: mockProjects,
@@ -108,10 +108,10 @@ func TestHandleListProjects_Error(t *testing.T) {
 }
 
 func TestHandleListProjects_WithAccountID(t *testing.T) {
-	mockProjects := json.RawMessage(`[
+	mockProjects := []map[string]interface{}{
 		{"id": "1", "name": "Project 1", "token": "secret123"},
-		{"id": "2", "name": "Project 2", "token": "secret456"}
-	]`)
+		{"id": "2", "name": "Project 2", "token": "secret456"},
+	}
 
 	client := &mockAPIClient{
 		listProjectsResult: mockProjects,
@@ -144,7 +144,9 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 }
 
 func TestHandleGetProject(t *testing.T) {
-	mockProject := json.RawMessage(`{"id": "123", "name": "Test Project", "token": "secret123"}`)
+	mockProject := map[string]interface{}{
+		"id": "123", "name": "Test Project", "token": "secret123",
+	}
 
 	client := &mockAPIClient{
 		getProjectResult: mockProject,
@@ -215,7 +217,9 @@ func TestHandleGetProject_EmptyID(t *testing.T) {
 }
 
 func TestHandleCreateProject(t *testing.T) {
-	mockProject := json.RawMessage(`{"id": "456", "name": "New Project", "token": "secret789"}`)
+	mockProject := map[string]interface{}{
+		"id": "456", "name": "New Project", "token": "secret789",
+	}
 
 	client := &mockAPIClient{
 		createProjectResult: mockProject,
@@ -269,7 +273,9 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 }
 
 func TestHandleUpdateProject(t *testing.T) {
-	mockProject := json.RawMessage(`{"id": "123", "name": "Updated Project", "token": "secret123"}`)
+	mockProject := map[string]interface{}{
+		"id": "123", "name": "Updated Project", "token": "secret123",
+	}
 
 	client := &mockAPIClient{
 		updateProjectResult: mockProject,
@@ -502,51 +508,30 @@ func TestValidateObjectParam(t *testing.T) {
 	}
 }
 
-func TestSanitizeProjects(t *testing.T) {
-	input := json.RawMessage(`[
-		{"id": "1", "name": "Project 1", "token": "secret123"},
-		{"id": "2", "name": "Project 2", "token": "secret456"}
-	]`)
-
-	result := sanitizeProjects(input)
-
-	resultStr := string(result)
-
-	// Check that token fields are removed
-	if strings.Contains(resultStr, "secret123") {
-		t.Error("token should be removed")
-	}
-	if strings.Contains(resultStr, "secret456") {
-		t.Error("token should be removed")
+func TestSanitizeProjectData(t *testing.T) {
+	project := map[string]interface{}{
+		"id":    "123",
+		"name":  "Test Project",
+		"token": "secret123",
+		"api_key": "keep_this",
 	}
 
-	// Check that non-sensitive fields remain
-	if !strings.Contains(resultStr, "Project 1") {
-		t.Error("project name should remain")
-	}
-	if !strings.Contains(resultStr, "Project 2") {
-		t.Error("project name should remain")
-	}
-}
-
-func TestSanitizeProject(t *testing.T) {
-	input := json.RawMessage(`{"id": "123", "name": "Test Project", "token": "secret123"}`)
-
-	result := sanitizeProject(input)
-
-	resultStr := string(result)
+	sanitizeProjectData(project)
 
 	// Check that token field is removed
-	if strings.Contains(resultStr, "secret123") {
-		t.Error("token should be removed")
+	if _, exists := project["token"]; exists {
+		t.Error("token field should be removed")
 	}
 
 	// Check that non-sensitive fields remain
-	if !strings.Contains(resultStr, "Test Project") {
+	if project["id"] != "123" {
+		t.Error("project id should remain")
+	}
+	if project["name"] != "Test Project" {
 		t.Error("project name should remain")
 	}
-	if !strings.Contains(resultStr, "123") {
-		t.Error("project id should remain")
+	if project["api_key"] != "keep_this" {
+		t.Error("api_key field should remain (only token is removed)")
 	}
 }
 

@@ -1,12 +1,11 @@
 package hbapi
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
-// ListProjects returns all projects as raw JSON, optionally filtered by account_id
-func (c *Client) ListProjects(accountID string) (json.RawMessage, error) {
+// ListProjects returns all projects as JSON array, optionally filtered by account_id
+func (c *Client) ListProjects(accountID string) ([]map[string]interface{}, error) {
 	path := "/v2/projects"
 	if accountID != "" {
 		path = fmt.Sprintf("/v2/projects?account_id=%s", accountID)
@@ -17,16 +16,27 @@ func (c *Client) ListProjects(accountID string) (json.RawMessage, error) {
 		return nil, err
 	}
 
-	var result json.RawMessage
-	if err := c.do(req, &result); err != nil {
+	var response map[string]interface{}
+	if err := c.do(req, &response); err != nil {
 		return nil, err
 	}
 
-	return result, nil
+	// Return the projects array from the "results" field
+	if projects, ok := response["results"].([]interface{}); ok {
+		// Convert []interface{} to []map[string]interface{} for type safety
+		result := make([]map[string]interface{}, len(projects))
+		for i, project := range projects {
+			result[i] = project.(map[string]interface{})
+		}
+		return result, nil
+	}
+
+	// Return empty array if "results" field not found or wrong type
+	return []map[string]interface{}{}, nil
 }
 
-// GetProject returns a single project by ID as raw JSON
-func (c *Client) GetProject(id string) (json.RawMessage, error) {
+// GetProject returns a single project by ID as JSON object
+func (c *Client) GetProject(id string) (map[string]interface{}, error) {
 	if id == "" {
 		return nil, fmt.Errorf("project ID cannot be empty")
 	}
@@ -37,7 +47,7 @@ func (c *Client) GetProject(id string) (json.RawMessage, error) {
 		return nil, err
 	}
 
-	var result json.RawMessage
+	var result map[string]interface{}
 	if err := c.do(req, &result); err != nil {
 		return nil, err
 	}
@@ -46,7 +56,7 @@ func (c *Client) GetProject(id string) (json.RawMessage, error) {
 }
 
 // CreateProject creates a new project with the given name
-func (c *Client) CreateProject(name string) (json.RawMessage, error) {
+func (c *Client) CreateProject(name string) (map[string]interface{}, error) {
 	if name == "" {
 		return nil, fmt.Errorf("project name cannot be empty")
 	}
@@ -62,7 +72,7 @@ func (c *Client) CreateProject(name string) (json.RawMessage, error) {
 		return nil, err
 	}
 
-	var result json.RawMessage
+	var result map[string]interface{}
 	if err := c.do(req, &result); err != nil {
 		return nil, err
 	}
@@ -71,7 +81,7 @@ func (c *Client) CreateProject(name string) (json.RawMessage, error) {
 }
 
 // UpdateProject updates an existing project with the given updates
-func (c *Client) UpdateProject(id string, updates map[string]interface{}) (json.RawMessage, error) {
+func (c *Client) UpdateProject(id string, updates map[string]interface{}) (map[string]interface{}, error) {
 	if id == "" {
 		return nil, fmt.Errorf("project ID cannot be empty")
 	}
@@ -89,7 +99,7 @@ func (c *Client) UpdateProject(id string, updates map[string]interface{}) (json.
 		return nil, err
 	}
 
-	var result json.RawMessage
+	var result map[string]interface{}
 	if err := c.do(req, &result); err != nil {
 		return nil, err
 	}
