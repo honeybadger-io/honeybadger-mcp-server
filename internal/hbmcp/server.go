@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbapi"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -19,6 +20,9 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 		server.WithToolCapabilities(true),
 		server.WithLogging(),
 	)
+
+	// Create API client
+	apiClient := hbapi.NewClient(cfg.APIURL, cfg.APIToken)
 
 	// Register the ping tool
 	s.AddTool(
@@ -37,6 +41,9 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 			return mcp.NewToolResultText(string(jsonBytes)), nil
 		},
 	)
+
+	// Register project tools
+	RegisterProjectTools(s, apiClient)
 
 	return s
 }
