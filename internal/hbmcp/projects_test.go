@@ -36,7 +36,7 @@ type mockAPIClient struct {
 	deleteProjectError  error
 }
 
-func (m *mockAPIClient) ListProjects() (json.RawMessage, error) {
+func (m *mockAPIClient) ListProjects(accountID string) (json.RawMessage, error) {
 	return m.listProjectsResult, m.listProjectsError
 }
 
@@ -104,6 +104,42 @@ func TestHandleListProjects_Error(t *testing.T) {
 	resultText := getResultText(result)
 	if !strings.Contains(resultText, "Failed to list projects") {
 		t.Error("Error message should contain 'Failed to list projects'")
+	}
+}
+
+func TestHandleListProjects_WithAccountID(t *testing.T) {
+	mockProjects := json.RawMessage(`[
+		{"id": "1", "name": "Project 1", "token": "secret123"},
+		{"id": "2", "name": "Project 2", "token": "secret456"}
+	]`)
+
+	client := &mockAPIClient{
+		listProjectsResult: mockProjects,
+	}
+
+	// Test with account_id parameter
+	args := map[string]interface{}{
+		"account_id": "12345",
+	}
+
+	result, err := handleListProjects(client, args)
+	if err != nil {
+		t.Fatalf("handleListProjects() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+
+	// Check that tokens are sanitized
+	resultText := getResultText(result)
+	if strings.Contains(resultText, "secret123") {
+		t.Error("Token should be sanitized from response")
+	}
+
+	// Check that project data is still present
+	if !strings.Contains(resultText, "Project 1") {
+		t.Error("Project name should be present in response")
 	}
 }
 

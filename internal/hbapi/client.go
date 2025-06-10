@@ -27,7 +27,7 @@ func NewClient(baseURL, apiToken string) *Client {
 
 func (c *Client) newRequest(method, path string, body interface{}) (*http.Request, error) {
 	url := fmt.Sprintf("%s%s", c.baseURL, path)
-	
+
 	var buf io.Reader
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
@@ -36,16 +36,17 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 		}
 		buf = bytes.NewBuffer(jsonBody)
 	}
-	
+
 	req, err := http.NewRequest(method, url, buf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
-	req.Header.Set("X-API-Key", c.apiToken)
+
+	// Set HTTP Basic Auth with token as username, no password
+	req.SetBasicAuth(c.apiToken, "")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	
+
 	return req, nil
 }
 
@@ -55,16 +56,16 @@ func (c *Client) do(req *http.Request, v interface{}) error {
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode >= 400 {
 		return WrapError(resp, nil)
 	}
-	
+
 	if v != nil {
 		if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
 	}
-	
+
 	return nil
 }

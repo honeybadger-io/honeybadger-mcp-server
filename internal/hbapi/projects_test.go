@@ -21,8 +21,16 @@ func TestListProjects(t *testing.T) {
 		if r.URL.Path != "/v2/projects" {
 			t.Errorf("expected path /v2/projects, got %s", r.URL.Path)
 		}
-		if r.Header.Get("X-API-Key") != "test-token" {
-			t.Errorf("expected X-API-Key test-token, got %s", r.Header.Get("X-API-Key"))
+		// Check Basic Auth
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			t.Error("expected Basic Auth to be set")
+		}
+		if username != "test-token" {
+			t.Errorf("expected Basic Auth username test-token, got %s", username)
+		}
+		if password != "" {
+			t.Errorf("expected Basic Auth password to be empty, got %s", password)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -32,7 +40,7 @@ func TestListProjects(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	result, err := client.ListProjects()
+	result, err := client.ListProjects("")
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}
@@ -59,7 +67,7 @@ func TestListProjects_Error(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "invalid-token")
-	_, err := client.ListProjects()
+	_, err := client.ListProjects("")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -71,6 +79,58 @@ func TestListProjects_Error(t *testing.T) {
 
 	if apiErr.StatusCode != 401 {
 		t.Errorf("expected status code 401, got %d", apiErr.StatusCode)
+	}
+}
+
+func TestListProjects_WithAccountID(t *testing.T) {
+	mockProjects := `[
+		{"id": "1", "name": "Project 1", "api_key": "abc123"},
+		{"id": "2", "name": "Project 2", "api_key": "def456"}
+	]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		expectedPath := "/v2/projects?account_id=12345"
+		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
+			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
+		}
+		// Check Basic Auth
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			t.Error("expected Basic Auth to be set")
+		}
+		if username != "test-token" {
+			t.Errorf("expected Basic Auth username test-token, got %s", username)
+		}
+		if password != "" {
+			t.Errorf("expected Basic Auth password to be empty, got %s", password)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockProjects))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	result, err := client.ListProjects("12345")
+	if err != nil {
+		t.Fatalf("ListProjects() error = %v", err)
+	}
+
+	var projects []map[string]interface{}
+	if err := json.Unmarshal(result, &projects); err != nil {
+		t.Fatalf("failed to unmarshal result: %v", err)
+	}
+
+	if len(projects) != 2 {
+		t.Errorf("expected 2 projects, got %d", len(projects))
+	}
+
+	if projects[0]["name"] != "Project 1" {
+		t.Errorf("expected first project name 'Project 1', got %v", projects[0]["name"])
 	}
 }
 

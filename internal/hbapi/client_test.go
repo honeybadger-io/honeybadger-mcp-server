@@ -70,8 +70,16 @@ func TestNewRequest(t *testing.T) {
 				t.Errorf("expected URL %s, got %s", tt.wantURL, req.URL.String())
 			}
 			
-			if req.Header.Get("X-API-Key") != tt.wantAuth {
-				t.Errorf("expected X-API-Key %s, got %s", tt.wantAuth, req.Header.Get("X-API-Key"))
+			// Check Basic Auth
+			username, password, ok := req.BasicAuth()
+			if !ok {
+				t.Error("expected Basic Auth to be set")
+			}
+			if username != tt.wantAuth {
+				t.Errorf("expected Basic Auth username %s, got %s", tt.wantAuth, username)
+			}
+			if password != "" {
+				t.Errorf("expected Basic Auth password to be empty, got %s", password)
 			}
 			
 			if req.Header.Get("Content-Type") != "application/json" {
@@ -87,8 +95,16 @@ func TestNewRequest(t *testing.T) {
 
 func TestDo_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-API-Key") != "test-token" {
-			t.Errorf("expected X-API-Key test-token, got %s", r.Header.Get("X-API-Key"))
+		// Check Basic Auth
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			t.Error("expected Basic Auth to be set")
+		}
+		if username != "test-token" {
+			t.Errorf("expected Basic Auth username test-token, got %s", username)
+		}
+		if password != "" {
+			t.Errorf("expected Basic Auth password to be empty, got %s", password)
 		}
 		
 		w.Header().Set("Content-Type", "application/json")

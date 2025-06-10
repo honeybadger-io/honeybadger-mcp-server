@@ -12,7 +12,7 @@ import (
 
 // APIClient interface for testing
 type APIClient interface {
-	ListProjects() (json.RawMessage, error)
+	ListProjects(accountID string) (json.RawMessage, error)
 	GetProject(id string) (json.RawMessage, error)
 	CreateProject(name string) (json.RawMessage, error)
 	UpdateProject(id string, updates map[string]interface{}) (json.RawMessage, error)
@@ -93,7 +93,15 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 }
 
 func handleListProjects(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	projects, err := client.ListProjects()
+	// Extract account_id parameter (optional)
+	accountID := ""
+	if value, exists := args["account_id"]; exists {
+		if str, ok := value.(string); ok {
+			accountID = str
+		}
+	}
+
+	projects, err := client.ListProjects(accountID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}

@@ -5,9 +5,14 @@ import (
 	"fmt"
 )
 
-// ListProjects returns all projects as raw JSON
-func (c *Client) ListProjects() (json.RawMessage, error) {
-	req, err := c.newRequest("GET", "/v2/projects", nil)
+// ListProjects returns all projects as raw JSON, optionally filtered by account_id
+func (c *Client) ListProjects(accountID string) (json.RawMessage, error) {
+	path := "/v2/projects"
+	if accountID != "" {
+		path = fmt.Sprintf("/v2/projects?account_id=%s", accountID)
+	}
+
+	req, err := c.newRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
