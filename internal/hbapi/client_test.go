@@ -121,55 +121,42 @@ func TestDo_Success(t *testing.T) {
 	}
 }
 
-func TestDo_ErrorMapping(t *testing.T) {
+func TestDo_ErrorHandling(t *testing.T) {
 	tests := []struct {
-		name           string
-		statusCode     int
-		responseBody   string
-		expectedCode   string
-		expectedMsg    string
+		name         string
+		statusCode   int
+		responseBody string
+		expectedMsg  string
 	}{
 		{
-			name:         "400 Bad Request",
+			name:         "400 Bad Request with JSON error",
 			statusCode:   400,
 			responseBody: `{"error": "Invalid request"}`,
-			expectedCode: "bad_request",
 			expectedMsg:  "Invalid request",
 		},
 		{
-			name:         "401 Unauthorized",
+			name:         "401 Unauthorized with message",
 			statusCode:   401,
 			responseBody: `{"message": "Invalid API key"}`,
-			expectedCode: "unauthorized",
 			expectedMsg:  "Invalid API key",
 		},
 		{
 			name:         "404 Not Found",
 			statusCode:   404,
 			responseBody: `{"error": "Project not found"}`,
-			expectedCode: "not_found",
 			expectedMsg:  "Project not found",
-		},
-		{
-			name:         "429 Rate Limited",
-			statusCode:   429,
-			responseBody: `{"message": "Rate limit exceeded"}`,
-			expectedCode: "rate_limited",
-			expectedMsg:  "Rate limit exceeded",
 		},
 		{
 			name:         "500 Internal Server Error",
 			statusCode:   500,
 			responseBody: `{"error": "Internal server error"}`,
-			expectedCode: "internal_error",
 			expectedMsg:  "Internal server error",
 		},
 		{
-			name:         "503 Service Unavailable",
+			name:         "503 Service Unavailable with no body",
 			statusCode:   503,
-			responseBody: `{}`,
-			expectedCode: "internal_error",
-			expectedMsg:  "HTTP 503: 503 Service Unavailable",
+			responseBody: ``,
+			expectedMsg:  "503 Service Unavailable",
 		},
 	}
 	
@@ -198,8 +185,8 @@ func TestDo_ErrorMapping(t *testing.T) {
 				t.Fatalf("expected APIError, got %T", err)
 			}
 			
-			if apiErr.Code != tt.expectedCode {
-				t.Errorf("expected error code %s, got %s", tt.expectedCode, apiErr.Code)
+			if apiErr.StatusCode != tt.statusCode {
+				t.Errorf("expected status code %d, got %d", tt.statusCode, apiErr.StatusCode)
 			}
 			
 			if apiErr.Message != tt.expectedMsg {
@@ -251,43 +238,13 @@ func TestNewRequest_InvalidBody(t *testing.T) {
 
 func TestAPIError_Error(t *testing.T) {
 	err := &APIError{
-		Code:    "bad_request",
-		Message: "Invalid input",
-		Details: map[string]interface{}{"field": "name"},
+		StatusCode: 400,
+		Message:    "Bad Request",
+		Body:       map[string]interface{}{"field": "name"},
 	}
 	
-	expected := "API error [bad_request]: Invalid input"
+	expected := "HTTP 400: Bad Request"
 	if err.Error() != expected {
 		t.Errorf("expected error string %s, got %s", expected, err.Error())
-	}
-}
-
-func TestMapStatusToErrorCode(t *testing.T) {
-	tests := []struct {
-		statusCode   int
-		expectedCode string
-	}{
-		{400, "bad_request"},
-		{401, "unauthorized"},
-		{404, "not_found"},
-		{429, "rate_limited"},
-		{500, "internal_error"},
-		{501, "internal_error"},
-		{502, "internal_error"},
-		{503, "internal_error"},
-		{504, "internal_error"},
-		{505, "internal_error"},
-		{403, "bad_request"}, // Other 4xx
-		{418, "bad_request"}, // Other 4xx
-		{599, "internal_error"}, // Other 5xx
-	}
-	
-	for _, tt := range tests {
-		t.Run(string(rune(tt.statusCode)), func(t *testing.T) {
-			code := mapStatusToErrorCode(tt.statusCode)
-			if code != tt.expectedCode {
-				t.Errorf("status %d: expected %s, got %s", tt.statusCode, tt.expectedCode, code)
-			}
-		})
 	}
 }
