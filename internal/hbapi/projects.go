@@ -6,9 +6,9 @@ import (
 
 // ListProjects returns all projects, optionally filtered by account_id
 func (c *Client) ListProjects(accountID string) ([]Project, error) {
-	path := "/v2/projects"
+	path := "/projects"
 	if accountID != "" {
-		path = fmt.Sprintf("/v2/projects?account_id=%s", accountID)
+		path = fmt.Sprintf("/projects?account_id=%s", accountID)
 	}
 
 	req, err := c.newRequest("GET", path, nil)
@@ -30,7 +30,7 @@ func (c *Client) GetProject(id string) (*Project, error) {
 		return nil, fmt.Errorf("project ID cannot be empty")
 	}
 
-	path := fmt.Sprintf("/v2/projects/%s", id)
+	path := fmt.Sprintf("/projects/%s", id)
 	req, err := c.newRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func (c *Client) CreateProject(name string) (*Project, error) {
 		},
 	}
 
-	req, err := c.newRequest("POST", "/v2/projects", body)
+	req, err := c.newRequest("POST", "/projects", body)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (c *Client) UpdateProject(id string, updates map[string]interface{}) (*Proj
 		"project": updates,
 	}
 
-	path := fmt.Sprintf("/v2/projects/%s", id)
+	path := fmt.Sprintf("/projects/%s", id)
 	req, err := c.newRequest("PUT", path, body)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func (c *Client) DeleteProject(id string) error {
 		return fmt.Errorf("project ID cannot be empty")
 	}
 
-	path := fmt.Sprintf("/v2/projects/%s", id)
+	path := fmt.Sprintf("/projects/%s", id)
 	req, err := c.newRequest("DELETE", path, nil)
 	if err != nil {
 		return err

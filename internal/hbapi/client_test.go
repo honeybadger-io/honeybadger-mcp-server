@@ -44,7 +44,7 @@ func TestNewRequest(t *testing.T) {
 			method:   "GET",
 			path:     "/projects",
 			body:     nil,
-			wantURL:  "https://api.example.com/projects",
+			wantURL:  "https://api.example.com/v2/projects",
 			wantAuth: "test-token",
 		},
 		{
@@ -54,7 +54,7 @@ func TestNewRequest(t *testing.T) {
 			body: map[string]string{
 				"name": "test-project",
 			},
-			wantURL:  "https://api.example.com/projects",
+			wantURL:  "https://api.example.com/v2/projects",
 			wantAuth: "test-token",
 		},
 	}

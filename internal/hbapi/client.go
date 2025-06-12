@@ -26,7 +26,8 @@ func NewClient(baseURL, apiToken string) *Client {
 }
 
 func (c *Client) newRequest(method, path string, body interface{}) (*http.Request, error) {
-	url := fmt.Sprintf("%s%s", c.baseURL, path)
+	// Add /v2 prefix to all paths
+	url := fmt.Sprintf("%s/v2%s", c.baseURL, path)
 
 	var buf io.Reader
 	if body != nil {
