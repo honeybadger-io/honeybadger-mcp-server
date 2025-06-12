@@ -14,16 +14,29 @@ type Client struct {
 	baseURL    string
 	apiToken   string
 	httpClient *http.Client
+
+	// Resource services
+	Projects *ProjectsService
 }
 
 func NewClient(baseURL, apiToken string) *Client {
-	return &Client{
+	c := &Client{
 		baseURL:  baseURL,
 		apiToken: apiToken,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
+
+	// Initialize resource services
+	c.Projects = &ProjectsService{client: c}
+
+	return c
+}
+
+// ProjectsAPI returns the projects service
+func (c *Client) ProjectsAPI() *ProjectsService {
+	return c.Projects
 }
 
 func (c *Client) newRequest(ctx context.Context, method, path string, body interface{}) (*http.Request, error) {

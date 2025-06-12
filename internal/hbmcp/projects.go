@@ -12,11 +12,7 @@ import (
 
 // APIClient interface for testing
 type APIClient interface {
-	ListProjects(ctx context.Context, accountID string) ([]hbapi.Project, error)
-	GetProject(ctx context.Context, id string) (*hbapi.Project, error)
-	CreateProject(ctx context.Context, name string) (*hbapi.Project, error)
-	UpdateProject(ctx context.Context, id string, updates map[string]interface{}) (*hbapi.Project, error)
-	DeleteProject(ctx context.Context, id string) error
+	ProjectsAPI() *hbapi.ProjectsService
 }
 
 // RegisterProjectTools registers all project-related MCP tools
@@ -101,7 +97,7 @@ func handleListProjects(ctx context.Context, client APIClient, args map[string]i
 		}
 	}
 
-	projects, err := client.ListProjects(ctx, accountID)
+	projects, err := client.ProjectsAPI().List(ctx, accountID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
@@ -126,7 +122,7 @@ func handleGetProject(ctx context.Context, client APIClient, args map[string]int
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.GetProject(ctx, id)
+	project, err := client.ProjectsAPI().Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
@@ -149,7 +145,7 @@ func handleCreateProject(ctx context.Context, client APIClient, args map[string]
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.CreateProject(ctx, name)
+	project, err := client.ProjectsAPI().Create(ctx, name)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
@@ -177,7 +173,7 @@ func handleUpdateProject(ctx context.Context, client APIClient, args map[string]
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.UpdateProject(ctx, id, updates)
+	project, err := client.ProjectsAPI().Update(ctx, id, updates)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
@@ -200,7 +196,7 @@ func handleDeleteProject(ctx context.Context, client APIClient, args map[string]
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	err = client.DeleteProject(ctx, id)
+	err = client.ProjectsAPI().Delete(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project: %v", err)), nil
 	}
