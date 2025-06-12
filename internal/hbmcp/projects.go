@@ -10,10 +10,6 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// APIClient interface for testing
-type APIClient interface {
-	ProjectsAPI() *hbapi.ProjectsService
-}
 
 // RegisterProjectTools registers all project-related MCP tools
 func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
@@ -88,7 +84,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 }
 
-func handleListProjects(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleListProjects(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	// Extract account_id parameter (optional)
 	accountID := ""
 	if value, exists := args["account_id"]; exists {
@@ -97,7 +93,7 @@ func handleListProjects(ctx context.Context, client APIClient, args map[string]i
 		}
 	}
 
-	projects, err := client.ProjectsAPI().List(ctx, accountID)
+	projects, err := client.Projects.List(ctx, accountID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
@@ -116,13 +112,13 @@ func handleListProjects(ctx context.Context, client APIClient, args map[string]i
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProject(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleGetProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	id, err := validateStringParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.ProjectsAPI().Get(ctx, id)
+	project, err := client.Projects.Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
@@ -139,13 +135,13 @@ func handleGetProject(ctx context.Context, client APIClient, args map[string]int
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleCreateProject(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleCreateProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	name, err := validateStringParam(args, "name")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.ProjectsAPI().Create(ctx, name)
+	project, err := client.Projects.Create(ctx, name)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
@@ -162,7 +158,7 @@ func handleCreateProject(ctx context.Context, client APIClient, args map[string]
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateProject(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleUpdateProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	id, err := validateStringParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -173,7 +169,7 @@ func handleUpdateProject(ctx context.Context, client APIClient, args map[string]
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.ProjectsAPI().Update(ctx, id, updates)
+	project, err := client.Projects.Update(ctx, id, updates)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
@@ -190,13 +186,13 @@ func handleUpdateProject(ctx context.Context, client APIClient, args map[string]
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleDeleteProject(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleDeleteProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	id, err := validateStringParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	err = client.ProjectsAPI().Delete(ctx, id)
+	err = client.Projects.Delete(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project: %v", err)), nil
 	}

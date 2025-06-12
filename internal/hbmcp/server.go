@@ -22,7 +22,9 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	)
 
 	// Create API client
-	apiClient := hbapi.NewClient(cfg.APIURL, cfg.APIToken)
+	apiClient := hbapi.NewClient().
+		WithBaseURL(cfg.APIURL).
+		WithAuthToken(cfg.APIToken)
 
 	// Register the ping tool
 	s.AddTool(

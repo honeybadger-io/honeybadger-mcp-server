@@ -19,10 +19,9 @@ type Client struct {
 	Projects *ProjectsService
 }
 
-func NewClient(baseURL, apiToken string) *Client {
+func NewClient() *Client {
 	c := &Client{
-		baseURL:  baseURL,
-		apiToken: apiToken,
+		baseURL: "https://api.honeybadger.io", // Default base URL
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -30,7 +29,24 @@ func NewClient(baseURL, apiToken string) *Client {
 
 	// Initialize resource services
 	c.Projects = &ProjectsService{client: c}
+	return c
+}
 
+// WithAuthToken sets the API token for the client
+func (c *Client) WithAuthToken(apiToken string) *Client {
+	c.apiToken = apiToken
+	return c
+}
+
+// WithBaseURL sets the base URL for the client
+func (c *Client) WithBaseURL(baseURL string) *Client {
+	c.baseURL = baseURL
+	return c
+}
+
+// WithHTTPClient sets a custom HTTP client
+func (c *Client) WithHTTPClient(httpClient *http.Client) *Client {
+	c.httpClient = httpClient
 	return c
 }
 

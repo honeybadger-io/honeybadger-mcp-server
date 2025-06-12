@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -25,43 +27,30 @@ func getResultText(result *mcp.CallToolResult) string {
 	return ""
 }
 
-// Mock API client for testing
-type mockAPIClient struct {
-	projectsService *hbapi.ProjectsService
-}
-
-func (m *mockAPIClient) ProjectsAPI() *hbapi.ProjectsService {
-	return m.projectsService
-}
-
 func TestHandleListProjects(t *testing.T) {
-	t.Skip("Test needs refactoring for namespaced API")
-	mockProjects := []hbapi.Project{
-		{
-			ID:        1,
-			Name:      "Project 1",
-			Active:    true,
-			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			Token:     "secret123",
-			Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
-		},
-		{
-			ID:        2,
-			Name:      "Project 2",
-			Active:    true,
-			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			Token:     "secret456",
-			Owner:     hbapi.User{ID: 2, Email: "user2@example.com", Name: "User 2"},
-	}
+	mockResponse := `{
+		"results": [
+			{"id": 1, "name": "Project 1", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []},
+			{"id": 2, "name": "Project 2", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret456", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 2, "email": "user2@example.com", "name": "User 2"}, "sites": [], "teams": [], "users": []}
+		]
+	}`
 
-	// Use the real API client for testing - this is simpler
-	realClient := hbapi.NewClient("https://api.example.com", "test-token")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects" {
+			t.Errorf("expected path /v2/projects, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
 
-	// For now, let's test the handler function logic with a real client
-	// In a full implementation, we'd set up a test server
-	client := &mockAPIClient{
-		projectsService: realClient.Projects,
-	}
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
 
 	result, err := handleListProjects(context.Background(), client, map[string]interface{}{})
 	if err != nil {
@@ -85,10 +74,15 @@ func TestHandleListProjects(t *testing.T) {
 }
 
 func TestHandleListProjects_Error(t *testing.T) {
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "Invalid API token"}`))
+	}))
+	defer server.Close()
 
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("invalid-token")
 	result, err := handleListProjects(context.Background(), client, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
@@ -105,27 +99,29 @@ func TestHandleListProjects_Error(t *testing.T) {
 }
 
 func TestHandleListProjects_WithAccountID(t *testing.T) {
-	mockProjects := []hbapi.Project{
-		{
-			ID:        1,
-			Name:      "Project 1",
-			Active:    true,
-			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			Token:     "secret123",
-			Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
-		},
-		{
-			ID:        2,
-			Name:      "Project 2",
-			Active:    true,
-			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			Token:     "secret456",
-			Owner:     hbapi.User{ID: 2, Email: "user2@example.com", Name: "User 2"},
-	}
+	mockResponse := `{
+		"results": [
+			{"id": 1, "name": "Project 1", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}
+		]
+	}`
 
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		expectedPath := "/v2/projects?account_id=12345"
+		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
+			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
 
 	// Test with account_id parameter
 	args := map[string]interface{}{
@@ -154,18 +150,24 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 }
 
 func TestHandleGetProject(t *testing.T) {
-	mockProject := &hbapi.Project{
-		ID:        123,
-		Name:      "Test Project",
-		Active:    true,
-		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Token:     "secret123",
-		Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
-	}
+	mockResponse := `{"id": 123, "name": "Test Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
 
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123" {
+			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"id": "123",
@@ -192,9 +194,9 @@ func TestHandleGetProject(t *testing.T) {
 }
 
 func TestHandleGetProject_MissingID(t *testing.T) {
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly},
-	}
+	client := hbapi.NewClient().
+		WithBaseURL("https://api.example.com").
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{}
 
@@ -213,9 +215,9 @@ func TestHandleGetProject_MissingID(t *testing.T) {
 }
 
 func TestHandleGetProject_EmptyID(t *testing.T) {
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly},
-	}
+	client := hbapi.NewClient().
+		WithBaseURL("https://api.example.com").
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"id": "",
@@ -236,18 +238,39 @@ func TestHandleGetProject_EmptyID(t *testing.T) {
 }
 
 func TestHandleCreateProject(t *testing.T) {
-	mockProject := &hbapi.Project{
-		ID:        456,
-		Name:      "New Project",
-		Active:    true,
-		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Token:     "secret789",
-		Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
-	}
+	mockResponse := `{"id": 456, "name": "New Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret789", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
 
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("expected POST method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects" {
+			t.Errorf("expected path /v2/projects, got %s", r.URL.Path)
+		}
+
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+
+		project, ok := body["project"].(map[string]interface{})
+		if !ok {
+			t.Fatal("expected project object in request body")
+		}
+
+		if project["name"] != "New Project" {
+			t.Errorf("expected project name 'New Project', got %v", project["name"])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"name": "New Project",
@@ -274,9 +297,15 @@ func TestHandleCreateProject(t *testing.T) {
 }
 
 func TestHandleCreateProject_ValidationError(t *testing.T) {
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		w.Write([]byte(`{"error": "Name has already been taken"}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"name": "Duplicate Name",
@@ -297,23 +326,45 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 }
 
 func TestHandleUpdateProject(t *testing.T) {
-	mockProject := &hbapi.Project{
-		ID:        123,
-		Name:      "Updated Project",
-		Active:    true,
-		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Token:     "secret123",
-		Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
-	}
+	mockResponse := `{"id": 123, "name": "Updated Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
 
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "PUT" {
+			t.Errorf("expected PUT method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123" {
+			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
+		}
+
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+
+		project, ok := body["project"].(map[string]interface{})
+		if !ok {
+			t.Fatal("expected project object in request body")
+		}
+
+		if project["name"] != "Updated Project" {
+			t.Errorf("expected project name 'Updated Project', got %v", project["name"])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"id": "123",
 		"updates": map[string]interface{}{
 			"name": "Updated Project",
+		},
 	}
 
 	result, err := handleUpdateProject(context.Background(), client, args)
@@ -337,9 +388,9 @@ func TestHandleUpdateProject(t *testing.T) {
 }
 
 func TestHandleUpdateProject_MissingUpdates(t *testing.T) {
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly},
-	}
+	client := hbapi.NewClient().
+		WithBaseURL("https://api.example.com").
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"id": "123",
@@ -360,9 +411,9 @@ func TestHandleUpdateProject_MissingUpdates(t *testing.T) {
 }
 
 func TestHandleUpdateProject_EmptyUpdates(t *testing.T) {
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly},
-	}
+	client := hbapi.NewClient().
+		WithBaseURL("https://api.example.com").
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"id":      "123",
@@ -384,9 +435,20 @@ func TestHandleUpdateProject_EmptyUpdates(t *testing.T) {
 }
 
 func TestHandleDeleteProject(t *testing.T) {
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly},
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "DELETE" {
+			t.Errorf("expected DELETE method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123" {
+			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"id": "123",
@@ -418,9 +480,15 @@ func TestHandleDeleteProject(t *testing.T) {
 }
 
 func TestHandleDeleteProject_Error(t *testing.T) {
-	client := &mockAPIClient{
-		projectsService: hbapi.NewClient("https://api.example.com", "test-token").Projects, // TODO: Mock properly
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Project not found"}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"id": "nonexistent",
@@ -472,6 +540,7 @@ func TestValidateStringParam(t *testing.T) {
 			args:      map[string]interface{}{"test": 123},
 			paramName: "test",
 			wantError: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -523,6 +592,7 @@ func TestValidateObjectParam(t *testing.T) {
 			args:      map[string]interface{}{"test": "string"},
 			paramName: "test",
 			wantError: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -568,4 +638,3 @@ func TestSanitizeProject(t *testing.T) {
 		t.Error("owner fields should remain")
 	}
 }
-
