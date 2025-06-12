@@ -11,8 +11,8 @@ import (
 func TestListProjects(t *testing.T) {
 	mockProjects := `{
 		"results": [
-			{"id": "1", "name": "Project 1", "api_key": "abc123"},
-			{"id": "2", "name": "Project 2", "api_key": "def456"}
+			{"id": 1, "name": "Project 1", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "abc123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []},
+			{"id": 2, "name": "Project 2", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "def456", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 2, "email": "user2@example.com", "name": "User 2"}, "sites": [], "teams": [], "users": []}
 		]
 	}`
 
@@ -51,8 +51,8 @@ func TestListProjects(t *testing.T) {
 		t.Errorf("expected 2 projects, got %d", len(projects))
 	}
 
-	if projects[0]["name"] != "Project 1" {
-		t.Errorf("expected first project name 'Project 1', got %v", projects[0]["name"])
+	if projects[0].Name != "Project 1" {
+		t.Errorf("expected first project name 'Project 1', got %v", projects[0].Name)
 	}
 }
 
@@ -82,8 +82,8 @@ func TestListProjects_Error(t *testing.T) {
 func TestListProjects_WithAccountID(t *testing.T) {
 	mockProjects := `{
 		"results": [
-			{"id": "1", "name": "Project 1", "api_key": "abc123"},
-			{"id": "2", "name": "Project 2", "api_key": "def456"}
+			{"id": 1, "name": "Project 1", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "abc123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []},
+			{"id": 2, "name": "Project 2", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "def456", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 2, "email": "user2@example.com", "name": "User 2"}, "sites": [], "teams": [], "users": []}
 		]
 	}`
 
@@ -123,14 +123,14 @@ func TestListProjects_WithAccountID(t *testing.T) {
 		t.Errorf("expected 2 projects, got %d", len(projects))
 	}
 
-	if projects[0]["name"] != "Project 1" {
-		t.Errorf("expected first project name 'Project 1', got %v", projects[0]["name"])
+	if projects[0].Name != "Project 1" {
+		t.Errorf("expected first project name 'Project 1', got %v", projects[0].Name)
 	}
 }
 
 
 func TestGetProject(t *testing.T) {
-	mockProject := `{"id": "123", "name": "Test Project", "api_key": "abc123"}`
+	mockProject := `{"id": 123, "name": "Test Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "abc123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -152,12 +152,12 @@ func TestGetProject(t *testing.T) {
 		t.Fatalf("GetProject() error = %v", err)
 	}
 
-	if project["id"] != "123" {
-		t.Errorf("expected project id '123', got %v", project["id"])
+	if project.ID != 123 {
+		t.Errorf("expected project id 123, got %v", project.ID)
 	}
 
-	if project["name"] != "Test Project" {
-		t.Errorf("expected project name 'Test Project', got %v", project["name"])
+	if project.Name != "Test Project" {
+		t.Errorf("expected project name 'Test Project', got %v", project.Name)
 	}
 }
 
@@ -197,7 +197,7 @@ func TestGetProject_NotFound(t *testing.T) {
 }
 
 func TestCreateProject(t *testing.T) {
-	mockProject := `{"id": "456", "name": "New Project", "api_key": "xyz789"}`
+	mockProject := `{"id": 456, "name": "New Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "xyz789", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
@@ -233,8 +233,8 @@ func TestCreateProject(t *testing.T) {
 		t.Fatalf("CreateProject() error = %v", err)
 	}
 
-	if project["name"] != "New Project" {
-		t.Errorf("expected project name 'New Project', got %v", project["name"])
+	if project.Name != "New Project" {
+		t.Errorf("expected project name 'New Project', got %v", project.Name)
 	}
 }
 
@@ -274,7 +274,7 @@ func TestCreateProject_ValidationError(t *testing.T) {
 }
 
 func TestUpdateProject(t *testing.T) {
-	mockProject := `{"id": "123", "name": "Updated Project", "api_key": "abc123"}`
+	mockProject := `{"id": 123, "name": "Updated Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "abc123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "PUT" {
@@ -314,8 +314,8 @@ func TestUpdateProject(t *testing.T) {
 		t.Fatalf("UpdateProject() error = %v", err)
 	}
 
-	if project["name"] != "Updated Project" {
-		t.Errorf("expected project name 'Updated Project', got %v", project["name"])
+	if project.Name != "Updated Project" {
+		t.Errorf("expected project name 'Updated Project', got %v", project.Name)
 	}
 }
 

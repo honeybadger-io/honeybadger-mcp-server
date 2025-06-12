@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbapi"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -25,30 +26,30 @@ func getResultText(result *mcp.CallToolResult) string {
 
 // Mock API client for testing
 type mockAPIClient struct {
-	listProjectsResult []map[string]interface{}
+	listProjectsResult []hbapi.Project
 	listProjectsError  error
-	getProjectResult   map[string]interface{}
+	getProjectResult   *hbapi.Project
 	getProjectError    error
-	createProjectResult map[string]interface{}
+	createProjectResult *hbapi.Project
 	createProjectError  error
-	updateProjectResult map[string]interface{}
+	updateProjectResult *hbapi.Project
 	updateProjectError  error
 	deleteProjectError  error
 }
 
-func (m *mockAPIClient) ListProjects(accountID string) ([]map[string]interface{}, error) {
+func (m *mockAPIClient) ListProjects(accountID string) ([]hbapi.Project, error) {
 	return m.listProjectsResult, m.listProjectsError
 }
 
-func (m *mockAPIClient) GetProject(id string) (map[string]interface{}, error) {
+func (m *mockAPIClient) GetProject(id string) (*hbapi.Project, error) {
 	return m.getProjectResult, m.getProjectError
 }
 
-func (m *mockAPIClient) CreateProject(name string) (map[string]interface{}, error) {
+func (m *mockAPIClient) CreateProject(name string) (*hbapi.Project, error) {
 	return m.createProjectResult, m.createProjectError
 }
 
-func (m *mockAPIClient) UpdateProject(id string, updates map[string]interface{}) (map[string]interface{}, error) {
+func (m *mockAPIClient) UpdateProject(id string, updates map[string]interface{}) (*hbapi.Project, error) {
 	return m.updateProjectResult, m.updateProjectError
 }
 
@@ -57,9 +58,23 @@ func (m *mockAPIClient) DeleteProject(id string) error {
 }
 
 func TestHandleListProjects(t *testing.T) {
-	mockProjects := []map[string]interface{}{
-		{"id": "1", "name": "Project 1", "token": "secret123"},
-		{"id": "2", "name": "Project 2", "token": "secret456"},
+	mockProjects := []hbapi.Project{
+		{
+			ID:        1,
+			Name:      "Project 1",
+			Active:    true,
+			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Token:     "secret123",
+			Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
+		},
+		{
+			ID:        2,
+			Name:      "Project 2",
+			Active:    true,
+			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Token:     "secret456",
+			Owner:     hbapi.User{ID: 2, Email: "user2@example.com", Name: "User 2"},
+		},
 	}
 
 	client := &mockAPIClient{
@@ -108,9 +123,23 @@ func TestHandleListProjects_Error(t *testing.T) {
 }
 
 func TestHandleListProjects_WithAccountID(t *testing.T) {
-	mockProjects := []map[string]interface{}{
-		{"id": "1", "name": "Project 1", "token": "secret123"},
-		{"id": "2", "name": "Project 2", "token": "secret456"},
+	mockProjects := []hbapi.Project{
+		{
+			ID:        1,
+			Name:      "Project 1",
+			Active:    true,
+			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Token:     "secret123",
+			Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
+		},
+		{
+			ID:        2,
+			Name:      "Project 2",
+			Active:    true,
+			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Token:     "secret456",
+			Owner:     hbapi.User{ID: 2, Email: "user2@example.com", Name: "User 2"},
+		},
 	}
 
 	client := &mockAPIClient{
@@ -144,8 +173,13 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 }
 
 func TestHandleGetProject(t *testing.T) {
-	mockProject := map[string]interface{}{
-		"id": "123", "name": "Test Project", "token": "secret123",
+	mockProject := &hbapi.Project{
+		ID:        123,
+		Name:      "Test Project",
+		Active:    true,
+		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Token:     "secret123",
+		Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
 	}
 
 	client := &mockAPIClient{
@@ -217,8 +251,13 @@ func TestHandleGetProject_EmptyID(t *testing.T) {
 }
 
 func TestHandleCreateProject(t *testing.T) {
-	mockProject := map[string]interface{}{
-		"id": "456", "name": "New Project", "token": "secret789",
+	mockProject := &hbapi.Project{
+		ID:        456,
+		Name:      "New Project",
+		Active:    true,
+		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Token:     "secret789",
+		Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
 	}
 
 	client := &mockAPIClient{
@@ -273,8 +312,13 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 }
 
 func TestHandleUpdateProject(t *testing.T) {
-	mockProject := map[string]interface{}{
-		"id": "123", "name": "Updated Project", "token": "secret123",
+	mockProject := &hbapi.Project{
+		ID:        123,
+		Name:      "Updated Project",
+		Active:    true,
+		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Token:     "secret123",
+		Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
 	}
 
 	client := &mockAPIClient{
@@ -508,30 +552,32 @@ func TestValidateObjectParam(t *testing.T) {
 	}
 }
 
-func TestSanitizeProjectData(t *testing.T) {
-	project := map[string]interface{}{
-		"id":    "123",
-		"name":  "Test Project",
-		"token": "secret123",
-		"api_key": "keep_this",
+func TestSanitizeProject(t *testing.T) {
+	project := &hbapi.Project{
+		ID:        123,
+		Name:      "Test Project",
+		Active:    true,
+		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Token:     "secret123",
+		Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
 	}
 
-	sanitizeProjectData(project)
+	sanitizeProject(project)
 
 	// Check that token field is removed
-	if _, exists := project["token"]; exists {
-		t.Error("token field should be removed")
+	if project.Token != "" {
+		t.Error("token field should be cleared")
 	}
 
 	// Check that non-sensitive fields remain
-	if project["id"] != "123" {
+	if project.ID != 123 {
 		t.Error("project id should remain")
 	}
-	if project["name"] != "Test Project" {
+	if project.Name != "Test Project" {
 		t.Error("project name should remain")
 	}
-	if project["api_key"] != "keep_this" {
-		t.Error("api_key field should remain (only token is removed)")
+	if project.Owner.Email != "user@example.com" {
+		t.Error("owner fields should remain")
 	}
 }
 

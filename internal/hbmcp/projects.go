@@ -12,10 +12,10 @@ import (
 
 // APIClient interface for testing
 type APIClient interface {
-	ListProjects(accountID string) ([]map[string]interface{}, error)
-	GetProject(id string) (map[string]interface{}, error)
-	CreateProject(name string) (map[string]interface{}, error)
-	UpdateProject(id string, updates map[string]interface{}) (map[string]interface{}, error)
+	ListProjects(accountID string) ([]hbapi.Project, error)
+	GetProject(id string) (*hbapi.Project, error)
+	CreateProject(name string) (*hbapi.Project, error)
+	UpdateProject(id string, updates map[string]interface{}) (*hbapi.Project, error)
 	DeleteProject(id string) error
 }
 
@@ -107,8 +107,8 @@ func handleListProjects(client APIClient, args map[string]interface{}) (*mcp.Cal
 	}
 
 	// Sanitize the response to remove API tokens
-	for _, project := range projects {
-		sanitizeProjectData(project)
+	for i := range projects {
+		sanitizeProject(&projects[i])
 	}
 
 	// Return JSON response
@@ -132,7 +132,7 @@ func handleGetProject(client APIClient, args map[string]interface{}) (*mcp.CallT
 	}
 
 	// Sanitize the response to remove API tokens
-	sanitizeProjectData(project)
+	sanitizeProject(project)
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(project)
@@ -155,7 +155,7 @@ func handleCreateProject(client APIClient, args map[string]interface{}) (*mcp.Ca
 	}
 
 	// Sanitize the response to remove API tokens
-	sanitizeProjectData(project)
+	sanitizeProject(project)
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(project)
@@ -183,7 +183,7 @@ func handleUpdateProject(client APIClient, args map[string]interface{}) (*mcp.Ca
 	}
 
 	// Sanitize the response to remove API tokens
-	sanitizeProjectData(project)
+	sanitizeProject(project)
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(project)
@@ -256,9 +256,9 @@ func validateObjectParam(args map[string]interface{}, paramName string) (map[str
 	return obj, nil
 }
 
-// Sanitization function to remove sensitive data like API tokens
+// Sanitization functions to remove sensitive data like API tokens
 
-func sanitizeProjectData(project map[string]interface{}) {
+func sanitizeProject(project *hbapi.Project) {
 	// Remove token field
-	delete(project, "token")
+	project.Token = ""
 }
