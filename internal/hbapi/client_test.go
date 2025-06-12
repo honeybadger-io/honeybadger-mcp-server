@@ -1,6 +1,7 @@
 package hbapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -61,7 +62,7 @@ func TestNewRequest(t *testing.T) {
 	
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := client.newRequest(tt.method, tt.path, tt.body)
+			req, err := client.newRequest(context.Background(), tt.method, tt.path, tt.body)
 			if err != nil {
 				t.Fatalf("newRequest() error = %v", err)
 			}
@@ -117,13 +118,13 @@ func TestDo_Success(t *testing.T) {
 	defer server.Close()
 	
 	client := NewClient(server.URL, "test-token")
-	req, err := client.newRequest("GET", "/projects/123", nil)
+	req, err := client.newRequest(context.Background(), "GET", "/projects/123", nil)
 	if err != nil {
 		t.Fatalf("newRequest() error = %v", err)
 	}
 	
 	var result map[string]string
-	err = client.do(req, &result)
+	err = client.do(context.Background(), req, &result)
 	if err != nil {
 		t.Fatalf("do() error = %v", err)
 	}
@@ -186,12 +187,12 @@ func TestDo_ErrorHandling(t *testing.T) {
 			defer server.Close()
 			
 			client := NewClient(server.URL, "test-token")
-			req, err := client.newRequest("GET", "/test", nil)
+			req, err := client.newRequest(context.Background(), "GET", "/test", nil)
 			if err != nil {
 				t.Fatalf("newRequest() error = %v", err)
 			}
 			
-			err = client.do(req, nil)
+			err = client.do(context.Background(), req, nil)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -222,12 +223,12 @@ func TestDo_Timeout(t *testing.T) {
 	client := NewClient(server.URL, "test-token")
 	client.httpClient.Timeout = 50 * time.Millisecond
 	
-	req, err := client.newRequest("GET", "/test", nil)
+	req, err := client.newRequest(context.Background(), "GET", "/test", nil)
 	if err != nil {
 		t.Fatalf("newRequest() error = %v", err)
 	}
 	
-	err = client.do(req, nil)
+	err = client.do(context.Background(), req, nil)
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
@@ -242,7 +243,7 @@ func TestNewRequest_InvalidBody(t *testing.T) {
 	
 	invalidBody := make(chan int)
 	
-	_, err := client.newRequest("POST", "/test", invalidBody)
+	_, err := client.newRequest(context.Background(), "POST", "/test", invalidBody)
 	if err == nil {
 		t.Fatal("expected error for invalid body, got nil")
 	}

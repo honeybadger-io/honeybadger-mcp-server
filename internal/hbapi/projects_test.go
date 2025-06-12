@@ -1,6 +1,7 @@
 package hbapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +43,7 @@ func TestListProjects(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	projects, err := client.ListProjects("")
+	projects, err := client.ListProjects(context.Background(), "")
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}
@@ -64,7 +65,7 @@ func TestListProjects_Error(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "invalid-token")
-	_, err := client.ListProjects("")
+	_, err := client.ListProjects(context.Background(), "")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -114,7 +115,7 @@ func TestListProjects_WithAccountID(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	projects, err := client.ListProjects("12345")
+	projects, err := client.ListProjects(context.Background(), "12345")
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}
@@ -147,7 +148,7 @@ func TestGetProject(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	project, err := client.GetProject("123")
+	project, err := client.GetProject(context.Background(), "123")
 	if err != nil {
 		t.Fatalf("GetProject() error = %v", err)
 	}
@@ -163,7 +164,7 @@ func TestGetProject(t *testing.T) {
 
 func TestGetProject_EmptyID(t *testing.T) {
 	client := NewClient("https://api.example.com", "test-token")
-	_, err := client.GetProject("")
+	_, err := client.GetProject(context.Background(), "")
 	if err == nil {
 		t.Fatal("expected error for empty ID, got nil")
 	}
@@ -181,7 +182,7 @@ func TestGetProject_NotFound(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	_, err := client.GetProject("nonexistent")
+	_, err := client.GetProject(context.Background(), "nonexistent")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -228,7 +229,7 @@ func TestCreateProject(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	project, err := client.CreateProject("New Project")
+	project, err := client.CreateProject(context.Background(), "New Project")
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
 	}
@@ -240,7 +241,7 @@ func TestCreateProject(t *testing.T) {
 
 func TestCreateProject_EmptyName(t *testing.T) {
 	client := NewClient("https://api.example.com", "test-token")
-	_, err := client.CreateProject("")
+	_, err := client.CreateProject(context.Background(), "")
 	if err == nil {
 		t.Fatal("expected error for empty name, got nil")
 	}
@@ -258,7 +259,7 @@ func TestCreateProject_ValidationError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	_, err := client.CreateProject("Duplicate Name")
+	_, err := client.CreateProject(context.Background(), "Duplicate Name")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -309,7 +310,7 @@ func TestUpdateProject(t *testing.T) {
 		"name": "Updated Project",
 	}
 
-	project, err := client.UpdateProject("123", updates)
+	project, err := client.UpdateProject(context.Background(), "123", updates)
 	if err != nil {
 		t.Fatalf("UpdateProject() error = %v", err)
 	}
@@ -322,7 +323,7 @@ func TestUpdateProject(t *testing.T) {
 func TestUpdateProject_EmptyID(t *testing.T) {
 	client := NewClient("https://api.example.com", "test-token")
 	updates := map[string]interface{}{"name": "Test"}
-	_, err := client.UpdateProject("", updates)
+	_, err := client.UpdateProject(context.Background(), "", updates)
 	if err == nil {
 		t.Fatal("expected error for empty ID, got nil")
 	}
@@ -345,7 +346,7 @@ func TestUpdateProject_EmptyUpdates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.UpdateProject("123", tt.updates)
+			_, err := client.UpdateProject(context.Background(), "123", tt.updates)
 			if err == nil {
 				t.Fatal("expected error for empty updates, got nil")
 			}
@@ -371,7 +372,7 @@ func TestDeleteProject(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	err := client.DeleteProject("123")
+	err := client.DeleteProject(context.Background(), "123")
 	if err != nil {
 		t.Fatalf("DeleteProject() error = %v", err)
 	}
@@ -379,7 +380,7 @@ func TestDeleteProject(t *testing.T) {
 
 func TestDeleteProject_EmptyID(t *testing.T) {
 	client := NewClient("https://api.example.com", "test-token")
-	err := client.DeleteProject("")
+	err := client.DeleteProject(context.Background(), "")
 	if err == nil {
 		t.Fatal("expected error for empty ID, got nil")
 	}
@@ -397,7 +398,7 @@ func TestDeleteProject_NotFound(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-token")
-	err := client.DeleteProject("nonexistent")
+	err := client.DeleteProject(context.Background(), "nonexistent")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

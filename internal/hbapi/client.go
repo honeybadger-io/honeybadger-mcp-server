@@ -2,6 +2,7 @@ package hbapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,7 +26,7 @@ func NewClient(baseURL, apiToken string) *Client {
 	}
 }
 
-func (c *Client) newRequest(method, path string, body interface{}) (*http.Request, error) {
+func (c *Client) newRequest(ctx context.Context, method, path string, body interface{}) (*http.Request, error) {
 	// Add /v2 prefix to all paths
 	url := fmt.Sprintf("%s/v2%s", c.baseURL, path)
 
@@ -38,7 +39,7 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 		buf = bytes.NewBuffer(jsonBody)
 	}
 
-	req, err := http.NewRequest(method, url, buf)
+	req, err := http.NewRequestWithContext(ctx, method, url, buf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -51,9 +52,13 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 	return req, nil
 }
 
-func (c *Client) do(req *http.Request, v interface{}) error {
+func (c *Client) do(ctx context.Context, req *http.Request, v interface{}) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		// Check if the error is due to context cancellation
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()

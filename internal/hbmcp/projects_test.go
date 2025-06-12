@@ -1,6 +1,7 @@
 package hbmcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -37,23 +38,23 @@ type mockAPIClient struct {
 	deleteProjectError  error
 }
 
-func (m *mockAPIClient) ListProjects(accountID string) ([]hbapi.Project, error) {
+func (m *mockAPIClient) ListProjects(ctx context.Context, accountID string) ([]hbapi.Project, error) {
 	return m.listProjectsResult, m.listProjectsError
 }
 
-func (m *mockAPIClient) GetProject(id string) (*hbapi.Project, error) {
+func (m *mockAPIClient) GetProject(ctx context.Context, id string) (*hbapi.Project, error) {
 	return m.getProjectResult, m.getProjectError
 }
 
-func (m *mockAPIClient) CreateProject(name string) (*hbapi.Project, error) {
+func (m *mockAPIClient) CreateProject(ctx context.Context, name string) (*hbapi.Project, error) {
 	return m.createProjectResult, m.createProjectError
 }
 
-func (m *mockAPIClient) UpdateProject(id string, updates map[string]interface{}) (*hbapi.Project, error) {
+func (m *mockAPIClient) UpdateProject(ctx context.Context, id string, updates map[string]interface{}) (*hbapi.Project, error) {
 	return m.updateProjectResult, m.updateProjectError
 }
 
-func (m *mockAPIClient) DeleteProject(id string) error {
+func (m *mockAPIClient) DeleteProject(ctx context.Context, id string) error {
 	return m.deleteProjectError
 }
 
@@ -81,7 +82,7 @@ func TestHandleListProjects(t *testing.T) {
 		listProjectsResult: mockProjects,
 	}
 
-	result, err := handleListProjects(client, map[string]interface{}{})
+	result, err := handleListProjects(context.Background(), client, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
@@ -107,7 +108,7 @@ func TestHandleListProjects_Error(t *testing.T) {
 		listProjectsError: &hbapi.APIError{StatusCode: 401, Message: "Unauthorized"},
 	}
 
-	result, err := handleListProjects(client, map[string]interface{}{})
+	result, err := handleListProjects(context.Background(), client, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
@@ -151,7 +152,7 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 		"account_id": "12345",
 	}
 
-	result, err := handleListProjects(client, args)
+	result, err := handleListProjects(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
@@ -190,7 +191,7 @@ func TestHandleGetProject(t *testing.T) {
 		"id": "123",
 	}
 
-	result, err := handleGetProject(client, args)
+	result, err := handleGetProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
@@ -215,7 +216,7 @@ func TestHandleGetProject_MissingID(t *testing.T) {
 
 	args := map[string]interface{}{}
 
-	result, err := handleGetProject(client, args)
+	result, err := handleGetProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
@@ -236,7 +237,7 @@ func TestHandleGetProject_EmptyID(t *testing.T) {
 		"id": "",
 	}
 
-	result, err := handleGetProject(client, args)
+	result, err := handleGetProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
@@ -268,7 +269,7 @@ func TestHandleCreateProject(t *testing.T) {
 		"name": "New Project",
 	}
 
-	result, err := handleCreateProject(client, args)
+	result, err := handleCreateProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleCreateProject() error = %v", err)
 	}
@@ -297,7 +298,7 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 		"name": "Duplicate Name",
 	}
 
-	result, err := handleCreateProject(client, args)
+	result, err := handleCreateProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleCreateProject() error = %v", err)
 	}
@@ -332,7 +333,7 @@ func TestHandleUpdateProject(t *testing.T) {
 		},
 	}
 
-	result, err := handleUpdateProject(client, args)
+	result, err := handleUpdateProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
@@ -359,7 +360,7 @@ func TestHandleUpdateProject_MissingUpdates(t *testing.T) {
 		"id": "123",
 	}
 
-	result, err := handleUpdateProject(client, args)
+	result, err := handleUpdateProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
@@ -381,7 +382,7 @@ func TestHandleUpdateProject_EmptyUpdates(t *testing.T) {
 		"updates": map[string]interface{}{},
 	}
 
-	result, err := handleUpdateProject(client, args)
+	result, err := handleUpdateProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
@@ -402,7 +403,7 @@ func TestHandleDeleteProject(t *testing.T) {
 		"id": "123",
 	}
 
-	result, err := handleDeleteProject(client, args)
+	result, err := handleDeleteProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}
@@ -436,7 +437,7 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 		"id": "nonexistent",
 	}
 
-	result, err := handleDeleteProject(client, args)
+	result, err := handleDeleteProject(context.Background(), client, args)
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}

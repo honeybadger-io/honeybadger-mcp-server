@@ -12,11 +12,11 @@ import (
 
 // APIClient interface for testing
 type APIClient interface {
-	ListProjects(accountID string) ([]hbapi.Project, error)
-	GetProject(id string) (*hbapi.Project, error)
-	CreateProject(name string) (*hbapi.Project, error)
-	UpdateProject(id string, updates map[string]interface{}) (*hbapi.Project, error)
-	DeleteProject(id string) error
+	ListProjects(ctx context.Context, accountID string) ([]hbapi.Project, error)
+	GetProject(ctx context.Context, id string) (*hbapi.Project, error)
+	CreateProject(ctx context.Context, name string) (*hbapi.Project, error)
+	UpdateProject(ctx context.Context, id string, updates map[string]interface{}) (*hbapi.Project, error)
+	DeleteProject(ctx context.Context, id string) error
 }
 
 // RegisterProjectTools registers all project-related MCP tools
@@ -31,7 +31,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			if !ok {
 				args = make(map[string]interface{})
 			}
-			return handleListProjects(client, args)
+			return handleListProjects(ctx, client, args)
 		},
 	)
 
@@ -45,7 +45,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			if !ok {
 				return mcp.NewToolResultError("Invalid arguments"), nil
 			}
-			return handleGetProject(client, args)
+			return handleGetProject(ctx, client, args)
 		},
 	)
 
@@ -59,7 +59,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			if !ok {
 				return mcp.NewToolResultError("Invalid arguments"), nil
 			}
-			return handleCreateProject(client, args)
+			return handleCreateProject(ctx, client, args)
 		},
 	)
 
@@ -73,7 +73,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			if !ok {
 				return mcp.NewToolResultError("Invalid arguments"), nil
 			}
-			return handleUpdateProject(client, args)
+			return handleUpdateProject(ctx, client, args)
 		},
 	)
 
@@ -87,12 +87,12 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			if !ok {
 				return mcp.NewToolResultError("Invalid arguments"), nil
 			}
-			return handleDeleteProject(client, args)
+			return handleDeleteProject(ctx, client, args)
 		},
 	)
 }
 
-func handleListProjects(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleListProjects(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	// Extract account_id parameter (optional)
 	accountID := ""
 	if value, exists := args["account_id"]; exists {
@@ -101,7 +101,7 @@ func handleListProjects(client APIClient, args map[string]interface{}) (*mcp.Cal
 		}
 	}
 
-	projects, err := client.ListProjects(accountID)
+	projects, err := client.ListProjects(ctx, accountID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
@@ -120,13 +120,13 @@ func handleListProjects(client APIClient, args map[string]interface{}) (*mcp.Cal
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProject(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleGetProject(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	id, err := validateStringParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.GetProject(id)
+	project, err := client.GetProject(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
@@ -143,13 +143,13 @@ func handleGetProject(client APIClient, args map[string]interface{}) (*mcp.CallT
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleCreateProject(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleCreateProject(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	name, err := validateStringParam(args, "name")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.CreateProject(name)
+	project, err := client.CreateProject(ctx, name)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
@@ -166,7 +166,7 @@ func handleCreateProject(client APIClient, args map[string]interface{}) (*mcp.Ca
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateProject(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleUpdateProject(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	id, err := validateStringParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -177,7 +177,7 @@ func handleUpdateProject(client APIClient, args map[string]interface{}) (*mcp.Ca
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.UpdateProject(id, updates)
+	project, err := client.UpdateProject(ctx, id, updates)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
@@ -194,13 +194,13 @@ func handleUpdateProject(client APIClient, args map[string]interface{}) (*mcp.Ca
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleDeleteProject(client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleDeleteProject(ctx context.Context, client APIClient, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	id, err := validateStringParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	err = client.DeleteProject(id)
+	err = client.DeleteProject(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project: %v", err)), nil
 	}
