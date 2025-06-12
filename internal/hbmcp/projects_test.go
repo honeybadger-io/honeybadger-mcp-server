@@ -83,6 +83,7 @@ func TestHandleListProjects_Error(t *testing.T) {
 	client := hbapi.NewClient().
 		WithBaseURL(server.URL).
 		WithAuthToken("invalid-token")
+
 	result, err := handleListProjects(context.Background(), client, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)

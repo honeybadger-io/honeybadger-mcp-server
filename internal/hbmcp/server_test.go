@@ -8,9 +8,9 @@ import (
 
 func TestNewServer(t *testing.T) {
 	cfg := &config.Config{
-		APIToken: "test-token",
-		APIURL:   "https://api.honeybadger.io/v2",
-		LogLevel: "info",
+		AuthToken: "test-token",
+		APIURL:    "https://api.honeybadger.io/v2",
+		LogLevel:  "info",
 	}
 
 	server := NewServer(cfg)

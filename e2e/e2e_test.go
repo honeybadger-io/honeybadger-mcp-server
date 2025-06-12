@@ -151,10 +151,10 @@ func TestPingToolMultipleCalls(t *testing.T) {
 		content := resultMap["content"].([]interface{})
 		contentItem := content[0].(map[string]interface{})
 		text := contentItem["text"].(string)
-		
+
 		var pingResponse map[string]interface{}
 		json.Unmarshal([]byte(text), &pingResponse)
-		
+
 		timestamp := pingResponse["timestamp"].(string)
 		timestamps = append(timestamps, timestamp)
 
@@ -219,14 +219,14 @@ func TestMalformedMessage(t *testing.T) {
 func TestServerWithoutToken(t *testing.T) {
 	// Try to start server without token by overriding the command
 	cmd := exec.Command("go", "run", "../cmd/honeybadger-mcp-server/main.go", "stdio")
-	
+
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		t.Fatal("Expected server to fail without API token")
 	}
 
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "api-token is required") {
-		t.Errorf("Expected error about missing api-token, got: %s", outputStr)
+	if !strings.Contains(outputStr, "auth-token is required") {
+		t.Errorf("Expected error about missing auth-token, got: %s", outputStr)
 	}
 }

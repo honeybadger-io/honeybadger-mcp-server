@@ -2,51 +2,51 @@ name: Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
-        go-version: ['1.24']
-    
+        go-version: ["1.24"]
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go-version }}
-    
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-    
-    - name: Run go mod tidy
-      run: go mod tidy
-    
-    - name: Check if go.mod is tidy
-      run: |
-        if [[ -n $(git status -s) ]]; then
-          echo "go mod tidy resulted in changes:"
-          git status -s
-          exit 1
-        fi
-    
-    - name: Run go vet
-      run: go vet ./...
-    
-    - name: Run tests
-      run: go test -v ./...
-      env:
-        HONEYBADGER_PERSONAL_API_TOKEN: test_token
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run go mod tidy
+        run: go mod tidy
+
+      - name: Check if go.mod is tidy
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            echo "go mod tidy resulted in changes:"
+            git status -s
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test -v ./...
+        env:
+          HONEYBADGER_PERSONAL_AUTH_TOKEN: test_token

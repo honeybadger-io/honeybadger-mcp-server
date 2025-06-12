@@ -48,8 +48,8 @@ func StartTestServer(t *testing.T, apiToken string) (*MCPTestServer, error) {
 	}
 
 	// Start the server
-	cmd := exec.Command("../honeybadger-mcp-server-test", "stdio", "--api-token", apiToken)
-	
+	cmd := exec.Command("../honeybadger-mcp-server-test", "stdio", "--auth-token", apiToken)
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
@@ -215,7 +215,7 @@ func (s *MCPTestServer) Stop() {
 		s.cmd.Process.Kill()
 		s.cmd.Wait()
 	}
-	
+
 	// Clean up the test binary
 	os.Remove("../honeybadger-mcp-server-test")
 }

@@ -7,25 +7,25 @@ import (
 
 // Config holds the application configuration
 type Config struct {
-	APIToken string
-	APIURL   string
-	LogLevel string
+	AuthToken string
+	APIURL    string
+	LogLevel  string
 }
 
 // Validate checks that all required configuration values are present
 func (c *Config) Validate() error {
-	if c.APIToken == "" {
-		return errors.New("api-token is required")
+	if c.AuthToken == "" {
+		return errors.New("auth-token is required")
 	}
 	return nil
 }
 
 // Load returns a validated configuration
-func Load(apiToken, apiURL, logLevel string) (*Config, error) {
+func Load(authToken, apiURL, logLevel string) (*Config, error) {
 	cfg := &Config{
-		APIToken: apiToken,
-		APIURL:   apiURL,
-		LogLevel: logLevel,
+		AuthToken: authToken,
+		APIURL:    apiURL,
+		LogLevel:  logLevel,
 	}
 
 	if err := cfg.Validate(); err != nil {

@@ -13,25 +13,25 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid config",
 			config: Config{
-				APIToken: "test-token",
-				APIURL:   "https://api.honeybadger.io/v2",
-				LogLevel: "info",
+				AuthToken: "test-token",
+				APIURL:    "https://api.honeybadger.io/v2",
+				LogLevel:  "info",
 			},
 			wantErr: false,
 		},
 		{
 			name: "missing api token",
 			config: Config{
-				APIToken: "",
-				APIURL:   "https://api.honeybadger.io/v2",
-				LogLevel: "info",
+				AuthToken: "",
+				APIURL:    "https://api.honeybadger.io/v2",
+				LogLevel:  "info",
 			},
 			wantErr: true,
 		},
 		{
 			name: "minimal valid config",
 			config: Config{
-				APIToken: "token",
+				AuthToken: "token",
 			},
 			wantErr: false,
 		},
@@ -49,45 +49,45 @@ func TestConfig_Validate(t *testing.T) {
 
 func TestLoad(t *testing.T) {
 	tests := []struct {
-		name     string
-		apiToken string
-		apiURL   string
-		logLevel string
-		wantErr  bool
+		name      string
+		authToken string
+		apiURL    string
+		logLevel  string
+		wantErr   bool
 	}{
 		{
-			name:     "valid configuration",
-			apiToken: "test-token",
-			apiURL:   "https://api.honeybadger.io/v2",
-			logLevel: "info",
-			wantErr:  false,
+			name:      "valid configuration",
+			authToken: "test-token",
+			apiURL:    "https://api.honeybadger.io/v2",
+			logLevel:  "info",
+			wantErr:   false,
 		},
 		{
-			name:     "missing api token",
-			apiToken: "",
-			apiURL:   "https://api.honeybadger.io/v2",
-			logLevel: "info",
-			wantErr:  true,
+			name:      "missing api token",
+			authToken: "",
+			apiURL:    "https://api.honeybadger.io/v2",
+			logLevel:  "info",
+			wantErr:   true,
 		},
 		{
-			name:     "empty url and log level",
-			apiToken: "test-token",
-			apiURL:   "",
-			logLevel: "",
-			wantErr:  false,
+			name:      "empty url and log level",
+			authToken: "test-token",
+			apiURL:    "",
+			logLevel:  "",
+			wantErr:   false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := Load(tt.apiToken, tt.apiURL, tt.logLevel)
+			cfg, err := Load(tt.authToken, tt.apiURL, tt.logLevel)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			if !tt.wantErr && cfg != nil {
-				if cfg.APIToken != tt.apiToken {
-					t.Errorf("Load() APIToken = %v, want %v", cfg.APIToken, tt.apiToken)
+				if cfg.AuthToken != tt.authToken {
+					t.Errorf("Load() AuthToken = %v, want %v", cfg.AuthToken, tt.authToken)
 				}
 				if cfg.APIURL != tt.apiURL {
 					t.Errorf("Load() APIURL = %v, want %v", cfg.APIURL, tt.apiURL)
