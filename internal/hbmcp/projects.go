@@ -270,14 +270,9 @@ func handleDeleteProject(ctx context.Context, client *hbapi.Client, args map[str
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	err = client.Projects.Delete(ctx, id)
+	result, err := client.Projects.Delete(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project: %v", err)), nil
-	}
-
-	result := map[string]interface{}{
-		"success": true,
-		"message": fmt.Sprintf("Project %d deleted successfully", id),
 	}
 
 	// Return JSON response

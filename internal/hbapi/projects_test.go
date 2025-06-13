@@ -594,9 +594,18 @@ func TestDeleteProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	err := client.Projects.Delete(context.Background(), 123)
+	result, err := client.Projects.Delete(context.Background(), 123)
 	if err != nil {
 		t.Fatalf("DeleteProject() error = %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("expected success to be true, got %v", result.Success)
+	}
+
+	expectedMessage := "Project 123 deleted successfully"
+	if result.Message != expectedMessage {
+		t.Errorf("expected message '%s', got '%s'", expectedMessage, result.Message)
 	}
 }
 
@@ -611,9 +620,13 @@ func TestDeleteProject_NotFound(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	err := client.Projects.Delete(context.Background(), 999)
+	result, err := client.Projects.Delete(context.Background(), 999)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+
+	if result != nil {
+		t.Errorf("expected nil result on error, got %v", result)
 	}
 
 	apiErr, ok := err.(*APIError)

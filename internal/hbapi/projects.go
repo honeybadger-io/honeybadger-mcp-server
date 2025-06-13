@@ -126,14 +126,27 @@ func (p *ProjectsService) Update(ctx context.Context, id int, req ProjectRequest
 	}, nil
 }
 
+// DeleteResult represents the result of a delete operation
+type DeleteResult struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
 // Delete deletes a project by ID
-func (p *ProjectsService) Delete(ctx context.Context, id int) error {
+func (p *ProjectsService) Delete(ctx context.Context, id int) (*DeleteResult, error) {
 
 	path := fmt.Sprintf("/projects/%d", id)
 	req, err := p.client.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return p.client.do(ctx, req, nil)
+	if err := p.client.do(ctx, req, nil); err != nil {
+		return nil, err
+	}
+
+	return &DeleteResult{
+		Success: true,
+		Message: fmt.Sprintf("Project %d deleted successfully", id),
+	}, nil
 }
