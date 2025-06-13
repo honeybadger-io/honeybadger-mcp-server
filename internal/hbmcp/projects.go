@@ -85,14 +85,19 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 
 func handleListProjects(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	// Extract account_id parameter (optional)
-	var accountID int
+	var projects []hbapi.Project
+	var err error
+
 	if value, exists := args["account_id"]; exists {
-		if num, ok := value.(int); ok {
-			accountID = num
+		if accountID, ok := value.(int); ok {
+			projects, err = client.Projects.ListByAccountID(ctx, accountID)
+		} else {
+			return mcp.NewToolResultError("account_id must be an integer"), nil
 		}
+	} else {
+		projects, err = client.Projects.ListAll(ctx)
 	}
 
-	projects, err := client.Projects.List(ctx, accountID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}

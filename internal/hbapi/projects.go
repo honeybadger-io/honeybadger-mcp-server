@@ -10,12 +10,24 @@ type ProjectsService struct {
 	client *Client
 }
 
-// List returns all projects, optionally filtered by account_id
-func (p *ProjectsService) List(ctx context.Context, accountID int) ([]Project, error) {
-	path := "/projects"
-	if accountID != 0 {
-		path = fmt.Sprintf("/projects?account_id=%d", accountID)
+// ListAll returns all projects
+func (p *ProjectsService) ListAll(ctx context.Context) ([]Project, error) {
+	req, err := p.client.newRequest(ctx, "GET", "/projects", nil)
+	if err != nil {
+		return nil, err
 	}
+
+	var response ProjectsResponse
+	if err := p.client.do(ctx, req, &response); err != nil {
+		return nil, err
+	}
+
+	return response.Results, nil
+}
+
+// ListByAccountID returns all projects filtered by account_id
+func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID int) ([]Project, error) {
+	path := fmt.Sprintf("/projects?account_id=%d", accountID)
 
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
 	if err != nil {
