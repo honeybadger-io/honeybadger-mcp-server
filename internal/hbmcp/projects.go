@@ -16,9 +16,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithDescription("List all Honeybadger projects"),
-			mcp.WithNumber("account_id",
+			mcp.WithString("account_id",
 				mcp.Description("Optional account ID to filter projects by specific account"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -157,10 +156,10 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, args map[stri
 	var err error
 
 	if value, exists := args["account_id"]; exists {
-		if accountID, ok := value.(int); ok {
+		if accountID, ok := value.(string); ok {
 			projects, err = client.Projects.ListByAccountID(ctx, accountID)
 		} else {
-			return mcp.NewToolResultError("account_id must be an integer"), nil
+			return mcp.NewToolResultError("account_id must be a string"), nil
 		}
 	} else {
 		projects, err = client.Projects.ListAll(ctx)

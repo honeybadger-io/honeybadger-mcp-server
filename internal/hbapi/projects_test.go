@@ -98,7 +98,7 @@ func TestListProjects_WithAccountID(t *testing.T) {
 		if r.Method != "GET" {
 			t.Errorf("expected GET method, got %s", r.Method)
 		}
-		expectedPath := "/v2/projects?account_id=12345"
+		expectedPath := "/v2/projects?account_id=K7xmQqN"
 		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
 			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
 		}
@@ -124,7 +124,7 @@ func TestListProjects_WithAccountID(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	projects, err := client.Projects.ListByAccountID(context.Background(), 12345)
+	projects, err := client.Projects.ListByAccountID(context.Background(), "K7xmQqN")
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}

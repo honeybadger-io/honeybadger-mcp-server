@@ -37,8 +37,8 @@ func (p *ProjectsService) ListAll(ctx context.Context) ([]Project, error) {
 }
 
 // ListByAccountID returns all projects filtered by account_id
-func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID int) ([]Project, error) {
-	path := fmt.Sprintf("/projects?account_id=%d", accountID)
+func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID string) ([]Project, error) {
+	path := fmt.Sprintf("/projects?account_id=%s", accountID)
 
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
 	if err != nil {
