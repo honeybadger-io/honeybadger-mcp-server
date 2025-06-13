@@ -70,7 +70,11 @@ func (p *ProjectsService) Get(ctx context.Context, id int) (*Project, error) {
 }
 
 // Create creates a new project with the given parameters
-func (p *ProjectsService) Create(ctx context.Context, req ProjectRequest) (*Project, error) {
+func (p *ProjectsService) Create(ctx context.Context, accountID string, req ProjectRequest) (*Project, error) {
+	if accountID == "" {
+		return nil, fmt.Errorf("account ID cannot be empty")
+	}
+
 	if req.Name == "" {
 		return nil, fmt.Errorf("project name cannot be empty")
 	}
@@ -79,7 +83,8 @@ func (p *ProjectsService) Create(ctx context.Context, req ProjectRequest) (*Proj
 		"project": req,
 	}
 
-	httpReq, err := p.client.newRequest(ctx, "POST", "/projects", body)
+	path := fmt.Sprintf("/projects?account_id=%s", accountID)
+	httpReq, err := p.client.newRequest(ctx, "POST", path, body)
 	if err != nil {
 		return nil, err
 	}

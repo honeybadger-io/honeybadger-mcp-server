@@ -52,6 +52,11 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("create_project",
 			mcp.WithDescription("Create a new Honeybadger project"),
+			mcp.WithString("account_id",
+				mcp.Required(),
+				mcp.Description("The account ID to associate the project with"),
+				mcp.MinLength(1),
+			),
 			mcp.WithString("name",
 				mcp.Required(),
 				mcp.Description("The name of the new project"),
@@ -207,12 +212,17 @@ func handleGetProject(ctx context.Context, client *hbapi.Client, args map[string
 }
 
 func handleCreateProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
+	accountID, err := validateStringParam(args, "account_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	req, err := argsToProjectRequest(args, true)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.Projects.Create(ctx, req)
+	project, err := client.Projects.Create(ctx, accountID, req)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}

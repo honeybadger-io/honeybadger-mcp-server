@@ -274,7 +274,8 @@ func TestHandleCreateProject(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"name": "New Project",
+		"account_id": "K7xmQqN",
+		"name":       "New Project",
 	}
 
 	result, err := handleCreateProject(context.Background(), client, args)
@@ -299,6 +300,10 @@ func TestHandleCreateProject(t *testing.T) {
 
 func TestHandleCreateProject_ValidationError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedPath := "/v2/projects?account_id=K7xmQqN"
+		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
+			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
+		}
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		w.Write([]byte(`{"error": "Name has already been taken"}`))
 	}))
@@ -309,7 +314,8 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"name": "Duplicate Name",
+		"account_id": "K7xmQqN",
+		"name":       "Duplicate Name",
 	}
 
 	result, err := handleCreateProject(context.Background(), client, args)
@@ -323,6 +329,29 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 
 	if !strings.Contains(getResultText(result), "Failed to create project") {
 		t.Error("Error message should contain 'Failed to create project'")
+	}
+}
+
+func TestHandleCreateProject_MissingAccountID(t *testing.T) {
+	client := hbapi.NewClient().
+		WithBaseURL("https://api.example.com").
+		WithAuthToken("test-token")
+
+	args := map[string]interface{}{
+		"name": "Test Project",
+	}
+
+	result, err := handleCreateProject(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleCreateProject() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for missing account_id")
+	}
+
+	if !strings.Contains(getResultText(result), "required parameter 'account_id' is missing") {
+		t.Error("Error message should indicate missing account_id parameter")
 	}
 }
 

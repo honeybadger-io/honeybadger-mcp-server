@@ -206,8 +206,9 @@ func TestCreateProject(t *testing.T) {
 		if r.Method != "POST" {
 			t.Errorf("expected POST method, got %s", r.Method)
 		}
-		if r.URL.Path != "/v2/projects" {
-			t.Errorf("expected path /v2/projects, got %s", r.URL.Path)
+		expectedPath := "/v2/projects?account_id=K7xmQqN"
+		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
+			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
 		}
 
 		var body map[string]interface{}
@@ -238,7 +239,7 @@ func TestCreateProject(t *testing.T) {
 		Name: "New Project",
 	}
 
-	project, err := client.Projects.Create(context.Background(), req)
+	project, err := client.Projects.Create(context.Background(), "K7xmQqN", req)
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
 	}
@@ -257,13 +258,32 @@ func TestCreateProject_EmptyName(t *testing.T) {
 		Name: "",
 	}
 
-	_, err := client.Projects.Create(context.Background(), req)
+	_, err := client.Projects.Create(context.Background(), "K7xmQqN", req)
 	if err == nil {
 		t.Fatal("expected error for empty name, got nil")
 	}
 
 	if !strings.Contains(err.Error(), "project name cannot be empty") {
 		t.Errorf("expected empty name error, got %s", err.Error())
+	}
+}
+
+func TestCreateProject_EmptyAccountID(t *testing.T) {
+	client := NewClient().
+		WithBaseURL("https://api.example.com").
+		WithAuthToken("test-token")
+
+	req := ProjectRequest{
+		Name: "Test Project",
+	}
+
+	_, err := client.Projects.Create(context.Background(), "", req)
+	if err == nil {
+		t.Fatal("expected error for empty account ID, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "account ID cannot be empty") {
+		t.Errorf("expected empty account ID error, got %s", err.Error())
 	}
 }
 
@@ -282,7 +302,7 @@ func TestCreateProject_ValidationError(t *testing.T) {
 		Name: "Duplicate Name",
 	}
 
-	_, err := client.Projects.Create(context.Background(), req)
+	_, err := client.Projects.Create(context.Background(), "K7xmQqN", req)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -357,6 +377,10 @@ func TestCreateProject_WithAllFields(t *testing.T) {
 		if r.Method != "POST" {
 			t.Errorf("expected POST method, got %s", r.Method)
 		}
+		expectedPath := "/v2/projects?account_id=K7xmQqN"
+		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
+			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
+		}
 
 		var body map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -413,7 +437,7 @@ func TestCreateProject_WithAllFields(t *testing.T) {
 		UserSearchField:       "context.user_email",
 	}
 
-	project, err := client.Projects.Create(context.Background(), req)
+	project, err := client.Projects.Create(context.Background(), "K7xmQqN", req)
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
 	}
@@ -497,6 +521,10 @@ func TestUpdateProject_WithAllFields(t *testing.T) {
 
 func TestCreateProject_PartialFields(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedPath := "/v2/projects?account_id=K7xmQqN"
+		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
+			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
+		}
 		var body map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatalf("failed to decode request body: %v", err)
@@ -539,7 +567,7 @@ func TestCreateProject_PartialFields(t *testing.T) {
 		// Only name specified, other fields should be omitted
 	}
 
-	project, err := client.Projects.Create(context.Background(), req)
+	project, err := client.Projects.Create(context.Background(), "K7xmQqN", req)
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
 	}
