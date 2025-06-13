@@ -171,7 +171,7 @@ func TestHandleGetProject(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"id": "123",
+		"id": 123,
 	}
 
 	result, err := handleGetProject(context.Background(), client, args)
@@ -215,13 +215,13 @@ func TestHandleGetProject_MissingID(t *testing.T) {
 	}
 }
 
-func TestHandleGetProject_EmptyID(t *testing.T) {
+func TestHandleGetProject_InvalidID(t *testing.T) {
 	client := hbapi.NewClient().
 		WithBaseURL("https://api.example.com").
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"id": "",
+		"id": 0,
 	}
 
 	result, err := handleGetProject(context.Background(), client, args)
@@ -230,11 +230,11 @@ func TestHandleGetProject_EmptyID(t *testing.T) {
 	}
 
 	if !result.IsError {
-		t.Fatal("expected error result for empty ID")
+		t.Fatal("expected error result for invalid ID")
 	}
 
-	if !strings.Contains(getResultText(result), "parameter 'id' cannot be empty") {
-		t.Error("Error message should indicate empty ID parameter")
+	if !strings.Contains(getResultText(result), "parameter 'id' must be positive") {
+		t.Error("Error message should indicate invalid ID parameter")
 	}
 }
 
@@ -362,7 +362,7 @@ func TestHandleUpdateProject(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"id": "123",
+		"id": 123,
 		"updates": map[string]interface{}{
 			"name": "Updated Project",
 		},
@@ -394,7 +394,7 @@ func TestHandleUpdateProject_MissingUpdates(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"id": "123",
+		"id": 123,
 	}
 
 	result, err := handleUpdateProject(context.Background(), client, args)
@@ -417,7 +417,7 @@ func TestHandleUpdateProject_EmptyUpdates(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"id":      "123",
+		"id":      123,
 		"updates": map[string]interface{}{},
 	}
 
@@ -452,7 +452,7 @@ func TestHandleDeleteProject(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"id": "123",
+		"id": 123,
 	}
 
 	result, err := handleDeleteProject(context.Background(), client, args)
@@ -492,7 +492,7 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"id": "nonexistent",
+		"id": 999,
 	}
 
 	result, err := handleDeleteProject(context.Background(), client, args)
@@ -606,6 +606,79 @@ func TestValidateObjectParam(t *testing.T) {
 
 			if !tt.wantError && err != nil {
 				t.Errorf("expected no error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateIntParam(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      map[string]interface{}
+		paramName string
+		expected  int
+		wantError bool
+	}{
+		{
+			name:      "valid int parameter",
+			args:      map[string]interface{}{"test": 123},
+			paramName: "test",
+			expected:  123,
+			wantError: false,
+		},
+		{
+			name:      "valid float64 parameter (whole number)",
+			args:      map[string]interface{}{"test": 123.0},
+			paramName: "test",
+			expected:  123,
+			wantError: false,
+		},
+		{
+			name:      "missing parameter",
+			args:      map[string]interface{}{},
+			paramName: "test",
+			wantError: true,
+		},
+		{
+			name:      "zero parameter",
+			args:      map[string]interface{}{"test": 0},
+			paramName: "test",
+			wantError: true,
+		},
+		{
+			name:      "negative parameter",
+			args:      map[string]interface{}{"test": -1},
+			paramName: "test",
+			wantError: true,
+		},
+		{
+			name:      "float64 parameter (decimal)",
+			args:      map[string]interface{}{"test": 123.5},
+			paramName: "test",
+			wantError: true,
+		},
+		{
+			name:      "string parameter",
+			args:      map[string]interface{}{"test": "123"},
+			paramName: "test",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := validateIntParam(tt.args, tt.paramName)
+
+			if tt.wantError && err == nil {
+				t.Error("expected error, got nil")
+			}
+
+			if !tt.wantError && err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
+
+			if !tt.wantError && result != tt.expected {
+				t.Errorf("expected result %d, got %d", tt.expected, result)
 			}
 		})
 	}

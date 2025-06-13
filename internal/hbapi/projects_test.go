@@ -159,7 +159,7 @@ func TestGetProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	project, err := client.Projects.Get(context.Background(), "123")
+	project, err := client.Projects.Get(context.Background(), 123)
 	if err != nil {
 		t.Fatalf("GetProject() error = %v", err)
 	}
@@ -170,21 +170,6 @@ func TestGetProject(t *testing.T) {
 
 	if project.Name != "Test Project" {
 		t.Errorf("expected project name 'Test Project', got %v", project.Name)
-	}
-}
-
-func TestGetProject_EmptyID(t *testing.T) {
-	client := NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
-
-	_, err := client.Projects.Get(context.Background(), "")
-	if err == nil {
-		t.Fatal("expected error for empty ID, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "project ID cannot be empty") {
-		t.Errorf("expected empty ID error, got %s", err.Error())
 	}
 }
 
@@ -199,7 +184,7 @@ func TestGetProject_NotFound(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	_, err := client.Projects.Get(context.Background(), "nonexistent")
+	_, err := client.Projects.Get(context.Background(), 999)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -339,29 +324,13 @@ func TestUpdateProject(t *testing.T) {
 		"name": "Updated Project",
 	}
 
-	project, err := client.Projects.Update(context.Background(), "123", updates)
+	project, err := client.Projects.Update(context.Background(), 123, updates)
 	if err != nil {
 		t.Fatalf("UpdateProject() error = %v", err)
 	}
 
 	if project.Name != "Updated Project" {
 		t.Errorf("expected project name 'Updated Project', got %v", project.Name)
-	}
-}
-
-func TestUpdateProject_EmptyID(t *testing.T) {
-	client := NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
-
-	updates := map[string]interface{}{"name": "Test"}
-	_, err := client.Projects.Update(context.Background(), "", updates)
-	if err == nil {
-		t.Fatal("expected error for empty ID, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "project ID cannot be empty") {
-		t.Errorf("expected empty ID error, got %s", err.Error())
 	}
 }
 
@@ -380,7 +349,7 @@ func TestUpdateProject_EmptyUpdates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.Projects.Update(context.Background(), "123", tt.updates)
+			_, err := client.Projects.Update(context.Background(), 123, tt.updates)
 			if err == nil {
 				t.Fatal("expected error for empty updates, got nil")
 			}
@@ -409,24 +378,9 @@ func TestDeleteProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	err := client.Projects.Delete(context.Background(), "123")
+	err := client.Projects.Delete(context.Background(), 123)
 	if err != nil {
 		t.Fatalf("DeleteProject() error = %v", err)
-	}
-}
-
-func TestDeleteProject_EmptyID(t *testing.T) {
-	client := NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
-
-	err := client.Projects.Delete(context.Background(), "")
-	if err == nil {
-		t.Fatal("expected error for empty ID, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "project ID cannot be empty") {
-		t.Errorf("expected empty ID error, got %s", err.Error())
 	}
 }
 
@@ -441,7 +395,7 @@ func TestDeleteProject_NotFound(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	err := client.Projects.Delete(context.Background(), "nonexistent")
+	err := client.Projects.Delete(context.Background(), 999)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

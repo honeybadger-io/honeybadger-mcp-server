@@ -43,12 +43,8 @@ func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID int) ([
 }
 
 // Get returns a single project by ID
-func (p *ProjectsService) Get(ctx context.Context, id string) (*Project, error) {
-	if id == "" {
-		return nil, fmt.Errorf("project ID cannot be empty")
-	}
-
-	path := fmt.Sprintf("/projects/%s", id)
+func (p *ProjectsService) Get(ctx context.Context, id int) (*Project, error) {
+	path := fmt.Sprintf("/projects/%d", id)
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
@@ -88,10 +84,7 @@ func (p *ProjectsService) Create(ctx context.Context, name string) (*Project, er
 }
 
 // Update updates an existing project with the given updates
-func (p *ProjectsService) Update(ctx context.Context, id string, updates map[string]interface{}) (*Project, error) {
-	if id == "" {
-		return nil, fmt.Errorf("project ID cannot be empty")
-	}
+func (p *ProjectsService) Update(ctx context.Context, id int, updates map[string]interface{}) (*Project, error) {
 	if updates == nil || len(updates) == 0 {
 		return nil, fmt.Errorf("updates cannot be empty")
 	}
@@ -100,7 +93,7 @@ func (p *ProjectsService) Update(ctx context.Context, id string, updates map[str
 		"project": updates,
 	}
 
-	path := fmt.Sprintf("/projects/%s", id)
+	path := fmt.Sprintf("/projects/%d", id)
 	req, err := p.client.newRequest(ctx, "PUT", path, body)
 	if err != nil {
 		return nil, err
@@ -115,12 +108,9 @@ func (p *ProjectsService) Update(ctx context.Context, id string, updates map[str
 }
 
 // Delete deletes a project by ID
-func (p *ProjectsService) Delete(ctx context.Context, id string) error {
-	if id == "" {
-		return fmt.Errorf("project ID cannot be empty")
-	}
+func (p *ProjectsService) Delete(ctx context.Context, id int) error {
 
-	path := fmt.Sprintf("/projects/%s", id)
+	path := fmt.Sprintf("/projects/%d", id)
 	req, err := p.client.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err

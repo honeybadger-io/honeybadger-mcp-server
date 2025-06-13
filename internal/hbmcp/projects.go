@@ -117,7 +117,7 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, args map[stri
 }
 
 func handleGetProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	id, err := validateStringParam(args, "id")
+	id, err := validateIntParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -163,7 +163,7 @@ func handleCreateProject(ctx context.Context, client *hbapi.Client, args map[str
 }
 
 func handleUpdateProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	id, err := validateStringParam(args, "id")
+	id, err := validateIntParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -191,7 +191,7 @@ func handleUpdateProject(ctx context.Context, client *hbapi.Client, args map[str
 }
 
 func handleDeleteProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	id, err := validateStringParam(args, "id")
+	id, err := validateIntParam(args, "id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -203,7 +203,7 @@ func handleDeleteProject(ctx context.Context, client *hbapi.Client, args map[str
 
 	result := map[string]interface{}{
 		"success": true,
-		"message": fmt.Sprintf("Project %s deleted successfully", id),
+		"message": fmt.Sprintf("Project %d deleted successfully", id),
 	}
 
 	// Return JSON response
@@ -250,6 +250,33 @@ func validateObjectParam(args map[string]interface{}, paramName string) (map[str
 	}
 
 	return obj, nil
+}
+
+func validateIntParam(args map[string]interface{}, paramName string) (int, error) {
+	value, exists := args[paramName]
+	if !exists {
+		return 0, fmt.Errorf("required parameter '%s' is missing", paramName)
+	}
+
+	// Handle both int and float64 (JSON numbers are parsed as float64)
+	switch v := value.(type) {
+	case int:
+		if v <= 0 {
+			return 0, fmt.Errorf("parameter '%s' must be positive", paramName)
+		}
+		return v, nil
+	case float64:
+		if v != float64(int(v)) {
+			return 0, fmt.Errorf("parameter '%s' must be an integer", paramName)
+		}
+		intVal := int(v)
+		if intVal <= 0 {
+			return 0, fmt.Errorf("parameter '%s' must be positive", paramName)
+		}
+		return intVal, nil
+	default:
+		return 0, fmt.Errorf("parameter '%s' must be an integer", paramName)
+	}
 }
 
 // Sanitization functions to remove sensitive data like API tokens
