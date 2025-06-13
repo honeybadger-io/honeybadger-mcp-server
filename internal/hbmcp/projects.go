@@ -16,6 +16,10 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithDescription("List all Honeybadger projects"),
+			mcp.WithNumber("account_id",
+				mcp.Description("Optional account ID to filter projects by specific account"),
+				mcp.Min(1),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			args, ok := req.Params.Arguments.(map[string]interface{})
@@ -30,6 +34,11 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("get_project",
 			mcp.WithDescription("Get a single Honeybadger project by ID"),
+			mcp.WithNumber("id",
+				mcp.Required(),
+				mcp.Description("The ID of the project to retrieve"),
+				mcp.Min(1),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			args, ok := req.Params.Arguments.(map[string]interface{})
@@ -44,6 +53,12 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("create_project",
 			mcp.WithDescription("Create a new Honeybadger project"),
+			mcp.WithString("name",
+				mcp.Required(),
+				mcp.Description("The name of the new project"),
+				mcp.MinLength(1),
+				mcp.MaxLength(255),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			args, ok := req.Params.Arguments.(map[string]interface{})
@@ -58,6 +73,15 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("update_project",
 			mcp.WithDescription("Update an existing Honeybadger project"),
+			mcp.WithNumber("id",
+				mcp.Required(),
+				mcp.Description("The ID of the project to update"),
+				mcp.Min(1),
+			),
+			mcp.WithObject("updates",
+				mcp.Required(),
+				mcp.Description("Object containing the fields to update"),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			args, ok := req.Params.Arguments.(map[string]interface{})
@@ -72,6 +96,11 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("delete_project",
 			mcp.WithDescription("Delete a Honeybadger project"),
+			mcp.WithNumber("id",
+				mcp.Required(),
+				mcp.Description("The ID of the project to delete"),
+				mcp.Min(1),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			args, ok := req.Params.Arguments.(map[string]interface{})
