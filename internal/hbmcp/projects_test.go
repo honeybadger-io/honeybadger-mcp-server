@@ -618,7 +618,7 @@ func TestSanitizeProject(t *testing.T) {
 		Active:    true,
 		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		Token:     "secret123",
-		Owner:     hbapi.User{ID: 1, Email: "user@example.com", Name: "User 1"},
+		Owner:     hbapi.Account{ID: 1, Email: "user@example.com", Name: "User 1"},
 	}
 
 	sanitizeProject(project)
