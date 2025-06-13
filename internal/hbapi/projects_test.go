@@ -46,7 +46,7 @@ func TestListProjects(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	projects, err := client.Projects.List(context.Background(), "")
+	projects, err := client.Projects.List(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}
@@ -71,7 +71,7 @@ func TestListProjects_Error(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("invalid-token")
 
-	_, err := client.Projects.List(context.Background(), "")
+	_, err := client.Projects.List(context.Background(), 0)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -124,7 +124,7 @@ func TestListProjects_WithAccountID(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	projects, err := client.Projects.List(context.Background(), "12345")
+	projects, err := client.Projects.List(context.Background(), 12345)
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}

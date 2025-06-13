@@ -11,10 +11,10 @@ type ProjectsService struct {
 }
 
 // List returns all projects, optionally filtered by account_id
-func (p *ProjectsService) List(ctx context.Context, accountID string) ([]Project, error) {
+func (p *ProjectsService) List(ctx context.Context, accountID int) ([]Project, error) {
 	path := "/projects"
-	if accountID != "" {
-		path = fmt.Sprintf("/projects?account_id=%s", accountID)
+	if accountID != 0 {
+		path = fmt.Sprintf("/projects?account_id=%d", accountID)
 	}
 
 	req, err := p.client.newRequest(ctx, "GET", path, nil)

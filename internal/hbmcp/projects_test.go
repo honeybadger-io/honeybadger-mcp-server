@@ -126,7 +126,7 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 
 	// Test with account_id parameter
 	args := map[string]interface{}{
-		"account_id": "12345",
+		"account_id": 12345,
 	}
 
 	result, err := handleListProjects(context.Background(), client, args)

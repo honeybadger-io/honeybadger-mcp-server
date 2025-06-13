@@ -10,7 +10,6 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-
 // RegisterProjectTools registers all project-related MCP tools
 func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	// list_projects tool
@@ -86,10 +85,10 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 
 func handleListProjects(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	// Extract account_id parameter (optional)
-	accountID := ""
+	var accountID int
 	if value, exists := args["account_id"]; exists {
-		if str, ok := value.(string); ok {
-			accountID = str
+		if num, ok := value.(int); ok {
+			accountID = num
 		}
 	}
 
