@@ -92,8 +92,14 @@ func (p *ProjectsService) Create(ctx context.Context, req ProjectRequest) (*Proj
 	return &result, nil
 }
 
+// UpdateResult represents the result of an update operation
+type UpdateResult struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
 // Update updates an existing project with the given parameters
-func (p *ProjectsService) Update(ctx context.Context, id int, req ProjectRequest) (*Project, error) {
+func (p *ProjectsService) Update(ctx context.Context, id int, req ProjectRequest) (*UpdateResult, error) {
 	body := map[string]interface{}{
 		"project": req,
 	}
@@ -104,12 +110,15 @@ func (p *ProjectsService) Update(ctx context.Context, id int, req ProjectRequest
 		return nil, err
 	}
 
-	var result Project
-	if err := p.client.do(ctx, httpReq, &result); err != nil {
+	// Update API returns empty body on success, so we don't decode a result
+	if err := p.client.do(ctx, httpReq, nil); err != nil {
 		return nil, err
 	}
 
-	return &result, nil
+	return &UpdateResult{
+		Success: true,
+		Message: fmt.Sprintf("Project %d was successfully updated", id),
+	}, nil
 }
 
 // Delete deletes a project by ID

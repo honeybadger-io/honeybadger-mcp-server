@@ -35,19 +35,44 @@ func TestListTools(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	if len(tools) == 0 {
-		t.Fatal("No tools returned")
+	expectedToolCount := 6 // create_project, delete_project, get_project, list_projects, ping, update_project
+	if len(tools) != expectedToolCount {
+		t.Errorf("Expected %d tools, got %d", expectedToolCount, len(tools))
 	}
 
-	// Find the ping tool
+	// Track which tools we find
+	var foundTools []string
 	var pingTool map[string]interface{}
+	var updateProjectTool map[string]interface{}
+
 	for _, tool := range tools {
-		t.Logf("Tool: %+v", tool)
 		if toolMap, ok := tool.(map[string]interface{}); ok {
-			if name, ok := toolMap["name"].(string); ok && name == "ping" {
-				pingTool = toolMap
+			if name, ok := toolMap["name"].(string); ok {
+				foundTools = append(foundTools, name)
+				t.Logf("Found tool: %s", name)
+
+				if name == "ping" {
+					pingTool = toolMap
+				}
+				if name == "update_project" {
+					updateProjectTool = toolMap
+				}
+			}
+		}
+	}
+
+	// Verify all expected tools are present
+	expectedTools := []string{"create_project", "delete_project", "get_project", "list_projects", "ping", "update_project"}
+	for _, expectedTool := range expectedTools {
+		found := false
+		for _, foundTool := range foundTools {
+			if foundTool == expectedTool {
+				found = true
 				break
 			}
+		}
+		if !found {
+			t.Errorf("Expected tool %s not found. Found tools: %v", expectedTool, foundTools)
 		}
 	}
 
@@ -55,9 +80,18 @@ func TestListTools(t *testing.T) {
 		t.Fatal("Ping tool not found")
 	}
 
+	if updateProjectTool == nil {
+		t.Fatal("Update project tool not found")
+	}
+
 	// Verify ping tool properties
 	if desc, ok := pingTool["description"].(string); !ok || desc != "Test connectivity to the MCP server" {
 		t.Errorf("Unexpected ping tool description: %v", pingTool["description"])
+	}
+
+	// Verify update_project tool properties
+	if desc, ok := updateProjectTool["description"].(string); !ok || desc != "Update an existing Honeybadger project" {
+		t.Errorf("Unexpected update_project tool description: %v", updateProjectTool["description"])
 	}
 }
 
@@ -212,6 +246,91 @@ func TestMalformedMessage(t *testing.T) {
 
 	if resp.Error == nil {
 		t.Fatal("Expected error response for malformed message")
+	}
+}
+
+// TestUpdateProjectTool verifies the update_project tool works correctly
+func TestUpdateProjectTool(t *testing.T) {
+	server, err := StartTestServer(t, "test-token")
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+	defer server.Stop()
+
+	// Test update_project tool with valid parameters
+	args := map[string]interface{}{
+		"id":   123,
+		"name": "Updated Test Project",
+	}
+
+	result, err := server.CallTool("update_project", args)
+	if err != nil {
+		t.Fatalf("Failed to call update_project tool: %v", err)
+	}
+
+	// Parse the result
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Unexpected result type: %T", result)
+	}
+
+	// Check for content array
+	content, ok := resultMap["content"].([]interface{})
+	if !ok {
+		t.Fatalf("No content in result: %+v", resultMap)
+	}
+
+	if len(content) == 0 {
+		t.Fatal("Empty content array")
+	}
+
+	// Get the first content item
+	contentItem, ok := content[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Unexpected content item type: %T", content[0])
+	}
+
+	// Verify it's a text type
+	if contentType, ok := contentItem["type"].(string); !ok || contentType != "text" {
+		t.Errorf("Unexpected content type: %v", contentItem["type"])
+	}
+
+	// Get the text content
+	text, ok := contentItem["text"].(string)
+	if !ok {
+		t.Fatalf("No text in content item: %+v", contentItem)
+	}
+
+	// Check if this is an error response (expected with test token)
+	if strings.Contains(text, "Failed to update project") {
+		// This is expected since we're using a test token
+		t.Logf("Got expected error response with test token: %s", text)
+		return
+	}
+
+	// Parse the JSON response (if it's a success response)
+	var updateResponse map[string]interface{}
+	if err := json.Unmarshal([]byte(text), &updateResponse); err != nil {
+		t.Fatalf("Failed to parse update response: %v, text: %s", err, text)
+	}
+
+	// Verify success
+	if success, ok := updateResponse["success"].(bool); !ok || !success {
+		t.Errorf("Unexpected success value: %v", updateResponse["success"])
+	}
+
+	// Verify message contains project ID
+	message, ok := updateResponse["message"].(string)
+	if !ok {
+		t.Fatal("No message in response")
+	}
+
+	if !strings.Contains(message, "123") {
+		t.Errorf("Message should contain project ID 123: %v", message)
+	}
+
+	if !strings.Contains(message, "successfully updated") {
+		t.Errorf("Message should contain 'successfully updated': %v", message)
 	}
 }
 

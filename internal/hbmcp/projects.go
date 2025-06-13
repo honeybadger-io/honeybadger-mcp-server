@@ -240,16 +240,13 @@ func handleUpdateProject(ctx context.Context, client *hbapi.Client, args map[str
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	project, err := client.Projects.Update(ctx, id, req)
+	result, err := client.Projects.Update(ctx, id, req)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
 
-	// Sanitize the response to remove API tokens
-	sanitizeProject(project)
-
 	// Return JSON response
-	jsonBytes, err := json.Marshal(project)
+	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}

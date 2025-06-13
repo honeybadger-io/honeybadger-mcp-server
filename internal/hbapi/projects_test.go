@@ -298,8 +298,6 @@ func TestCreateProject_ValidationError(t *testing.T) {
 }
 
 func TestUpdateProject(t *testing.T) {
-	mockProject := `{"id": 123, "name": "Updated Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "abc123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "PUT" {
 			t.Errorf("expected PUT method, got %s", r.Method)
@@ -322,9 +320,8 @@ func TestUpdateProject(t *testing.T) {
 			t.Errorf("expected project name 'Updated Project', got %v", project["name"])
 		}
 
-		w.Header().Set("Content-Type", "application/json")
+		// Update API returns empty body on success
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockProject))
 	}))
 	defer server.Close()
 
@@ -336,13 +333,18 @@ func TestUpdateProject(t *testing.T) {
 		Name: "Updated Project",
 	}
 
-	project, err := client.Projects.Update(context.Background(), 123, req)
+	result, err := client.Projects.Update(context.Background(), 123, req)
 	if err != nil {
 		t.Fatalf("UpdateProject() error = %v", err)
 	}
 
-	if project.Name != "Updated Project" {
-		t.Errorf("expected project name 'Updated Project', got %v", project.Name)
+	if !result.Success {
+		t.Errorf("expected success to be true, got %v", result.Success)
+	}
+
+	expectedMessage := "Project 123 was successfully updated"
+	if result.Message != expectedMessage {
+		t.Errorf("expected message '%s', got '%s'", expectedMessage, result.Message)
 	}
 }
 
@@ -459,10 +461,8 @@ func TestUpdateProject_WithAllFields(t *testing.T) {
 			t.Errorf("expected purge_days 30, got %v", project["purge_days"])
 		}
 
-		mockProject := `{"id": 123, "name": "Updated Full Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "abc123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
-		w.Header().Set("Content-Type", "application/json")
+		// Update API returns empty body on success
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockProject))
 	}))
 	defer server.Close()
 
@@ -480,13 +480,18 @@ func TestUpdateProject_WithAllFields(t *testing.T) {
 		UserSearchField:       "context.user_id",
 	}
 
-	project, err := client.Projects.Update(context.Background(), 123, req)
+	result, err := client.Projects.Update(context.Background(), 123, req)
 	if err != nil {
 		t.Fatalf("UpdateProject() error = %v", err)
 	}
 
-	if project.Name != "Updated Full Project" {
-		t.Errorf("expected project name 'Updated Full Project', got %v", project.Name)
+	if !result.Success {
+		t.Errorf("expected success to be true, got %v", result.Success)
+	}
+
+	expectedMessage := "Project 123 was successfully updated"
+	if result.Message != expectedMessage {
+		t.Errorf("expected message '%s', got '%s'", expectedMessage, result.Message)
 	}
 }
 

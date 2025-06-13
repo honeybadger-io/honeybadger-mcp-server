@@ -327,8 +327,6 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 }
 
 func TestHandleUpdateProject(t *testing.T) {
-	mockResponse := `{"id": 123, "name": "Updated Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "PUT" {
 			t.Errorf("expected PUT method, got %s", r.Method)
@@ -351,9 +349,8 @@ func TestHandleUpdateProject(t *testing.T) {
 			t.Errorf("expected project name 'Updated Project', got %v", project["name"])
 		}
 
-		w.Header().Set("Content-Type", "application/json")
+		// Update API returns empty body on success
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -375,14 +372,14 @@ func TestHandleUpdateProject(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that token is sanitized
-	if strings.Contains(getResultText(result), "secret123") {
-		t.Error("Token should be sanitized from response")
+	// Check that success message is present
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "successfully updated") {
+		t.Error("Success message should be present in response")
 	}
 
-	// Check that project data is still present
-	if !strings.Contains(getResultText(result), "Updated Project") {
-		t.Error("Updated project name should be present in response")
+	if !strings.Contains(resultText, "123") {
+		t.Error("Project ID should be present in success message")
 	}
 }
 
@@ -410,8 +407,6 @@ func TestHandleUpdateProject_MissingID(t *testing.T) {
 }
 
 func TestHandleUpdateProject_NoFieldsToUpdate(t *testing.T) {
-	mockResponse := `{"id": 123, "name": "Test Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "PUT" {
 			t.Errorf("expected PUT method, got %s", r.Method)
@@ -419,9 +414,8 @@ func TestHandleUpdateProject_NoFieldsToUpdate(t *testing.T) {
 		if r.URL.Path != "/v2/projects/123" {
 			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
 		}
-		w.Header().Set("Content-Type", "application/json")
+		// Update API returns empty body on success
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -441,6 +435,12 @@ func TestHandleUpdateProject_NoFieldsToUpdate(t *testing.T) {
 
 	if result.IsError {
 		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+	}
+
+	// Check that success message is present
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "successfully updated") {
+		t.Error("Success message should be present in response")
 	}
 }
 
