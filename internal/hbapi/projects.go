@@ -5,6 +5,17 @@ import (
 	"fmt"
 )
 
+// ProjectRequest represents the request parameters for creating or updating a project
+type ProjectRequest struct {
+	Name                  string `json:"name,omitempty"`
+	ResolveErrorsOnDeploy *bool  `json:"resolve_errors_on_deploy,omitempty"`
+	DisablePublicLinks    *bool  `json:"disable_public_links,omitempty"`
+	UserURL               string `json:"user_url,omitempty"`
+	SourceURL             string `json:"source_url,omitempty"`
+	PurgeDays             *int   `json:"purge_days,omitempty"`
+	UserSearchField       string `json:"user_search_field,omitempty"`
+}
+
 // ProjectsService handles operations for the projects resource
 type ProjectsService struct {
 	client *Client
@@ -58,49 +69,43 @@ func (p *ProjectsService) Get(ctx context.Context, id int) (*Project, error) {
 	return &result, nil
 }
 
-// Create creates a new project with the given name
-func (p *ProjectsService) Create(ctx context.Context, name string) (*Project, error) {
-	if name == "" {
+// Create creates a new project with the given parameters
+func (p *ProjectsService) Create(ctx context.Context, req ProjectRequest) (*Project, error) {
+	if req.Name == "" {
 		return nil, fmt.Errorf("project name cannot be empty")
 	}
 
 	body := map[string]interface{}{
-		"project": map[string]interface{}{
-			"name": name,
-		},
+		"project": req,
 	}
 
-	req, err := p.client.newRequest(ctx, "POST", "/projects", body)
+	httpReq, err := p.client.newRequest(ctx, "POST", "/projects", body)
 	if err != nil {
 		return nil, err
 	}
 
 	var result Project
-	if err := p.client.do(ctx, req, &result); err != nil {
+	if err := p.client.do(ctx, httpReq, &result); err != nil {
 		return nil, err
 	}
 
 	return &result, nil
 }
 
-// Update updates an existing project with the given updates
-func (p *ProjectsService) Update(ctx context.Context, id int, updates map[string]interface{}) (*Project, error) {
-	if updates == nil || len(updates) == 0 {
-		return nil, fmt.Errorf("updates cannot be empty")
-	}
-
+// Update updates an existing project with the given parameters
+func (p *ProjectsService) Update(ctx context.Context, id int, req ProjectRequest) (*Project, error) {
 	body := map[string]interface{}{
-		"project": updates,
+		"project": req,
 	}
 
 	path := fmt.Sprintf("/projects/%d", id)
-	req, err := p.client.newRequest(ctx, "PUT", path, body)
+	httpReq, err := p.client.newRequest(ctx, "PUT", path, body)
 	if err != nil {
 		return nil, err
 	}
 
 	var result Project
-	if err := p.client.do(ctx, req, &result); err != nil {
+	if err := p.client.do(ctx, httpReq, &result); err != nil {
 		return nil, err
 	}
 

@@ -234,7 +234,11 @@ func TestCreateProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	project, err := client.Projects.Create(context.Background(), "New Project")
+	req := ProjectRequest{
+		Name: "New Project",
+	}
+
+	project, err := client.Projects.Create(context.Background(), req)
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
 	}
@@ -249,7 +253,11 @@ func TestCreateProject_EmptyName(t *testing.T) {
 		WithBaseURL("https://api.example.com").
 		WithAuthToken("test-token")
 
-	_, err := client.Projects.Create(context.Background(), "")
+	req := ProjectRequest{
+		Name: "",
+	}
+
+	_, err := client.Projects.Create(context.Background(), req)
 	if err == nil {
 		t.Fatal("expected error for empty name, got nil")
 	}
@@ -270,7 +278,11 @@ func TestCreateProject_ValidationError(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	_, err := client.Projects.Create(context.Background(), "Duplicate Name")
+	req := ProjectRequest{
+		Name: "Duplicate Name",
+	}
+
+	_, err := client.Projects.Create(context.Background(), req)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -320,11 +332,11 @@ func TestUpdateProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	updates := map[string]interface{}{
-		"name": "Updated Project",
+	req := ProjectRequest{
+		Name: "Updated Project",
 	}
 
-	project, err := client.Projects.Update(context.Background(), 123, updates)
+	project, err := client.Projects.Update(context.Background(), 123, req)
 	if err != nil {
 		t.Fatalf("UpdateProject() error = %v", err)
 	}
@@ -334,30 +346,201 @@ func TestUpdateProject(t *testing.T) {
 	}
 }
 
-func TestUpdateProject_EmptyUpdates(t *testing.T) {
+func TestCreateProject_WithAllFields(t *testing.T) {
+	resolveErrorsOnDeploy := true
+	disablePublicLinks := false
+	purgeDays := 90
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("expected POST method, got %s", r.Method)
+		}
+
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+
+		project, ok := body["project"].(map[string]interface{})
+		if !ok {
+			t.Fatal("expected project object in request body")
+		}
+
+		// Verify all fields are present
+		if project["name"] != "Full Featured Project" {
+			t.Errorf("expected name 'Full Featured Project', got %v", project["name"])
+		}
+		if project["resolve_errors_on_deploy"] != true {
+			t.Errorf("expected resolve_errors_on_deploy true, got %v", project["resolve_errors_on_deploy"])
+		}
+		if project["disable_public_links"] != false {
+			t.Errorf("expected disable_public_links false, got %v", project["disable_public_links"])
+		}
+
+		if project["user_url"] != "https://example.com/users/[user_id]" {
+			t.Errorf("expected user_url, got %v", project["user_url"])
+		}
+		if project["source_url"] != "https://github.com/user/repo/blob/[sha]/[file]#L[line]" {
+			t.Errorf("expected source_url, got %v", project["source_url"])
+		}
+		if project["purge_days"] != float64(90) {
+			t.Errorf("expected purge_days 90, got %v", project["purge_days"])
+		}
+		if project["user_search_field"] != "context.user_email" {
+			t.Errorf("expected user_search_field, got %v", project["user_search_field"])
+		}
+
+		mockProject := `{"id": 789, "name": "Full Featured Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "full123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(mockProject))
+	}))
+	defer server.Close()
+
 	client := NewClient().
-		WithBaseURL("https://api.example.com").
+		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	tests := []struct {
-		name    string
-		updates map[string]interface{}
-	}{
-		{"nil updates", nil},
-		{"empty updates", map[string]interface{}{}},
+	req := ProjectRequest{
+		Name:                  "Full Featured Project",
+		ResolveErrorsOnDeploy: &resolveErrorsOnDeploy,
+		DisablePublicLinks:    &disablePublicLinks,
+		UserURL:               "https://example.com/users/[user_id]",
+		SourceURL:             "https://github.com/user/repo/blob/[sha]/[file]#L[line]",
+		PurgeDays:             &purgeDays,
+		UserSearchField:       "context.user_email",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.Projects.Update(context.Background(), 123, tt.updates)
-			if err == nil {
-				t.Fatal("expected error for empty updates, got nil")
-			}
+	project, err := client.Projects.Create(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateProject() error = %v", err)
+	}
 
-			if !strings.Contains(err.Error(), "updates cannot be empty") {
-				t.Errorf("expected empty updates error, got %s", err.Error())
-			}
-		})
+	if project.Name != "Full Featured Project" {
+		t.Errorf("expected project name 'Full Featured Project', got %v", project.Name)
+	}
+}
+
+func TestUpdateProject_WithAllFields(t *testing.T) {
+	resolveErrorsOnDeploy := false
+	disablePublicLinks := true
+	purgeDays := 30
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "PUT" {
+			t.Errorf("expected PUT method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123" {
+			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
+		}
+
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+
+		project, ok := body["project"].(map[string]interface{})
+		if !ok {
+			t.Fatal("expected project object in request body")
+		}
+
+		// Verify all fields are present
+		if project["name"] != "Updated Full Project" {
+			t.Errorf("expected name 'Updated Full Project', got %v", project["name"])
+		}
+		if project["resolve_errors_on_deploy"] != false {
+			t.Errorf("expected resolve_errors_on_deploy false, got %v", project["resolve_errors_on_deploy"])
+		}
+		if project["disable_public_links"] != true {
+			t.Errorf("expected disable_public_links true, got %v", project["disable_public_links"])
+		}
+
+		if project["purge_days"] != float64(30) {
+			t.Errorf("expected purge_days 30, got %v", project["purge_days"])
+		}
+
+		mockProject := `{"id": 123, "name": "Updated Full Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "abc123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockProject))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := ProjectRequest{
+		Name:                  "Updated Full Project",
+		ResolveErrorsOnDeploy: &resolveErrorsOnDeploy,
+		DisablePublicLinks:    &disablePublicLinks,
+		UserURL:               "https://example.com/admin/users/[user_id]",
+		SourceURL:             "https://gitlab.com/user/repo/-/blob/[sha]/[file]#L[line]",
+		PurgeDays:             &purgeDays,
+		UserSearchField:       "context.user_id",
+	}
+
+	project, err := client.Projects.Update(context.Background(), 123, req)
+	if err != nil {
+		t.Fatalf("UpdateProject() error = %v", err)
+	}
+
+	if project.Name != "Updated Full Project" {
+		t.Errorf("expected project name 'Updated Full Project', got %v", project.Name)
+	}
+}
+
+func TestCreateProject_PartialFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+
+		project, ok := body["project"].(map[string]interface{})
+		if !ok {
+			t.Fatal("expected project object in request body")
+		}
+
+		// Verify only specified fields are present (omitempty should exclude others)
+		if project["name"] != "Partial Project" {
+			t.Errorf("expected name 'Partial Project', got %v", project["name"])
+		}
+
+		// These fields should not be present due to omitempty
+		if _, exists := project["resolve_errors_on_deploy"]; exists {
+			t.Error("resolve_errors_on_deploy should not be present")
+		}
+		if _, exists := project["disable_public_links"]; exists {
+			t.Error("disable_public_links should not be present")
+		}
+		if _, exists := project["user_url"]; exists {
+			t.Error("user_url should not be present")
+		}
+
+		mockProject := `{"id": 456, "name": "Partial Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "partial123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(mockProject))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := ProjectRequest{
+		Name: "Partial Project",
+		// Only name specified, other fields should be omitted
+	}
+
+	project, err := client.Projects.Create(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateProject() error = %v", err)
+	}
+
+	if project.Name != "Partial Project" {
+		t.Errorf("expected project name 'Partial Project', got %v", project.Name)
 	}
 }
 

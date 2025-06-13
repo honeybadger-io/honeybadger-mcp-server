@@ -362,10 +362,8 @@ func TestHandleUpdateProject(t *testing.T) {
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
-		"id": 123,
-		"updates": map[string]interface{}{
-			"name": "Updated Project",
-		},
+		"id":   123,
+		"name": "Updated Project",
 	}
 
 	result, err := handleUpdateProject(context.Background(), client, args)
@@ -388,13 +386,52 @@ func TestHandleUpdateProject(t *testing.T) {
 	}
 }
 
-func TestHandleUpdateProject_MissingUpdates(t *testing.T) {
+func TestHandleUpdateProject_MissingID(t *testing.T) {
 	client := hbapi.NewClient().
 		WithBaseURL("https://api.example.com").
+		WithAuthToken("test-token")
+
+	args := map[string]interface{}{
+		"name": "Updated Project",
+	}
+
+	result, err := handleUpdateProject(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleUpdateProject() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result")
+	}
+
+	if !strings.Contains(getResultText(result), "required parameter 'id' is missing") {
+		t.Errorf("expected missing id error, got %s", getResultText(result))
+	}
+}
+
+func TestHandleUpdateProject_NoFieldsToUpdate(t *testing.T) {
+	mockResponse := `{"id": 123, "name": "Test Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "PUT" {
+			t.Errorf("expected PUT method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123" {
+			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
 	args := map[string]interface{}{
 		"id": 123,
+		// No fields to update - should still work (sends empty struct)
 	}
 
 	result, err := handleUpdateProject(context.Background(), client, args)
@@ -402,36 +439,8 @@ func TestHandleUpdateProject_MissingUpdates(t *testing.T) {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
 
-	if !result.IsError {
-		t.Fatal("expected error result for missing updates")
-	}
-
-	if !strings.Contains(getResultText(result), "required parameter 'updates' is missing") {
-		t.Error("Error message should indicate missing updates parameter")
-	}
-}
-
-func TestHandleUpdateProject_EmptyUpdates(t *testing.T) {
-	client := hbapi.NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
-
-	args := map[string]interface{}{
-		"id":      123,
-		"updates": map[string]interface{}{},
-	}
-
-	result, err := handleUpdateProject(context.Background(), client, args)
-	if err != nil {
-		t.Fatalf("handleUpdateProject() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for empty updates")
-	}
-
-	if !strings.Contains(getResultText(result), "parameter 'updates' cannot be empty") {
-		t.Error("Error message should indicate empty updates parameter")
+	if result.IsError {
+		t.Fatalf("expected successful result, got error: %s", getResultText(result))
 	}
 }
 
@@ -563,54 +572,6 @@ func TestValidateStringParam(t *testing.T) {
 	}
 }
 
-func TestValidateObjectParam(t *testing.T) {
-	tests := []struct {
-		name      string
-		args      map[string]interface{}
-		paramName string
-		wantError bool
-	}{
-		{
-			name:      "valid object parameter",
-			args:      map[string]interface{}{"test": map[string]interface{}{"key": "value"}},
-			paramName: "test",
-			wantError: false,
-		},
-		{
-			name:      "missing parameter",
-			args:      map[string]interface{}{},
-			paramName: "test",
-			wantError: true,
-		},
-		{
-			name:      "empty object parameter",
-			args:      map[string]interface{}{"test": map[string]interface{}{}},
-			paramName: "test",
-			wantError: true,
-		},
-		{
-			name:      "non-object parameter",
-			args:      map[string]interface{}{"test": "string"},
-			paramName: "test",
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := validateObjectParam(tt.args, tt.paramName)
-
-			if tt.wantError && err == nil {
-				t.Error("expected error, got nil")
-			}
-
-			if !tt.wantError && err != nil {
-				t.Errorf("expected no error, got %v", err)
-			}
-		})
-	}
-}
-
 func TestValidateIntParam(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -710,5 +671,168 @@ func TestSanitizeProject(t *testing.T) {
 	}
 	if project.Owner.Email != "user@example.com" {
 		t.Error("owner fields should remain")
+	}
+}
+
+func TestArgsToProjectRequest(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        map[string]interface{}
+		requireName bool
+		expected    hbapi.ProjectRequest
+		wantError   bool
+	}{
+		{
+			name: "all fields valid",
+			args: map[string]interface{}{
+				"name":                     "Test Project",
+				"resolve_errors_on_deploy": true,
+				"disable_public_links":     false,
+				"user_url":                 "https://example.com/users/[user_id]",
+				"source_url":               "https://github.com/user/repo/blob/[sha]/[file]#L[line]",
+				"purge_days":               30,
+				"user_search_field":        "context.user_email",
+			},
+			requireName: true,
+			expected: hbapi.ProjectRequest{
+				Name:                  "Test Project",
+				ResolveErrorsOnDeploy: func() *bool { b := true; return &b }(),
+				DisablePublicLinks:    func() *bool { b := false; return &b }(),
+				UserURL:               "https://example.com/users/[user_id]",
+				SourceURL:             "https://github.com/user/repo/blob/[sha]/[file]#L[line]",
+				PurgeDays:             func() *int { i := 30; return &i }(),
+				UserSearchField:       "context.user_email",
+			},
+			wantError: false,
+		},
+		{
+			name: "partial fields",
+			args: map[string]interface{}{
+				"name": "Partial Project",
+			},
+			requireName: false,
+			expected: hbapi.ProjectRequest{
+				Name: "Partial Project",
+			},
+			wantError: false,
+		},
+		{
+			name: "float64 purge_days",
+			args: map[string]interface{}{
+				"purge_days": float64(90),
+			},
+			requireName: false,
+			expected: hbapi.ProjectRequest{
+				PurgeDays: func() *int { i := 90; return &i }(),
+			},
+			wantError: false,
+		},
+		{
+			name:        "missing required name",
+			args:        map[string]interface{}{},
+			requireName: true,
+			wantError:   true,
+		},
+		{
+			name:        "missing name but not required",
+			args:        map[string]interface{}{},
+			requireName: false,
+			expected:    hbapi.ProjectRequest{},
+			wantError:   false,
+		},
+		{
+			name: "invalid name type",
+			args: map[string]interface{}{
+				"name": 123,
+			},
+			requireName: true,
+			wantError:   true,
+		},
+		{
+			name: "invalid resolve_errors_on_deploy type",
+			args: map[string]interface{}{
+				"resolve_errors_on_deploy": "true",
+			},
+			requireName: false,
+			wantError:   true,
+		},
+		{
+			name: "invalid purge_days type",
+			args: map[string]interface{}{
+				"purge_days": "30",
+			},
+			requireName: false,
+			wantError:   true,
+		},
+		{
+			name: "invalid purge_days decimal",
+			args: map[string]interface{}{
+				"purge_days": 30.5,
+			},
+			requireName: false,
+			wantError:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := argsToProjectRequest(tt.args, tt.requireName)
+
+			if tt.wantError && err == nil {
+				t.Error("expected error, got nil")
+				return
+			}
+
+			if !tt.wantError && err != nil {
+				t.Errorf("expected no error, got %v", err)
+				return
+			}
+
+			if tt.wantError {
+				return // Don't check result if we expected an error
+			}
+
+			// Compare the results
+			if result.Name != tt.expected.Name {
+				t.Errorf("expected name %q, got %q", tt.expected.Name, result.Name)
+			}
+
+			if result.UserURL != tt.expected.UserURL {
+				t.Errorf("expected user_url %q, got %q", tt.expected.UserURL, result.UserURL)
+			}
+
+			if result.SourceURL != tt.expected.SourceURL {
+				t.Errorf("expected source_url %q, got %q", tt.expected.SourceURL, result.SourceURL)
+			}
+
+			if result.UserSearchField != tt.expected.UserSearchField {
+				t.Errorf("expected user_search_field %q, got %q", tt.expected.UserSearchField, result.UserSearchField)
+			}
+
+			// Compare pointer fields
+			if (result.ResolveErrorsOnDeploy == nil) != (tt.expected.ResolveErrorsOnDeploy == nil) {
+				t.Errorf("resolve_errors_on_deploy pointer mismatch")
+			} else if result.ResolveErrorsOnDeploy != nil && tt.expected.ResolveErrorsOnDeploy != nil {
+				if *result.ResolveErrorsOnDeploy != *tt.expected.ResolveErrorsOnDeploy {
+					t.Errorf("expected resolve_errors_on_deploy %v, got %v", *tt.expected.ResolveErrorsOnDeploy, *result.ResolveErrorsOnDeploy)
+				}
+			}
+
+			if (result.DisablePublicLinks == nil) != (tt.expected.DisablePublicLinks == nil) {
+				t.Errorf("disable_public_links pointer mismatch")
+			} else if result.DisablePublicLinks != nil && tt.expected.DisablePublicLinks != nil {
+				if *result.DisablePublicLinks != *tt.expected.DisablePublicLinks {
+					t.Errorf("expected disable_public_links %v, got %v", *tt.expected.DisablePublicLinks, *result.DisablePublicLinks)
+				}
+			}
+
+			if (result.PurgeDays == nil) != (tt.expected.PurgeDays == nil) {
+				t.Errorf("purge_days pointer mismatch")
+			} else if result.PurgeDays != nil && tt.expected.PurgeDays != nil {
+				if *result.PurgeDays != *tt.expected.PurgeDays {
+					t.Errorf("expected purge_days %v, got %v", *tt.expected.PurgeDays, *result.PurgeDays)
+				}
+			}
+		})
 	}
 }
