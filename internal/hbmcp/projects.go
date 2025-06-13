@@ -153,6 +153,30 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			return handleDeleteProject(ctx, client, args)
 		},
 	)
+
+	// get_project_occurrence_counts tool
+	s.AddTool(
+		mcp.NewTool("get_project_occurrence_counts",
+			mcp.WithDescription("Get occurrence counts for all projects or a specific project"),
+			mcp.WithNumber("project_id",
+				mcp.Description("Optional project ID to get occurrence counts for a specific project"),
+				mcp.Min(1),
+			),
+			mcp.WithString("period",
+				mcp.Description("Time period for grouping data: 'hour', 'day', 'week', or 'month'. Defaults to 'hour'"),
+			),
+			mcp.WithString("environment",
+				mcp.Description("Optional environment name to filter results"),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			args, ok := req.Params.Arguments.(map[string]interface{})
+			if !ok {
+				args = make(map[string]interface{})
+			}
+			return handleGetProjectOccurrenceCounts(ctx, client, args)
+		},
+	)
 }
 
 func handleListProjects(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
@@ -273,6 +297,64 @@ func handleDeleteProject(ctx context.Context, client *hbapi.Client, args map[str
 	result, err := client.Projects.Delete(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project: %v", err)), nil
+	}
+
+	// Return JSON response
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+func handleGetProjectOccurrenceCounts(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
+	// Build options struct
+	var options hbapi.GetOccurrenceCountsOptions
+
+	if period, exists := args["period"]; exists {
+		if str, ok := period.(string); ok {
+			// Validate period values
+			switch str {
+			case "hour", "day", "week", "month":
+				options.Period = str
+			case "":
+				// Empty string is valid (will use default)
+			default:
+				return mcp.NewToolResultError("period must be one of: 'hour', 'day', 'week', 'month'"), nil
+			}
+		} else {
+			return mcp.NewToolResultError("period must be a string"), nil
+		}
+	}
+
+	if environment, exists := args["environment"]; exists {
+		if str, ok := environment.(string); ok {
+			options.Environment = str
+		} else {
+			return mcp.NewToolResultError("environment must be a string"), nil
+		}
+	}
+
+	// Check if project_id is provided
+	var result interface{}
+	var err error
+
+	if _, exists := args["project_id"]; exists {
+		// Get occurrence counts for specific project
+		projectID, err := validateIntParam(args, "project_id")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		result, err = client.Projects.GetOccurrenceCounts(ctx, projectID, options)
+	} else {
+		// Get occurrence counts for all projects
+		result, err = client.Projects.GetAllOccurrenceCounts(ctx, options)
+	}
+
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get occurrence counts: %v", err)), nil
 	}
 
 	// Return JSON response

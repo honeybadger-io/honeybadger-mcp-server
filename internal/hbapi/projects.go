@@ -16,6 +16,22 @@ type ProjectRequest struct {
 	UserSearchField       string `json:"user_search_field,omitempty"`
 }
 
+// GetOccurrenceCountsOptions represents options for getting occurrence counts
+type GetOccurrenceCountsOptions struct {
+	Period      string `json:"period,omitempty"`      // "hour", "day", "week", or "month"
+	Environment string `json:"environment,omitempty"` // Filter by environment
+}
+
+// OccurrenceCount represents a single occurrence count data point [timestamp, count]
+type OccurrenceCount [2]int64
+
+// GetOccurrenceCountsResponse represents the response from single project occurrence counts API
+type GetOccurrenceCountsResponse []OccurrenceCount
+
+// GetAllOccurrenceCountsResponse represents the response from all projects occurrence counts API
+// The map key is the project ID as a string
+type GetAllOccurrenceCountsResponse map[string][]OccurrenceCount
+
 // ProjectsService handles operations for the projects resource
 type ProjectsService struct {
 	client *Client
@@ -149,4 +165,70 @@ func (p *ProjectsService) Delete(ctx context.Context, id int) (*DeleteResult, er
 		Success: true,
 		Message: fmt.Sprintf("Project %d deleted successfully", id),
 	}, nil
+}
+
+// GetAllOccurrenceCounts gets occurrence counts for all projects
+func (p *ProjectsService) GetAllOccurrenceCounts(ctx context.Context, options GetOccurrenceCountsOptions) (GetAllOccurrenceCountsResponse, error) {
+	path := "/projects/occurrences"
+
+	// Add query parameters if provided
+	queryParams := make([]string, 0)
+	if options.Period != "" {
+		queryParams = append(queryParams, fmt.Sprintf("period=%s", options.Period))
+	}
+	if options.Environment != "" {
+		queryParams = append(queryParams, fmt.Sprintf("environment=%s", options.Environment))
+	}
+
+	if len(queryParams) > 0 {
+		path += "?" + fmt.Sprintf("%s", queryParams[0])
+		for _, param := range queryParams[1:] {
+			path += "&" + param
+		}
+	}
+
+	req, err := p.client.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result GetAllOccurrenceCountsResponse
+	if err := p.client.do(ctx, req, &result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// GetOccurrenceCounts gets occurrence counts for a specific project
+func (p *ProjectsService) GetOccurrenceCounts(ctx context.Context, projectID int, options GetOccurrenceCountsOptions) (GetOccurrenceCountsResponse, error) {
+	path := fmt.Sprintf("/projects/%d/occurrences", projectID)
+
+	// Add query parameters if provided
+	queryParams := make([]string, 0)
+	if options.Period != "" {
+		queryParams = append(queryParams, fmt.Sprintf("period=%s", options.Period))
+	}
+	if options.Environment != "" {
+		queryParams = append(queryParams, fmt.Sprintf("environment=%s", options.Environment))
+	}
+
+	if len(queryParams) > 0 {
+		path += "?" + fmt.Sprintf("%s", queryParams[0])
+		for _, param := range queryParams[1:] {
+			path += "&" + param
+		}
+	}
+
+	req, err := p.client.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result GetOccurrenceCountsResponse
+	if err := p.client.do(ctx, req, &result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }

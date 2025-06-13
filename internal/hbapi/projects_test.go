@@ -638,3 +638,360 @@ func TestDeleteProject_NotFound(t *testing.T) {
 		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
 	}
 }
+
+func TestGetAllOccurrenceCounts(t *testing.T) {
+	mockResponse := `{
+		"123": [
+			[1510963200, 1440],
+			[1511049600, 1441]
+		],
+		"456": [
+			[1510963200, 500],
+			[1511049600, 600]
+		]
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/occurrences" {
+			t.Errorf("expected path /v2/projects/occurrences, got %s", r.URL.Path)
+		}
+		// Check Basic Auth
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			t.Error("expected Basic Auth to be set")
+		}
+		if username != "test-token" {
+			t.Errorf("expected Basic Auth username test-token, got %s", username)
+		}
+		if password != "" {
+			t.Errorf("expected Basic Auth password to be empty, got %s", password)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	counts, err := client.Projects.GetAllOccurrenceCounts(context.Background(), GetOccurrenceCountsOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(counts) != 2 {
+		t.Errorf("expected 2 projects, got %d", len(counts))
+	}
+
+	if project123, exists := counts["123"]; exists {
+		if len(project123) != 2 {
+			t.Errorf("expected 2 data points for project 123, got %d", len(project123))
+		}
+		if project123[0][0] != 1510963200 || project123[0][1] != 1440 {
+			t.Errorf("unexpected first data point for project 123: %v", project123[0])
+		}
+	} else {
+		t.Error("expected project 123 in response")
+	}
+
+	if project456, exists := counts["456"]; exists {
+		if len(project456) != 2 {
+			t.Errorf("expected 2 data points for project 456, got %d", len(project456))
+		}
+		if project456[0][0] != 1510963200 || project456[0][1] != 500 {
+			t.Errorf("unexpected first data point for project 456: %v", project456[0])
+		}
+	} else {
+		t.Error("expected project 456 in response")
+	}
+}
+
+func TestGetAllOccurrenceCounts_WithOptions(t *testing.T) {
+	mockResponse := `{
+		"123": [
+			[1510963200, 1440],
+			[1511049600, 1441]
+		]
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/occurrences" {
+			t.Errorf("expected path /v2/projects/occurrences, got %s", r.URL.Path)
+		}
+
+		expectedQuery := "period=day&environment=production"
+		if r.URL.RawQuery != expectedQuery {
+			t.Errorf("expected query %s, got %s", expectedQuery, r.URL.RawQuery)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	options := GetOccurrenceCountsOptions{
+		Period:      "day",
+		Environment: "production",
+	}
+
+	counts, err := client.Projects.GetAllOccurrenceCounts(context.Background(), options)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(counts) != 1 {
+		t.Errorf("expected 1 project, got %d", len(counts))
+	}
+}
+
+func TestGetAllOccurrenceCounts_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "Invalid API token"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("invalid-token")
+
+	_, err := client.Projects.GetAllOccurrenceCounts(context.Background(), GetOccurrenceCountsOptions{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+
+	if apiErr.StatusCode != 401 {
+		t.Errorf("expected status code 401, got %d", apiErr.StatusCode)
+	}
+}
+
+func TestGetOccurrenceCounts(t *testing.T) {
+	mockResponse := `[
+		[1510963200, 1440],
+		[1511049600, 1441],
+		[1511136000, 1442]
+	]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/occurrences" {
+			t.Errorf("expected path /v2/projects/123/occurrences, got %s", r.URL.Path)
+		}
+		// Check Basic Auth
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			t.Error("expected Basic Auth to be set")
+		}
+		if username != "test-token" {
+			t.Errorf("expected Basic Auth username test-token, got %s", username)
+		}
+		if password != "" {
+			t.Errorf("expected Basic Auth password to be empty, got %s", password)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	counts, err := client.Projects.GetOccurrenceCounts(context.Background(), 123, GetOccurrenceCountsOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(counts) != 3 {
+		t.Errorf("expected 3 data points, got %d", len(counts))
+	}
+
+	if counts[0][0] != 1510963200 || counts[0][1] != 1440 {
+		t.Errorf("unexpected first data point: %v", counts[0])
+	}
+
+	if counts[1][0] != 1511049600 || counts[1][1] != 1441 {
+		t.Errorf("unexpected second data point: %v", counts[1])
+	}
+
+	if counts[2][0] != 1511136000 || counts[2][1] != 1442 {
+		t.Errorf("unexpected third data point: %v", counts[2])
+	}
+}
+
+func TestGetOccurrenceCounts_WithOptions(t *testing.T) {
+	mockResponse := `[
+		[1510963200, 500],
+		[1511049600, 600]
+	]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/456/occurrences" {
+			t.Errorf("expected path /v2/projects/456/occurrences, got %s", r.URL.Path)
+		}
+
+		expectedQuery := "period=week&environment=staging"
+		if r.URL.RawQuery != expectedQuery {
+			t.Errorf("expected query %s, got %s", expectedQuery, r.URL.RawQuery)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	options := GetOccurrenceCountsOptions{
+		Period:      "week",
+		Environment: "staging",
+	}
+
+	counts, err := client.Projects.GetOccurrenceCounts(context.Background(), 456, options)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(counts) != 2 {
+		t.Errorf("expected 2 data points, got %d", len(counts))
+	}
+
+	if counts[0][0] != 1510963200 || counts[0][1] != 500 {
+		t.Errorf("unexpected first data point: %v", counts[0])
+	}
+}
+
+func TestGetOccurrenceCounts_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Project not found"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	_, err := client.Projects.GetOccurrenceCounts(context.Background(), 999, GetOccurrenceCountsOptions{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+
+	if apiErr.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
+	}
+}
+
+func TestGetOccurrenceCounts_OnlyPeriodOption(t *testing.T) {
+	mockResponse := `[
+		[1510963200, 100]
+	]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/projects/123/occurrences" {
+			t.Errorf("expected path /v2/projects/123/occurrences, got %s", r.URL.Path)
+		}
+
+		expectedQuery := "period=month"
+		if r.URL.RawQuery != expectedQuery {
+			t.Errorf("expected query %s, got %s", expectedQuery, r.URL.RawQuery)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	options := GetOccurrenceCountsOptions{
+		Period: "month",
+		// Environment intentionally left empty
+	}
+
+	counts, err := client.Projects.GetOccurrenceCounts(context.Background(), 123, options)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(counts) != 1 {
+		t.Errorf("expected 1 data point, got %d", len(counts))
+	}
+}
+
+func TestGetOccurrenceCounts_OnlyEnvironmentOption(t *testing.T) {
+	mockResponse := `[
+		[1510963200, 200]
+	]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/projects/789/occurrences" {
+			t.Errorf("expected path /v2/projects/789/occurrences, got %s", r.URL.Path)
+		}
+
+		expectedQuery := "environment=development"
+		if r.URL.RawQuery != expectedQuery {
+			t.Errorf("expected query %s, got %s", expectedQuery, r.URL.RawQuery)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	options := GetOccurrenceCountsOptions{
+		// Period intentionally left empty
+		Environment: "development",
+	}
+
+	counts, err := client.Projects.GetOccurrenceCounts(context.Background(), 789, options)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(counts) != 1 {
+		t.Errorf("expected 1 data point, got %d", len(counts))
+	}
+}
