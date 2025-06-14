@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -249,43 +248,6 @@ func TestCreateProject(t *testing.T) {
 	}
 }
 
-func TestCreateProject_EmptyName(t *testing.T) {
-	client := NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
-
-	req := ProjectRequest{
-		Name: "",
-	}
-
-	_, err := client.Projects.Create(context.Background(), "K7xmQqN", req)
-	if err == nil {
-		t.Fatal("expected error for empty name, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "project name cannot be empty") {
-		t.Errorf("expected empty name error, got %s", err.Error())
-	}
-}
-
-func TestCreateProject_EmptyAccountID(t *testing.T) {
-	client := NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
-
-	req := ProjectRequest{
-		Name: "Test Project",
-	}
-
-	_, err := client.Projects.Create(context.Background(), "", req)
-	if err == nil {
-		t.Fatal("expected error for empty account ID, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "account ID cannot be empty") {
-		t.Errorf("expected empty account ID error, got %s", err.Error())
-	}
-}
 
 func TestCreateProject_ValidationError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

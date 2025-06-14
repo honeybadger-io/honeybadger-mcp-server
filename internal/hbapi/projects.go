@@ -88,14 +88,6 @@ type ProjectRequest struct {
 //
 // POST /projects?account_id={accountID}
 func (p *ProjectsService) Create(ctx context.Context, accountID string, req ProjectRequest) (*Project, error) {
-	if accountID == "" {
-		return nil, fmt.Errorf("account ID cannot be empty")
-	}
-
-	if req.Name == "" {
-		return nil, fmt.Errorf("project name cannot be empty")
-	}
-
 	body := map[string]interface{}{
 		"project": req,
 	}
@@ -159,7 +151,6 @@ type DeleteResult struct {
 //
 // DELETE /projects/{id}
 func (p *ProjectsService) Delete(ctx context.Context, id int) (*DeleteResult, error) {
-
 	path := fmt.Sprintf("/projects/%d", id)
 	req, err := p.client.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {

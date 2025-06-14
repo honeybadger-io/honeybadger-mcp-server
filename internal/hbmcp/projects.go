@@ -21,11 +21,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args, ok := req.Params.Arguments.(map[string]interface{})
-			if !ok {
-				args = make(map[string]interface{})
-			}
-			return handleListProjects(ctx, client, args)
+			return handleListProjects(ctx, client, req)
 		},
 	)
 
@@ -40,11 +36,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args, ok := req.Params.Arguments.(map[string]interface{})
-			if !ok {
-				return mcp.NewToolResultError("Invalid arguments"), nil
-			}
-			return handleGetProject(ctx, client, args)
+			return handleGetProject(ctx, client, req)
 		},
 	)
 
@@ -84,11 +76,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args, ok := req.Params.Arguments.(map[string]interface{})
-			if !ok {
-				return mcp.NewToolResultError("Invalid arguments"), nil
-			}
-			return handleCreateProject(ctx, client, args)
+			return handleCreateProject(ctx, client, req)
 		},
 	)
 
@@ -127,11 +115,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args, ok := req.Params.Arguments.(map[string]interface{})
-			if !ok {
-				return mcp.NewToolResultError("Invalid arguments"), nil
-			}
-			return handleUpdateProject(ctx, client, args)
+			return handleUpdateProject(ctx, client, req)
 		},
 	)
 
@@ -146,11 +130,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args, ok := req.Params.Arguments.(map[string]interface{})
-			if !ok {
-				return mcp.NewToolResultError("Invalid arguments"), nil
-			}
-			return handleDeleteProject(ctx, client, args)
+			return handleDeleteProject(ctx, client, req)
 		},
 	)
 
@@ -171,11 +151,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args, ok := req.Params.Arguments.(map[string]interface{})
-			if !ok {
-				args = make(map[string]interface{})
-			}
-			return handleGetProjectOccurrenceCounts(ctx, client, args)
+			return handleGetProjectOccurrenceCounts(ctx, client, req)
 		},
 	)
 
@@ -190,11 +166,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args, ok := req.Params.Arguments.(map[string]interface{})
-			if !ok {
-				return mcp.NewToolResultError("Invalid arguments"), nil
-			}
-			return handleGetProjectIntegrations(ctx, client, args)
+			return handleGetProjectIntegrations(ctx, client, req)
 		},
 	)
 
@@ -223,26 +195,19 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args, ok := req.Params.Arguments.(map[string]interface{})
-			if !ok {
-				return mcp.NewToolResultError("Invalid arguments"), nil
-			}
-			return handleGetProjectReport(ctx, client, args)
+			return handleGetProjectReport(ctx, client, req)
 		},
 	)
 }
 
-func handleListProjects(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
+func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// Extract account_id parameter (optional)
 	var projects []hbapi.Project
 	var err error
 
-	if value, exists := args["account_id"]; exists {
-		if accountID, ok := value.(string); ok {
-			projects, err = client.Projects.ListByAccountID(ctx, accountID)
-		} else {
-			return mcp.NewToolResultError("account_id must be a string"), nil
-		}
+	accountID := req.GetString("account_id", "")
+	if accountID != "" {
+		projects, err = client.Projects.ListByAccountID(ctx, accountID)
 	} else {
 		projects, err = client.Projects.ListAll(ctx)
 	}
@@ -265,10 +230,10 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, args map[stri
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	id, err := validateIntParam(args, "id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+func handleGetProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetInt("id", 0)
+	if id == 0 {
+		return mcp.NewToolResultError("id is required"), nil
 	}
 
 	project, err := client.Projects.Get(ctx, id)
@@ -288,18 +253,42 @@ func handleGetProject(ctx context.Context, client *hbapi.Client, args map[string
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleCreateProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	accountID, err := validateStringParam(args, "account_id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+func handleCreateProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	accountID := req.GetString("account_id", "")
+	if accountID == "" {
+		return mcp.NewToolResultError("account_id is required"), nil
 	}
 
-	req, err := argsToProjectRequest(args, true)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+	// Build project request using typed getters
+	projectReq := hbapi.ProjectRequest{
+		Name: req.GetString("name", ""),
 	}
 
-	project, err := client.Projects.Create(ctx, accountID, req)
+	if projectReq.Name == "" {
+		return mcp.NewToolResultError("name is required"), nil
+	}
+
+	// Handle optional parameters
+	if resolveErrors := req.GetString("resolve_errors_on_deploy", ""); resolveErrors != "" {
+		val := req.GetBool("resolve_errors_on_deploy", false)
+		projectReq.ResolveErrorsOnDeploy = &val
+	}
+
+	if disableLinks := req.GetString("disable_public_links", ""); disableLinks != "" {
+		val := req.GetBool("disable_public_links", false)
+		projectReq.DisablePublicLinks = &val
+	}
+
+	projectReq.UserURL = req.GetString("user_url", "")
+	projectReq.SourceURL = req.GetString("source_url", "")
+
+	if purgeDays := req.GetInt("purge_days", 0); purgeDays > 0 {
+		projectReq.PurgeDays = &purgeDays
+	}
+
+	projectReq.UserSearchField = req.GetString("user_search_field", "")
+
+	project, err := client.Projects.Create(ctx, accountID, projectReq)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
@@ -316,18 +305,38 @@ func handleCreateProject(ctx context.Context, client *hbapi.Client, args map[str
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	id, err := validateIntParam(args, "id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+func handleUpdateProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetInt("id", 0)
+	if id == 0 {
+		return mcp.NewToolResultError("id is required"), nil
 	}
 
-	req, err := argsToProjectRequest(args, false)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+	// Build project request using typed getters - name not required for updates
+	projectReq := hbapi.ProjectRequest{
+		Name: req.GetString("name", ""),
 	}
 
-	result, err := client.Projects.Update(ctx, id, req)
+	// Handle optional parameters
+	if resolveErrors := req.GetString("resolve_errors_on_deploy", ""); resolveErrors != "" {
+		val := req.GetBool("resolve_errors_on_deploy", false)
+		projectReq.ResolveErrorsOnDeploy = &val
+	}
+
+	if disableLinks := req.GetString("disable_public_links", ""); disableLinks != "" {
+		val := req.GetBool("disable_public_links", false)
+		projectReq.DisablePublicLinks = &val
+	}
+
+	projectReq.UserURL = req.GetString("user_url", "")
+	projectReq.SourceURL = req.GetString("source_url", "")
+
+	if purgeDays := req.GetInt("purge_days", 0); purgeDays > 0 {
+		projectReq.PurgeDays = &purgeDays
+	}
+
+	projectReq.UserSearchField = req.GetString("user_search_field", "")
+
+	result, err := client.Projects.Update(ctx, id, projectReq)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
@@ -341,10 +350,10 @@ func handleUpdateProject(ctx context.Context, client *hbapi.Client, args map[str
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleDeleteProject(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	id, err := validateIntParam(args, "id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+func handleDeleteProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetInt("id", 0)
+	if id == 0 {
+		return mcp.NewToolResultError("id is required"), nil
 	}
 
 	result, err := client.Projects.Delete(ctx, id)
@@ -361,45 +370,20 @@ func handleDeleteProject(ctx context.Context, client *hbapi.Client, args map[str
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectOccurrenceCounts(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	// Build options struct
-	var options hbapi.ProjectGetOccurrenceCountsOptions
-
-	if period, exists := args["period"]; exists {
-		if str, ok := period.(string); ok {
-			// Validate period values
-			switch str {
-			case "hour", "day", "week", "month":
-				options.Period = str
-			case "":
-				// Empty string is valid (will use default)
-			default:
-				return mcp.NewToolResultError("period must be one of: 'hour', 'day', 'week', 'month'"), nil
-			}
-		} else {
-			return mcp.NewToolResultError("period must be a string"), nil
-		}
-	}
-
-	if environment, exists := args["environment"]; exists {
-		if str, ok := environment.(string); ok {
-			options.Environment = str
-		} else {
-			return mcp.NewToolResultError("environment must be a string"), nil
-		}
+func handleGetProjectOccurrenceCounts(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	// Build options struct using typed getters
+	options := hbapi.ProjectGetOccurrenceCountsOptions{
+		Period:      req.GetString("period", ""),
+		Environment: req.GetString("environment", ""),
 	}
 
 	// Check if project_id is provided
 	var result interface{}
 	var err error
 
-	if _, exists := args["project_id"]; exists {
+	projectID := req.GetInt("project_id", 0)
+	if projectID > 0 {
 		// Get occurrence counts for specific project
-		projectID, err := validateIntParam(args, "project_id")
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-
 		result, err = client.Projects.GetOccurrenceCounts(ctx, projectID, options)
 	} else {
 		// Get occurrence counts for all projects
@@ -419,10 +403,10 @@ func handleGetProjectOccurrenceCounts(ctx context.Context, client *hbapi.Client,
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectIntegrations(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	projectID, err := validateIntParam(args, "project_id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+func handleGetProjectIntegrations(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetInt("project_id", 0)
+	if projectID == 0 {
+		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
 	integrations, err := client.Projects.GetIntegrations(ctx, projectID)
@@ -439,18 +423,18 @@ func handleGetProjectIntegrations(ctx context.Context, client *hbapi.Client, arg
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectReport(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
-	projectID, err := validateIntParam(args, "project_id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+func handleGetProjectReport(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetInt("project_id", 0)
+	if projectID == 0 {
+		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	reportStr, err := validateStringParam(args, "report")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+	reportStr := req.GetString("report", "")
+	if reportStr == "" {
+		return mcp.NewToolResultError("report is required"), nil
 	}
 
-	// Validate and convert report type
+	// Convert report type - MCP enum constraint should handle validation
 	var reportType hbapi.ProjectReportType
 	switch reportStr {
 	case "notices_by_class":
@@ -462,31 +446,14 @@ func handleGetProjectReport(ctx context.Context, client *hbapi.Client, args map[
 	case "notices_per_day":
 		reportType = hbapi.ProjectNoticesPerDay
 	default:
-		return mcp.NewToolResultError("report must be one of: 'notices_by_class', 'notices_by_location', 'notices_by_user', 'notices_per_day'"), nil
+		reportType = hbapi.ProjectReportType(reportStr) // Let the API handle unknown types
 	}
 
-	// Build options struct
-	var options hbapi.ProjectGetReportOptions
-	if start, exists := args["start"]; exists {
-		if str, ok := start.(string); ok {
-			options.Start = str
-		} else {
-			return mcp.NewToolResultError("start must be a string"), nil
-		}
-	}
-	if stop, exists := args["stop"]; exists {
-		if str, ok := stop.(string); ok {
-			options.Stop = str
-		} else {
-			return mcp.NewToolResultError("stop must be a string"), nil
-		}
-	}
-	if environment, exists := args["environment"]; exists {
-		if str, ok := environment.(string); ok {
-			options.Environment = str
-		} else {
-			return mcp.NewToolResultError("environment must be a string"), nil
-		}
+	// Build options struct using typed getters
+	options := hbapi.ProjectGetReportOptions{
+		Start:       req.GetString("start", ""),
+		Stop:        req.GetString("stop", ""),
+		Environment: req.GetString("environment", ""),
 	}
 
 	report, err := client.Projects.GetReport(ctx, projectID, reportType, options)
@@ -501,124 +468,6 @@ func handleGetProjectReport(ctx context.Context, client *hbapi.Client, args map[
 	}
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
-}
-
-// Helper functions for parameter validation
-func validateStringParam(args map[string]interface{}, paramName string) (string, error) {
-	value, exists := args[paramName]
-	if !exists {
-		return "", fmt.Errorf("required parameter '%s' is missing", paramName)
-	}
-
-	str, ok := value.(string)
-	if !ok {
-		return "", fmt.Errorf("parameter '%s' must be a string", paramName)
-	}
-
-	if str == "" {
-		return "", fmt.Errorf("parameter '%s' cannot be empty", paramName)
-	}
-
-	return str, nil
-}
-
-func validateIntParam(args map[string]interface{}, paramName string) (int, error) {
-	value, exists := args[paramName]
-	if !exists {
-		return 0, fmt.Errorf("required parameter '%s' is missing", paramName)
-	}
-
-	// Handle both int and float64 (JSON numbers are parsed as float64)
-	switch v := value.(type) {
-	case int:
-		if v <= 0 {
-			return 0, fmt.Errorf("parameter '%s' must be positive", paramName)
-		}
-		return v, nil
-	case float64:
-		if v != float64(int(v)) {
-			return 0, fmt.Errorf("parameter '%s' must be an integer", paramName)
-		}
-		intVal := int(v)
-		if intVal <= 0 {
-			return 0, fmt.Errorf("parameter '%s' must be positive", paramName)
-		}
-		return intVal, nil
-	default:
-		return 0, fmt.Errorf("parameter '%s' must be an integer", paramName)
-	}
-}
-
-// argsToProjectRequest converts MCP arguments to a ProjectRequest struct
-func argsToProjectRequest(args map[string]interface{}, requireName bool) (hbapi.ProjectRequest, error) {
-	var req hbapi.ProjectRequest
-
-	if name, exists := args["name"]; exists {
-		if str, ok := name.(string); ok {
-			req.Name = str
-		} else {
-			return req, fmt.Errorf("name must be a string")
-		}
-	} else if requireName {
-		return req, fmt.Errorf("name is required")
-	}
-
-	if resolveErrors, exists := args["resolve_errors_on_deploy"]; exists {
-		if b, ok := resolveErrors.(bool); ok {
-			req.ResolveErrorsOnDeploy = &b
-		} else {
-			return req, fmt.Errorf("resolve_errors_on_deploy must be a boolean")
-		}
-	}
-
-	if disableLinks, exists := args["disable_public_links"]; exists {
-		if b, ok := disableLinks.(bool); ok {
-			req.DisablePublicLinks = &b
-		} else {
-			return req, fmt.Errorf("disable_public_links must be a boolean")
-		}
-	}
-
-	if userURL, exists := args["user_url"]; exists {
-		if str, ok := userURL.(string); ok {
-			req.UserURL = str
-		} else {
-			return req, fmt.Errorf("user_url must be a string")
-		}
-	}
-
-	if sourceURL, exists := args["source_url"]; exists {
-		if str, ok := sourceURL.(string); ok {
-			req.SourceURL = str
-		} else {
-			return req, fmt.Errorf("source_url must be a string")
-		}
-	}
-
-	if purgeDays, exists := args["purge_days"]; exists {
-		switch v := purgeDays.(type) {
-		case int:
-			req.PurgeDays = &v
-		case float64:
-			if v != float64(int(v)) {
-				return req, fmt.Errorf("purge_days must be an integer")
-			}
-			intVal := int(v)
-			req.PurgeDays = &intVal
-		default:
-			return req, fmt.Errorf("purge_days must be an integer")
-		}
-	}
-
-	if userSearchField, exists := args["user_search_field"]; exists {
-		if str, ok := userSearchField.(string); ok {
-			req.UserSearchField = str
-		} else {
-			return req, fmt.Errorf("user_search_field must be a string")
-		}
-	}
-
-	return req, nil
 }
 
 // Sanitization functions to remove sensitive data like API tokens

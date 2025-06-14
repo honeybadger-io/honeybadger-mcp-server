@@ -52,7 +52,13 @@ func TestHandleListProjects(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	result, err := handleListProjects(context.Background(), client, map[string]interface{}{})
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{},
+		},
+	}
+
+	result, err := handleListProjects(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
@@ -84,7 +90,13 @@ func TestHandleListProjects_Error(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("invalid-token")
 
-	result, err := handleListProjects(context.Background(), client, map[string]interface{}{})
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{},
+		},
+	}
+
+	result, err := handleListProjects(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
@@ -125,11 +137,15 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 		WithAuthToken("test-token")
 
 	// Test with account_id parameter
-	args := map[string]interface{}{
-		"account_id": "K7xmQqN",
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"account_id": "K7xmQqN",
+			},
+		},
 	}
 
-	result, err := handleListProjects(context.Background(), client, args)
+	result, err := handleListProjects(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
@@ -170,11 +186,15 @@ func TestHandleGetProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"id": 123,
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"id": 123,
+			},
+		},
 	}
 
-	result, err := handleGetProject(context.Background(), client, args)
+	result, err := handleGetProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
@@ -199,9 +219,13 @@ func TestHandleGetProject_MissingID(t *testing.T) {
 		WithBaseURL("https://api.example.com").
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{}
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{},
+		},
+	}
 
-	result, err := handleGetProject(context.Background(), client, args)
+	result, err := handleGetProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
@@ -210,7 +234,7 @@ func TestHandleGetProject_MissingID(t *testing.T) {
 		t.Fatal("expected error result for missing ID")
 	}
 
-	if !strings.Contains(getResultText(result), "required parameter 'id' is missing") {
+	if !strings.Contains(getResultText(result), "id is required") {
 		t.Error("Error message should indicate missing ID parameter")
 	}
 }
@@ -220,11 +244,15 @@ func TestHandleGetProject_InvalidID(t *testing.T) {
 		WithBaseURL("https://api.example.com").
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"id": 0,
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"id": 0,
+			},
+		},
 	}
 
-	result, err := handleGetProject(context.Background(), client, args)
+	result, err := handleGetProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
@@ -233,7 +261,7 @@ func TestHandleGetProject_InvalidID(t *testing.T) {
 		t.Fatal("expected error result for invalid ID")
 	}
 
-	if !strings.Contains(getResultText(result), "parameter 'id' must be positive") {
+	if !strings.Contains(getResultText(result), "id is required") {
 		t.Error("Error message should indicate invalid ID parameter")
 	}
 }
@@ -273,12 +301,16 @@ func TestHandleCreateProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"account_id": "K7xmQqN",
-		"name":       "New Project",
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"account_id": "K7xmQqN",
+				"name":       "New Project",
+			},
+		},
 	}
 
-	result, err := handleCreateProject(context.Background(), client, args)
+	result, err := handleCreateProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleCreateProject() error = %v", err)
 	}
@@ -313,12 +345,16 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"account_id": "K7xmQqN",
-		"name":       "Duplicate Name",
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"account_id": "K7xmQqN",
+				"name":       "Duplicate Name",
+			},
+		},
 	}
 
-	result, err := handleCreateProject(context.Background(), client, args)
+	result, err := handleCreateProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleCreateProject() error = %v", err)
 	}
@@ -337,11 +373,15 @@ func TestHandleCreateProject_MissingAccountID(t *testing.T) {
 		WithBaseURL("https://api.example.com").
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"name": "Test Project",
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"name": "Test Project",
+			},
+		},
 	}
 
-	result, err := handleCreateProject(context.Background(), client, args)
+	result, err := handleCreateProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleCreateProject() error = %v", err)
 	}
@@ -350,7 +390,7 @@ func TestHandleCreateProject_MissingAccountID(t *testing.T) {
 		t.Fatal("expected error result for missing account_id")
 	}
 
-	if !strings.Contains(getResultText(result), "required parameter 'account_id' is missing") {
+	if !strings.Contains(getResultText(result), "account_id is required") {
 		t.Error("Error message should indicate missing account_id parameter")
 	}
 }
@@ -387,12 +427,16 @@ func TestHandleUpdateProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"id":   123,
-		"name": "Updated Project",
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"id":   123,
+				"name": "Updated Project",
+			},
+		},
 	}
 
-	result, err := handleUpdateProject(context.Background(), client, args)
+	result, err := handleUpdateProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
@@ -403,12 +447,17 @@ func TestHandleUpdateProject(t *testing.T) {
 
 	// Check that success message is present
 	resultText := getResultText(result)
-	if !strings.Contains(resultText, "successfully updated") {
+	var response map[string]interface{}
+	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if message, ok := response["message"].(string); !ok || !strings.Contains(message, "successfully updated") {
 		t.Error("Success message should be present in response")
 	}
 
-	if !strings.Contains(resultText, "123") {
-		t.Error("Project ID should be present in success message")
+	if success, ok := response["success"].(bool); !ok || !success {
+		t.Error("Response should include success: true")
 	}
 }
 
@@ -417,11 +466,15 @@ func TestHandleUpdateProject_MissingID(t *testing.T) {
 		WithBaseURL("https://api.example.com").
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"name": "Updated Project",
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"name": "Updated Project",
+			},
+		},
 	}
 
-	result, err := handleUpdateProject(context.Background(), client, args)
+	result, err := handleUpdateProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
@@ -430,7 +483,7 @@ func TestHandleUpdateProject_MissingID(t *testing.T) {
 		t.Fatal("expected error result")
 	}
 
-	if !strings.Contains(getResultText(result), "required parameter 'id' is missing") {
+	if !strings.Contains(getResultText(result), "id is required") {
 		t.Errorf("expected missing id error, got %s", getResultText(result))
 	}
 }
@@ -452,12 +505,16 @@ func TestHandleUpdateProject_NoFieldsToUpdate(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"id": 123,
-		// No fields to update - should still work (sends empty struct)
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"id": 123,
+				// No fields to update - should still work (sends empty struct)
+			},
+		},
 	}
 
-	result, err := handleUpdateProject(context.Background(), client, args)
+	result, err := handleUpdateProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
@@ -468,7 +525,12 @@ func TestHandleUpdateProject_NoFieldsToUpdate(t *testing.T) {
 
 	// Check that success message is present
 	resultText := getResultText(result)
-	if !strings.Contains(resultText, "successfully updated") {
+	var response map[string]interface{}
+	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if message, ok := response["message"].(string); !ok || !strings.Contains(message, "successfully updated") {
 		t.Error("Success message should be present in response")
 	}
 }
@@ -489,11 +551,15 @@ func TestHandleDeleteProject(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"id": 123,
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"id": 123,
+			},
+		},
 	}
 
-	result, err := handleDeleteProject(context.Background(), client, args)
+	result, err := handleDeleteProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}
@@ -529,11 +595,15 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	args := map[string]interface{}{
-		"id": 999,
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"id": 999,
+			},
+		},
 	}
 
-	result, err := handleDeleteProject(context.Background(), client, args)
+	result, err := handleDeleteProject(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}
@@ -547,132 +617,6 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 	}
 }
 
-func TestValidateStringParam(t *testing.T) {
-	tests := []struct {
-		name      string
-		args      map[string]interface{}
-		paramName string
-		expected  string
-		wantError bool
-	}{
-		{
-			name:      "valid string parameter",
-			args:      map[string]interface{}{"test": "value"},
-			paramName: "test",
-			expected:  "value",
-			wantError: false,
-		},
-		{
-			name:      "missing parameter",
-			args:      map[string]interface{}{},
-			paramName: "test",
-			wantError: true,
-		},
-		{
-			name:      "empty string parameter",
-			args:      map[string]interface{}{"test": ""},
-			paramName: "test",
-			wantError: true,
-		},
-		{
-			name:      "non-string parameter",
-			args:      map[string]interface{}{"test": 123},
-			paramName: "test",
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := validateStringParam(tt.args, tt.paramName)
-
-			if tt.wantError && err == nil {
-				t.Error("expected error, got nil")
-			}
-
-			if !tt.wantError && err != nil {
-				t.Errorf("expected no error, got %v", err)
-			}
-
-			if !tt.wantError && result != tt.expected {
-				t.Errorf("expected result '%s', got '%s'", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestValidateIntParam(t *testing.T) {
-	tests := []struct {
-		name      string
-		args      map[string]interface{}
-		paramName string
-		expected  int
-		wantError bool
-	}{
-		{
-			name:      "valid int parameter",
-			args:      map[string]interface{}{"test": 123},
-			paramName: "test",
-			expected:  123,
-			wantError: false,
-		},
-		{
-			name:      "valid float64 parameter (whole number)",
-			args:      map[string]interface{}{"test": 123.0},
-			paramName: "test",
-			expected:  123,
-			wantError: false,
-		},
-		{
-			name:      "missing parameter",
-			args:      map[string]interface{}{},
-			paramName: "test",
-			wantError: true,
-		},
-		{
-			name:      "zero parameter",
-			args:      map[string]interface{}{"test": 0},
-			paramName: "test",
-			wantError: true,
-		},
-		{
-			name:      "negative parameter",
-			args:      map[string]interface{}{"test": -1},
-			paramName: "test",
-			wantError: true,
-		},
-		{
-			name:      "float64 parameter (decimal)",
-			args:      map[string]interface{}{"test": 123.5},
-			paramName: "test",
-			wantError: true,
-		},
-		{
-			name:      "string parameter",
-			args:      map[string]interface{}{"test": "123"},
-			paramName: "test",
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := validateIntParam(tt.args, tt.paramName)
-
-			if tt.wantError && err == nil {
-				t.Error("expected error, got nil")
-			}
-
-			if !tt.wantError && err != nil {
-				t.Errorf("expected no error, got %v", err)
-			}
-
-			if !tt.wantError && result != tt.expected {
-				t.Errorf("expected result %d, got %d", tt.expected, result)
-			}
-		})
-	}
-}
 
 func TestSanitizeProject(t *testing.T) {
 	project := &hbapi.Project{
@@ -703,168 +647,6 @@ func TestSanitizeProject(t *testing.T) {
 	}
 }
 
-func TestArgsToProjectRequest(t *testing.T) {
-	tests := []struct {
-		name        string
-		args        map[string]interface{}
-		requireName bool
-		expected    hbapi.ProjectRequest
-		wantError   bool
-	}{
-		{
-			name: "all fields valid",
-			args: map[string]interface{}{
-				"name":                     "Test Project",
-				"resolve_errors_on_deploy": true,
-				"disable_public_links":     false,
-				"user_url":                 "https://example.com/users/[user_id]",
-				"source_url":               "https://github.com/user/repo/blob/[sha]/[file]#L[line]",
-				"purge_days":               30,
-				"user_search_field":        "context.user_email",
-			},
-			requireName: true,
-			expected: hbapi.ProjectRequest{
-				Name:                  "Test Project",
-				ResolveErrorsOnDeploy: func() *bool { b := true; return &b }(),
-				DisablePublicLinks:    func() *bool { b := false; return &b }(),
-				UserURL:               "https://example.com/users/[user_id]",
-				SourceURL:             "https://github.com/user/repo/blob/[sha]/[file]#L[line]",
-				PurgeDays:             func() *int { i := 30; return &i }(),
-				UserSearchField:       "context.user_email",
-			},
-			wantError: false,
-		},
-		{
-			name: "partial fields",
-			args: map[string]interface{}{
-				"name": "Partial Project",
-			},
-			requireName: false,
-			expected: hbapi.ProjectRequest{
-				Name: "Partial Project",
-			},
-			wantError: false,
-		},
-		{
-			name: "float64 purge_days",
-			args: map[string]interface{}{
-				"purge_days": float64(90),
-			},
-			requireName: false,
-			expected: hbapi.ProjectRequest{
-				PurgeDays: func() *int { i := 90; return &i }(),
-			},
-			wantError: false,
-		},
-		{
-			name:        "missing required name",
-			args:        map[string]interface{}{},
-			requireName: true,
-			wantError:   true,
-		},
-		{
-			name:        "missing name but not required",
-			args:        map[string]interface{}{},
-			requireName: false,
-			expected:    hbapi.ProjectRequest{},
-			wantError:   false,
-		},
-		{
-			name: "invalid name type",
-			args: map[string]interface{}{
-				"name": 123,
-			},
-			requireName: true,
-			wantError:   true,
-		},
-		{
-			name: "invalid resolve_errors_on_deploy type",
-			args: map[string]interface{}{
-				"resolve_errors_on_deploy": "true",
-			},
-			requireName: false,
-			wantError:   true,
-		},
-		{
-			name: "invalid purge_days type",
-			args: map[string]interface{}{
-				"purge_days": "30",
-			},
-			requireName: false,
-			wantError:   true,
-		},
-		{
-			name: "invalid purge_days decimal",
-			args: map[string]interface{}{
-				"purge_days": 30.5,
-			},
-			requireName: false,
-			wantError:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := argsToProjectRequest(tt.args, tt.requireName)
-
-			if tt.wantError && err == nil {
-				t.Error("expected error, got nil")
-				return
-			}
-
-			if !tt.wantError && err != nil {
-				t.Errorf("expected no error, got %v", err)
-				return
-			}
-
-			if tt.wantError {
-				return // Don't check result if we expected an error
-			}
-
-			// Compare the results
-			if result.Name != tt.expected.Name {
-				t.Errorf("expected name %q, got %q", tt.expected.Name, result.Name)
-			}
-
-			if result.UserURL != tt.expected.UserURL {
-				t.Errorf("expected user_url %q, got %q", tt.expected.UserURL, result.UserURL)
-			}
-
-			if result.SourceURL != tt.expected.SourceURL {
-				t.Errorf("expected source_url %q, got %q", tt.expected.SourceURL, result.SourceURL)
-			}
-
-			if result.UserSearchField != tt.expected.UserSearchField {
-				t.Errorf("expected user_search_field %q, got %q", tt.expected.UserSearchField, result.UserSearchField)
-			}
-
-			// Compare pointer fields
-			if (result.ResolveErrorsOnDeploy == nil) != (tt.expected.ResolveErrorsOnDeploy == nil) {
-				t.Errorf("resolve_errors_on_deploy pointer mismatch")
-			} else if result.ResolveErrorsOnDeploy != nil && tt.expected.ResolveErrorsOnDeploy != nil {
-				if *result.ResolveErrorsOnDeploy != *tt.expected.ResolveErrorsOnDeploy {
-					t.Errorf("expected resolve_errors_on_deploy %v, got %v", *tt.expected.ResolveErrorsOnDeploy, *result.ResolveErrorsOnDeploy)
-				}
-			}
-
-			if (result.DisablePublicLinks == nil) != (tt.expected.DisablePublicLinks == nil) {
-				t.Errorf("disable_public_links pointer mismatch")
-			} else if result.DisablePublicLinks != nil && tt.expected.DisablePublicLinks != nil {
-				if *result.DisablePublicLinks != *tt.expected.DisablePublicLinks {
-					t.Errorf("expected disable_public_links %v, got %v", *tt.expected.DisablePublicLinks, *result.DisablePublicLinks)
-				}
-			}
-
-			if (result.PurgeDays == nil) != (tt.expected.PurgeDays == nil) {
-				t.Errorf("purge_days pointer mismatch")
-			} else if result.PurgeDays != nil && tt.expected.PurgeDays != nil {
-				if *result.PurgeDays != *tt.expected.PurgeDays {
-					t.Errorf("expected purge_days %v, got %v", *tt.expected.PurgeDays, *result.PurgeDays)
-				}
-			}
-		})
-	}
-}
 
 func TestHandleGetProjectReport(t *testing.T) {
 	mockResponse := `[["RuntimeError", 8347], ["SocketError", 4651]]`
@@ -883,12 +665,16 @@ func TestHandleGetProjectReport(t *testing.T) {
 	defer server.Close()
 
 	client := hbapi.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
-	args := map[string]interface{}{
-		"project_id": float64(123),
-		"report":     "notices_by_class",
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": float64(123),
+				"report":     "notices_by_class",
+			},
+		},
 	}
 
-	result, err := handleGetProjectReport(context.Background(), client, args)
+	result, err := handleGetProjectReport(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleGetProjectReport() error = %v", err)
 	}
@@ -902,13 +688,23 @@ func TestHandleGetProjectReport(t *testing.T) {
 }
 
 func TestHandleGetProjectReport_InvalidReport(t *testing.T) {
-	client := hbapi.NewClient().WithBaseURL("https://test.example.com").WithAuthToken("test-token")
-	args := map[string]interface{}{
-		"project_id": float64(123),
-		"report":     "invalid_report_type",
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "Invalid report type"}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": float64(123),
+				"report":     "invalid_report_type",
+			},
+		},
 	}
 
-	result, err := handleGetProjectReport(context.Background(), client, args)
+	result, err := handleGetProjectReport(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleGetProjectReport() error = %v", err)
 	}
@@ -916,8 +712,8 @@ func TestHandleGetProjectReport_InvalidReport(t *testing.T) {
 		t.Fatal("expected error result for invalid report type")
 	}
 	resultText := getResultText(result)
-	if !strings.Contains(resultText, "notices_by_class") {
-		t.Error("Error message should mention valid report types")
+	if !strings.Contains(resultText, "Failed to get project report") {
+		t.Error("Error message should contain 'Failed to get project report'")
 	}
 }
 
@@ -945,15 +741,19 @@ func TestHandleGetProjectReport_WithOptions(t *testing.T) {
 	defer server.Close()
 
 	client := hbapi.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
-	args := map[string]interface{}{
-		"project_id":  float64(456),
-		"report":      "notices_by_location",
-		"start":       "2023-01-01T00:00:00Z",
-		"stop":        "2023-01-31T23:59:59Z",
-		"environment": "production",
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id":  float64(456),
+				"report":      "notices_by_location",
+				"start":       "2023-01-01T00:00:00Z",
+				"stop":        "2023-01-31T23:59:59Z",
+				"environment": "production",
+			},
+		},
 	}
 
-	result, err := handleGetProjectReport(context.Background(), client, args)
+	result, err := handleGetProjectReport(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleGetProjectReport() error = %v", err)
 	}
