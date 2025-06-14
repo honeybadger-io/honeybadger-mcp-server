@@ -46,7 +46,10 @@ func TestFaultsList(t *testing.T) {
 				"tags": [],
 				"url": "https://app.honeybadger.io/projects/123/faults/2"
 			}
-		]
+		],
+		"links": {
+			"self": "https://app.honeybadger.io/v2/projects/123/faults"
+		}
 	}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -78,25 +81,25 @@ func TestFaultsList(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	faults, err := client.Faults.List(context.Background(), 123, FaultListOptions{})
+	response, err := client.Faults.List(context.Background(), 123, FaultListOptions{})
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 
-	if len(faults) != 2 {
-		t.Errorf("expected 2 faults, got %d", len(faults))
+	if len(response.Results) != 2 {
+		t.Errorf("expected 2 faults, got %d", len(response.Results))
 	}
 
-	if faults[0].ID != 1 {
-		t.Errorf("expected first fault ID 1, got %d", faults[0].ID)
+	if response.Results[0].ID != 1 {
+		t.Errorf("expected first fault ID 1, got %d", response.Results[0].ID)
 	}
 
-	if faults[0].Message != "undefined method 'foo' for nil:NilClass" {
-		t.Errorf("expected first fault message 'undefined method 'foo' for nil:NilClass', got %s", faults[0].Message)
+	if response.Results[0].Message != "undefined method 'foo' for nil:NilClass" {
+		t.Errorf("expected first fault message 'undefined method 'foo' for nil:NilClass', got %s", response.Results[0].Message)
 	}
 
-	if faults[1].Resolved != true {
-		t.Errorf("expected second fault to be resolved, got %v", faults[1].Resolved)
+	if response.Results[1].Resolved != true {
+		t.Errorf("expected second fault to be resolved, got %v", response.Results[1].Resolved)
 	}
 }
 
@@ -270,6 +273,224 @@ func TestGetFault_ProjectNotFound(t *testing.T) {
 		WithAuthToken("test-token")
 
 	_, err := client.Faults.Get(context.Background(), 999, 456)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+
+	if apiErr.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
+	}
+}
+
+func TestListNotices(t *testing.T) {
+	mockNotices := `{
+		"results": [
+			{
+				"id": "notice-uuid-1",
+				"created_at": "2024-01-01T10:00:00Z",
+				"fault_id": 456,
+				"message": "Couldn't find Post with 'id'=999",
+				"url": "https://app.honeybadger.io/projects/123/faults/456/notices/notice-uuid-1",
+				"environment": {
+					"environment_name": "production",
+					"hostname": "web-01.example.com",
+					"project_root": {"path": "/app"}
+				},
+				"cookies": {"session_id": "abc123"},
+				"web_environment": {"HTTP_HOST": "example.com"},
+				"request": {
+					"action": "show",
+					"component": "PostsController",
+					"url": "https://example.com/posts/999",
+					"context": {"user_id": 42},
+					"params": {"id": "999"},
+					"session": {"user_id": 42},
+					"user": {"id": 42, "email": "user@example.com"}
+				},
+				"backtrace": [
+					{"number": "1", "file": "/app/models/post.rb", "method": "find"},
+					{"number": "2", "file": "/app/controllers/posts_controller.rb", "method": "show"}
+				],
+				"application_trace": [
+					{"number": "1", "file": "/app/models/post.rb", "method": "find"}
+				]
+			},
+			{
+				"id": "notice-uuid-2",
+				"created_at": "2024-01-01T11:00:00Z",
+				"fault_id": 456,
+				"message": "Another occurrence of the same error",
+				"url": "https://app.honeybadger.io/projects/123/faults/456/notices/notice-uuid-2",
+				"environment": {
+					"environment_name": "production",
+					"hostname": "web-02.example.com",
+					"project_root": {"path": "/app"}
+				},
+				"cookies": {},
+				"web_environment": {"HTTP_HOST": "example.com"},
+				"request": {
+					"action": "show",
+					"component": "PostsController",
+					"url": "https://example.com/posts/888",
+					"context": {},
+					"params": {"id": "888"},
+					"session": {},
+					"user": {}
+				},
+				"backtrace": [],
+				"application_trace": []
+			}
+		],
+		"links": {
+			"self": "https://app.honeybadger.io/v2/projects/123/faults/456/notices"
+		}
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/faults/456/notices" {
+			t.Errorf("expected path /v2/projects/123/faults/456/notices, got %s", r.URL.Path)
+		}
+		// Check Basic Auth
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			t.Error("expected Basic Auth to be set")
+		}
+		if username != "test-token" {
+			t.Errorf("expected Basic Auth username test-token, got %s", username)
+		}
+		if password != "" {
+			t.Errorf("expected Basic Auth password to be empty, got %s", password)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockNotices))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	response, err := client.Faults.ListNotices(context.Background(), 123, 456, FaultListNoticesOptions{})
+	if err != nil {
+		t.Fatalf("ListNotices() error = %v", err)
+	}
+
+	if len(response.Results) != 2 {
+		t.Errorf("expected 2 notices, got %d", len(response.Results))
+	}
+
+	if response.Results[0].ID != "notice-uuid-1" {
+		t.Errorf("expected first notice ID 'notice-uuid-1', got %s", response.Results[0].ID)
+	}
+
+	if response.Results[0].FaultID != 456 {
+		t.Errorf("expected first notice fault ID 456, got %d", response.Results[0].FaultID)
+	}
+
+	if response.Results[0].Message != "Couldn't find Post with 'id'=999" {
+		t.Errorf("expected first notice message 'Couldn't find Post with 'id'=999', got %s", response.Results[0].Message)
+	}
+
+	if response.Results[0].Environment.EnvironmentName != "production" {
+		t.Errorf("expected environment name 'production', got %s", response.Results[0].Environment.EnvironmentName)
+	}
+
+	if response.Results[0].Request.Action == nil || *response.Results[0].Request.Action != "show" {
+		var action string
+		if response.Results[0].Request.Action != nil {
+			action = *response.Results[0].Request.Action
+		}
+		t.Errorf("expected request action 'show', got %s", action)
+	}
+
+	if len(response.Results[0].Backtrace) != 2 {
+		t.Errorf("expected 2 backtrace entries, got %d", len(response.Results[0].Backtrace))
+	}
+}
+
+func TestListNotices_WithOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("created_after") != "2024-01-01T00:00:00Z" {
+			t.Errorf("expected created_after=2024-01-01T00:00:00Z, got %s", query.Get("created_after"))
+		}
+		if query.Get("created_before") != "2024-01-02T00:00:00Z" {
+			t.Errorf("expected created_before=2024-01-02T00:00:00Z, got %s", query.Get("created_before"))
+		}
+		if query.Get("limit") != "10" {
+			t.Errorf("expected limit=10, got %s", query.Get("limit"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"results": []}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	options := FaultListNoticesOptions{
+		CreatedAfter:  "2024-01-01T00:00:00Z",
+		CreatedBefore: "2024-01-02T00:00:00Z",
+		Limit:         10,
+	}
+
+	_, err := client.Faults.ListNotices(context.Background(), 123, 456, options)
+	if err != nil {
+		t.Fatalf("ListNotices() error = %v", err)
+	}
+}
+
+func TestListNotices_FaultNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Fault not found"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	_, err := client.Faults.ListNotices(context.Background(), 123, 999, FaultListNoticesOptions{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+
+	if apiErr.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
+	}
+}
+
+func TestListNotices_ProjectNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Project not found"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	_, err := client.Faults.ListNotices(context.Background(), 999, 456, FaultListNoticesOptions{})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

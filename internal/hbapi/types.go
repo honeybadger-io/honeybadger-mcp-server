@@ -74,3 +74,51 @@ type Fault struct {
 	Tags         []string   `json:"tags"`
 	URL          string     `json:"url"`
 }
+
+// NoticeEnvironment represents the environment information for a notice
+type NoticeEnvironment struct {
+	EnvironmentName string                 `json:"environment_name"`
+	Hostname        string                 `json:"hostname"`
+	ProjectRoot     interface{}            `json:"project_root"` // Can be string or object
+	Revision        *string                `json:"revision"`
+	Stats           map[string]interface{} `json:"stats"`
+	Time            string                 `json:"time"`
+	PID             int                    `json:"pid"`
+}
+
+// NoticeRequest represents the HTTP request information for a notice
+type NoticeRequest struct {
+	Action    *string                `json:"action"`
+	Component *string                `json:"component"`
+	Context   map[string]interface{} `json:"context"`
+	Params    map[string]interface{} `json:"params"`
+	Session   map[string]interface{} `json:"session"`
+	URL       *string                `json:"url"`
+	User      map[string]interface{} `json:"user"`
+}
+
+// BacktraceEntry represents a single entry in the error backtrace
+type BacktraceEntry struct {
+	Number  string                 `json:"number"`
+	File    string                 `json:"file"`
+	Method  string                 `json:"method"`
+	Source  map[string]interface{} `json:"source,omitempty"`
+	Context string                 `json:"context,omitempty"`
+}
+
+// Notice represents a Honeybadger notice (individual error occurrence)
+type Notice struct {
+	ID               string                 `json:"id"`
+	CreatedAt        time.Time              `json:"created_at"`
+	Environment      NoticeEnvironment      `json:"environment"`
+	EnvironmentName  string                 `json:"environment_name"`
+	Cookies          map[string]interface{} `json:"cookies"`
+	FaultID          int                    `json:"fault_id"`
+	URL              string                 `json:"url"`
+	Message          string                 `json:"message"`
+	WebEnvironment   map[string]interface{} `json:"web_environment"`
+	Request          NoticeRequest          `json:"request"`
+	Backtrace        []BacktraceEntry       `json:"backtrace"`
+	ApplicationTrace []BacktraceEntry       `json:"application_trace"`
+	Deploy           interface{}            `json:"deploy"` // Can be null or object
+}
