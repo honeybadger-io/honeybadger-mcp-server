@@ -928,9 +928,15 @@ func TestHandleGetProjectReport_WithOptions(t *testing.T) {
 		if r.URL.Path != "/v2/projects/456/reports/notices_by_location" {
 			t.Errorf("expected path /v2/projects/456/reports/notices_by_location, got %s", r.URL.Path)
 		}
-		expectedQuery := "start=2023-01-01T00:00:00Z&stop=2023-01-31T23:59:59Z&environment=production"
-		if r.URL.RawQuery != expectedQuery {
-			t.Errorf("expected query %s, got %s", expectedQuery, r.URL.RawQuery)
+		query := r.URL.Query()
+		if query.Get("start") != "2023-01-01T00:00:00Z" {
+			t.Errorf("expected start=2023-01-01T00:00:00Z, got %s", query.Get("start"))
+		}
+		if query.Get("stop") != "2023-01-31T23:59:59Z" {
+			t.Errorf("expected stop=2023-01-31T23:59:59Z, got %s", query.Get("stop"))
+		}
+		if query.Get("environment") != "production" {
+			t.Errorf("expected environment=production, got %s", query.Get("environment"))
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

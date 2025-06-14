@@ -3,6 +3,7 @@ package hbapi
 import (
 	"context"
 	"fmt"
+	"net/url"
 )
 
 // ProjectsService handles operations for the projects resource
@@ -195,20 +196,17 @@ type ProjectGetOccurrenceCountsResponse []ProjectOccurrenceCount
 func (p *ProjectsService) GetAllOccurrenceCounts(ctx context.Context, options ProjectGetOccurrenceCountsOptions) (ProjectGetAllOccurrenceCountsResponse, error) {
 	path := "/projects/occurrences"
 
-	// Add query parameters if provided
-	queryParams := make([]string, 0)
+	// Build query parameters using url.Values
+	params := url.Values{}
 	if options.Period != "" {
-		queryParams = append(queryParams, fmt.Sprintf("period=%s", options.Period))
+		params.Set("period", options.Period)
 	}
 	if options.Environment != "" {
-		queryParams = append(queryParams, fmt.Sprintf("environment=%s", options.Environment))
+		params.Set("environment", options.Environment)
 	}
 
-	if len(queryParams) > 0 {
-		path += "?" + fmt.Sprintf("%s", queryParams[0])
-		for _, param := range queryParams[1:] {
-			path += "&" + param
-		}
+	if len(params) > 0 {
+		path += "?" + params.Encode()
 	}
 
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
@@ -236,20 +234,17 @@ type ProjectGetAllOccurrenceCountsResponse map[string][]ProjectOccurrenceCount
 func (p *ProjectsService) GetOccurrenceCounts(ctx context.Context, projectID int, options ProjectGetOccurrenceCountsOptions) (ProjectGetOccurrenceCountsResponse, error) {
 	path := fmt.Sprintf("/projects/%d/occurrences", projectID)
 
-	// Add query parameters if provided
-	queryParams := make([]string, 0)
+	// Build query parameters using url.Values
+	params := url.Values{}
 	if options.Period != "" {
-		queryParams = append(queryParams, fmt.Sprintf("period=%s", options.Period))
+		params.Set("period", options.Period)
 	}
 	if options.Environment != "" {
-		queryParams = append(queryParams, fmt.Sprintf("environment=%s", options.Environment))
+		params.Set("environment", options.Environment)
 	}
 
-	if len(queryParams) > 0 {
-		path += "?" + fmt.Sprintf("%s", queryParams[0])
-		for _, param := range queryParams[1:] {
-			path += "&" + param
-		}
+	if len(params) > 0 {
+		path += "?" + params.Encode()
 	}
 
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
@@ -322,23 +317,20 @@ type ProjectGetReportOptions struct {
 func (p *ProjectsService) GetReport(ctx context.Context, projectID int, reportType ProjectReportType, options ProjectGetReportOptions) ([][]interface{}, error) {
 	path := fmt.Sprintf("/projects/%d/reports/%s", projectID, reportType)
 
-	// Add query parameters if provided
-	queryParams := make([]string, 0)
+	// Build query parameters using url.Values
+	params := url.Values{}
 	if options.Start != "" {
-		queryParams = append(queryParams, fmt.Sprintf("start=%s", options.Start))
+		params.Set("start", options.Start)
 	}
 	if options.Stop != "" {
-		queryParams = append(queryParams, fmt.Sprintf("stop=%s", options.Stop))
+		params.Set("stop", options.Stop)
 	}
 	if options.Environment != "" {
-		queryParams = append(queryParams, fmt.Sprintf("environment=%s", options.Environment))
+		params.Set("environment", options.Environment)
 	}
 
-	if len(queryParams) > 0 {
-		path += "?" + queryParams[0]
-		for _, param := range queryParams[1:] {
-			path += "&" + param
-		}
+	if len(params) > 0 {
+		path += "?" + params.Encode()
 	}
 
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
