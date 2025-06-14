@@ -47,5 +47,8 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	// Register project tools
 	RegisterProjectTools(s, apiClient)
 
+	// Register fault tools
+	RegisterFaultTools(s, apiClient)
+
 	return s
 }
