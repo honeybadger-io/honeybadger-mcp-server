@@ -35,7 +35,7 @@ func TestListTools(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 12 // create_project, delete_project, get_fault, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_notices, list_faults, list_projects, ping, update_project
+	expectedToolCount := 13 // create_project, delete_project, get_fault, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects, ping, update_project
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools, got %d", expectedToolCount, len(tools))
 	}
@@ -62,7 +62,7 @@ func TestListTools(t *testing.T) {
 	}
 
 	// Verify all expected tools are present
-	expectedTools := []string{"create_project", "delete_project", "get_fault", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_notices", "list_faults", "list_projects", "ping", "update_project"}
+	expectedTools := []string{"create_project", "delete_project", "get_fault", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "ping", "update_project"}
 	for _, expectedTool := range expectedTools {
 		found := false
 		for _, foundTool := range foundTools {

@@ -640,3 +640,199 @@ func TestHandleListFaultNotices_Error(t *testing.T) {
 		t.Error("Error message should contain 'Failed to list fault notices'")
 	}
 }
+
+func TestHandleListFaultAffectedUsers(t *testing.T) {
+	mockResponse := `[
+		{
+			"user": "user1@example.com",
+			"count": 15
+		},
+		{
+			"user": "user2@example.com",
+			"count": 8
+		}
+	]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/faults/456/affected_users" {
+			t.Errorf("expected path /v2/projects/123/faults/456/affected_users, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+				"fault_id":   456,
+			},
+		},
+	}
+
+	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+
+	// Check that user data is present
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "user1@example.com") {
+		t.Error("User email should be present in response")
+	}
+
+	// Verify the response can be unmarshaled as an affected users array
+	var users []hbapi.FaultAffectedUser
+	if err := json.Unmarshal([]byte(resultText), &users); err != nil {
+		t.Errorf("Response should be valid JSON array of affected users: %v", err)
+	}
+
+	if len(users) != 2 {
+		t.Errorf("expected 2 affected users, got %d", len(users))
+	}
+
+	if users[0].User != "user1@example.com" {
+		t.Errorf("expected first user 'user1@example.com', got %s", users[0].User)
+	}
+
+	if users[0].Count != 15 {
+		t.Errorf("expected first user count 15, got %d", users[0].Count)
+	}
+}
+
+func TestHandleListFaultAffectedUsers_WithSearch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("q") != "user1" {
+			t.Errorf("expected q=user1, got %s", query.Get("q"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+				"fault_id":   456,
+				"q":          "user1",
+			},
+		},
+	}
+
+	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+}
+
+func TestHandleListFaultAffectedUsers_MissingProjectID(t *testing.T) {
+	client := hbapi.NewClient()
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"fault_id": 456,
+			},
+		},
+	}
+
+	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for missing project ID")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "project_id is required") {
+		t.Error("Error message should mention project_id is required")
+	}
+}
+
+func TestHandleListFaultAffectedUsers_MissingFaultID(t *testing.T) {
+	client := hbapi.NewClient()
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+			},
+		},
+	}
+
+	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for missing fault ID")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "fault_id is required") {
+		t.Error("Error message should mention fault_id is required")
+	}
+}
+
+func TestHandleListFaultAffectedUsers_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Fault not found"}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+				"fault_id":   999,
+			},
+		},
+	}
+
+	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "Failed to list fault affected users") {
+		t.Error("Error message should contain 'Failed to list fault affected users'")
+	}
+}

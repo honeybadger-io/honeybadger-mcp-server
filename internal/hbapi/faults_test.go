@@ -504,3 +504,148 @@ func TestListNotices_ProjectNotFound(t *testing.T) {
 		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
 	}
 }
+func TestListAffectedUsers(t *testing.T) {
+	mockUsers := `[
+		{
+			"user": "user1@example.com",
+			"count": 15
+		},
+		{
+			"user": "user2@example.com",
+			"count": 8
+		}
+	]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/faults/456/affected_users" {
+			t.Errorf("expected path /v2/projects/123/faults/456/affected_users, got %s", r.URL.Path)
+		}
+		// Check Basic Auth
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			t.Error("expected Basic Auth to be set")
+		}
+		if username != "test-token" {
+			t.Errorf("expected Basic Auth username test-token, got %s", username)
+		}
+		if password != "" {
+			t.Errorf("expected Basic Auth password to be empty, got %s", password)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockUsers))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	users, err := client.Faults.ListAffectedUsers(context.Background(), 123, 456, FaultListAffectedUsersOptions{})
+	if err != nil {
+		t.Fatalf("ListAffectedUsers() error = %v", err)
+	}
+
+	if len(users) != 2 {
+		t.Errorf("expected 2 affected users, got %d", len(users))
+	}
+
+	if users[0].User != "user1@example.com" {
+		t.Errorf("expected first user 'user1@example.com', got %s", users[0].User)
+	}
+
+	if users[0].Count != 15 {
+		t.Errorf("expected first user count 15, got %d", users[0].Count)
+	}
+
+	if users[1].User != "user2@example.com" {
+		t.Errorf("expected second user 'user2@example.com', got %s", users[1].User)
+	}
+
+	if users[1].Count != 8 {
+		t.Errorf("expected second user count 8, got %d", users[1].Count)
+	}
+}
+
+func TestListAffectedUsers_WithSearch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("q") != "user1" {
+			t.Errorf("expected q=user1, got %s", query.Get("q"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	options := FaultListAffectedUsersOptions{
+		Q: "user1",
+	}
+
+	_, err := client.Faults.ListAffectedUsers(context.Background(), 123, 456, options)
+	if err != nil {
+		t.Fatalf("ListAffectedUsers() error = %v", err)
+	}
+}
+
+func TestListAffectedUsers_FaultNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Fault not found"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	_, err := client.Faults.ListAffectedUsers(context.Background(), 123, 999, FaultListAffectedUsersOptions{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+
+	if apiErr.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
+	}
+}
+
+func TestListAffectedUsers_ProjectNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Project not found"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	_, err := client.Faults.ListAffectedUsers(context.Background(), 999, 456, FaultListAffectedUsersOptions{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+
+	if apiErr.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
+	}
+}

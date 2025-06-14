@@ -122,3 +122,4 @@ type Notice struct {
 	ApplicationTrace []BacktraceEntry       `json:"application_trace"`
 	Deploy           interface{}            `json:"deploy"` // Can be null or object
 }
+

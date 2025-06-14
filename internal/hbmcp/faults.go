@@ -98,6 +98,29 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 			return handleListFaultNotices(ctx, client, req)
 		},
 	)
+
+	// list_fault_affected_users tool
+	s.AddTool(
+		mcp.NewTool("list_fault_affected_users",
+			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts"),
+			mcp.WithNumber("project_id",
+				mcp.Required(),
+				mcp.Description("The ID of the project containing the fault"),
+				mcp.Min(1),
+			),
+			mcp.WithNumber("fault_id",
+				mcp.Required(),
+				mcp.Description("The ID of the fault to get affected users for"),
+				mcp.Min(1),
+			),
+			mcp.WithString("q",
+				mcp.Description("Search string to filter affected users"),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleListFaultAffectedUsers(ctx, client, req)
+		},
+	)
 }
 
 func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -181,6 +204,35 @@ func handleListFaultNotices(ctx context.Context, client *hbapi.Client, req mcp.C
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+func handleListFaultAffectedUsers(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetInt("project_id", 0)
+	if projectID == 0 {
+		return mcp.NewToolResultError("project_id is required"), nil
+	}
+
+	faultID := req.GetInt("fault_id", 0)
+	if faultID == 0 {
+		return mcp.NewToolResultError("fault_id is required"), nil
+	}
+
+	// Build options struct
+	options := hbapi.FaultListAffectedUsersOptions{
+		Q: req.GetString("q", ""),
+	}
+
+	users, err := client.Faults.ListAffectedUsers(ctx, projectID, faultID, options)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to list fault affected users: %v", err)), nil
+	}
+
+	// Return JSON response
+	jsonBytes, err := json.Marshal(users)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}

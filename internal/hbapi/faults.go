@@ -143,3 +143,40 @@ func (f *FaultsService) ListNotices(ctx context.Context, projectID, faultID int,
 
 	return &response, nil
 }
+
+// FaultAffectedUser represents a user affected by a fault
+type FaultAffectedUser struct {
+	User  string `json:"user"`  // Email or user identifier
+	Count int    `json:"count"` // Number of occurrences for this user
+}
+
+// FaultListAffectedUsersOptions represents options for listing affected users for a fault
+type FaultListAffectedUsersOptions struct {
+	Q string `json:"q,omitempty"` // Search string
+}
+
+// ListAffectedUsers returns a list of users affected by a specific fault.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/faults/#get-a-list-of-affected-users
+//
+// GET /v2/projects/{projectID}/faults/{faultID}/affected_users
+func (f *FaultsService) ListAffectedUsers(ctx context.Context, projectID, faultID int, options FaultListAffectedUsersOptions) ([]FaultAffectedUser, error) {
+	path := fmt.Sprintf("/projects/%d/faults/%d/affected_users", projectID, faultID)
+
+	// Build query parameters if search provided
+	if options.Q != "" {
+		path += fmt.Sprintf("?q=%s", url.QueryEscape(options.Q))
+	}
+
+	req, err := f.client.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var users []FaultAffectedUser
+	if err := f.client.do(ctx, req, &users); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
