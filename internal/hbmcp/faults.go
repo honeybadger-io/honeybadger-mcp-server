@@ -47,6 +47,26 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 			return handleListFaults(ctx, client, req)
 		},
 	)
+
+	// get_fault tool
+	s.AddTool(
+		mcp.NewTool("get_fault",
+			mcp.WithDescription("Get detailed information for a specific fault in a project"),
+			mcp.WithNumber("project_id",
+				mcp.Required(),
+				mcp.Description("The ID of the project containing the fault"),
+				mcp.Min(1),
+			),
+			mcp.WithNumber("fault_id",
+				mcp.Required(),
+				mcp.Description("The ID of the fault to retrieve"),
+				mcp.Min(1),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleGetFault(ctx, client, req)
+		},
+	)
 }
 
 func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -73,6 +93,31 @@ func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(faults)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+func handleGetFault(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetInt("project_id", 0)
+	if projectID == 0 {
+		return mcp.NewToolResultError("project_id is required"), nil
+	}
+
+	faultID := req.GetInt("fault_id", 0)
+	if faultID == 0 {
+		return mcp.NewToolResultError("fault_id is required"), nil
+	}
+
+	fault, err := client.Faults.Get(ctx, projectID, faultID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get fault: %v", err)), nil
+	}
+
+	// Return JSON response
+	jsonBytes, err := json.Marshal(fault)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}

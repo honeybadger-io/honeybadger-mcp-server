@@ -189,4 +189,219 @@ func TestHandleListFaults_MissingProjectID(t *testing.T) {
 	}
 }
 
+func TestHandleGetFault(t *testing.T) {
+	mockResponse := `{
+		"id": 456,
+		"action": "create",
+		"assignee": {"id": 1, "email": "user@example.com", "name": "User 1"},
+		"comments_count": 3,
+		"component": "PostController",
+		"created_at": "2024-01-01T00:00:00Z",
+		"environment": "production",
+		"ignored": false,
+		"klass": "ActiveRecord::RecordNotFound",
+		"last_notice_at": "2024-01-02T00:00:00Z",
+		"message": "Couldn't find Post with 'id'=999",
+		"notices_count": 25,
+		"project_id": 123,
+		"resolved": false,
+		"tags": ["database", "production"],
+		"url": "https://app.honeybadger.io/projects/123/faults/456"
+	}`
 
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/faults/456" {
+			t.Errorf("expected path /v2/projects/123/faults/456, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+				"fault_id":   456,
+			},
+		},
+	}
+
+	result, err := handleGetFault(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFault() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+
+	// Check that fault data is present
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "ActiveRecord::RecordNotFound") {
+		t.Error("Fault class should be present in response")
+	}
+
+	// Verify the response can be unmarshaled as a fault
+	var fault hbapi.Fault
+	if err := json.Unmarshal([]byte(resultText), &fault); err != nil {
+		t.Errorf("Response should be valid JSON fault: %v", err)
+	}
+
+	if fault.ID != 456 {
+		t.Errorf("expected fault ID 456, got %d", fault.ID)
+	}
+
+	if fault.Message != "Couldn't find Post with 'id'=999" {
+		t.Errorf("expected fault message 'Couldn't find Post with 'id'=999', got %s", fault.Message)
+	}
+}
+
+func TestHandleGetFault_MissingProjectID(t *testing.T) {
+	client := hbapi.NewClient()
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"fault_id": 456,
+			},
+		},
+	}
+
+	result, err := handleGetFault(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFault() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for missing project ID")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "project_id is required") {
+		t.Error("Error message should mention project_id is required")
+	}
+}
+
+func TestHandleGetFault_MissingFaultID(t *testing.T) {
+	client := hbapi.NewClient()
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+			},
+		},
+	}
+
+	result, err := handleGetFault(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFault() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for missing fault ID")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "fault_id is required") {
+		t.Error("Error message should mention fault_id is required")
+	}
+}
+
+func TestHandleGetFault_InvalidProjectID(t *testing.T) {
+	client := hbapi.NewClient()
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 0,
+				"fault_id":   456,
+			},
+		},
+	}
+
+	result, err := handleGetFault(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFault() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for invalid project ID")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "project_id is required") {
+		t.Error("Error message should mention project_id is required")
+	}
+}
+
+func TestHandleGetFault_InvalidFaultID(t *testing.T) {
+	client := hbapi.NewClient()
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+				"fault_id":   0,
+			},
+		},
+	}
+
+	result, err := handleGetFault(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFault() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for invalid fault ID")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "fault_id is required") {
+		t.Error("Error message should mention fault_id is required")
+	}
+}
+
+func TestHandleGetFault_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Fault not found"}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+				"fault_id":   999,
+			},
+		},
+	}
+
+	result, err := handleGetFault(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFault() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "Failed to get fault") {
+		t.Error("Error message should contain 'Failed to get fault'")
+	}
+}

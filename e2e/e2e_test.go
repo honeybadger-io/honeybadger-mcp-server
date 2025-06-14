@@ -35,7 +35,7 @@ func TestListTools(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 10 // create_project, delete_project, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_faults, list_projects, ping, update_project
+	expectedToolCount := 11 // create_project, delete_project, get_fault, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_faults, list_projects, ping, update_project
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools, got %d", expectedToolCount, len(tools))
 	}

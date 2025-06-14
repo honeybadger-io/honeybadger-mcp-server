@@ -72,3 +72,23 @@ func (f *FaultsService) List(ctx context.Context, projectID int, options FaultLi
 
 	return response.Results, nil
 }
+
+// Get returns a single fault by ID with full fault details.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/faults/#get-a-fault-list-or-fault-details
+//
+// GET /v2/projects/{project_id}/faults/{fault_id}
+func (f *FaultsService) Get(ctx context.Context, projectID, faultID int) (*Fault, error) {
+	path := fmt.Sprintf("/projects/%d/faults/%d", projectID, faultID)
+	req, err := f.client.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result Fault
+	if err := f.client.do(ctx, req, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
