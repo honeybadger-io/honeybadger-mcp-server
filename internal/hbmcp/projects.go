@@ -361,7 +361,7 @@ func handleDeleteProject(ctx context.Context, client *hbapi.Client, args map[str
 
 func handleGetProjectOccurrenceCounts(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
 	// Build options struct
-	var options hbapi.GetOccurrenceCountsOptions
+	var options hbapi.ProjectGetOccurrenceCountsOptions
 
 	if period, exists := args["period"]; exists {
 		if str, ok := period.(string); ok {

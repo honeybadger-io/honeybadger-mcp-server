@@ -16,24 +16,24 @@ type ProjectRequest struct {
 	UserSearchField       string `json:"user_search_field,omitempty"`
 }
 
-// GetOccurrenceCountsOptions represents options for getting occurrence counts
-type GetOccurrenceCountsOptions struct {
+// ProjectGetOccurrenceCountsOptions represents options for getting occurrence counts
+type ProjectGetOccurrenceCountsOptions struct {
 	Period      string `json:"period,omitempty"`      // "hour", "day", "week", or "month"
 	Environment string `json:"environment,omitempty"` // Filter by environment
 }
 
-// OccurrenceCount represents a single occurrence count data point [timestamp, count]
-type OccurrenceCount [2]int64
+// ProjectOccurrenceCount represents a single occurrence count data point [timestamp, count]
+type ProjectOccurrenceCount [2]int64
 
-// GetOccurrenceCountsResponse represents the response from single project occurrence counts API
-type GetOccurrenceCountsResponse []OccurrenceCount
+// ProjectGetOccurrenceCountsResponse represents the response from single project occurrence counts API
+type ProjectGetOccurrenceCountsResponse []ProjectOccurrenceCount
 
-// GetAllOccurrenceCountsResponse represents the response from all projects occurrence counts API
+// ProjectGetAllOccurrenceCountsResponse represents the response from all projects occurrence counts API
 // The map key is the project ID as a string
-type GetAllOccurrenceCountsResponse map[string][]OccurrenceCount
+type ProjectGetAllOccurrenceCountsResponse map[string][]ProjectOccurrenceCount
 
-// Integration represents a Honeybadger project integration (channel)
-type Integration struct {
+// ProjectIntegration represents a Honeybadger project integration (channel)
+type ProjectIntegration struct {
 	ID                   int                    `json:"id"`
 	Active               bool                   `json:"active"`
 	Events               []string               `json:"events"`
@@ -197,7 +197,7 @@ func (p *ProjectsService) Delete(ctx context.Context, id int) (*DeleteResult, er
 }
 
 // GetAllOccurrenceCounts gets occurrence counts for all projects
-func (p *ProjectsService) GetAllOccurrenceCounts(ctx context.Context, options GetOccurrenceCountsOptions) (GetAllOccurrenceCountsResponse, error) {
+func (p *ProjectsService) GetAllOccurrenceCounts(ctx context.Context, options ProjectGetOccurrenceCountsOptions) (ProjectGetAllOccurrenceCountsResponse, error) {
 	path := "/projects/occurrences"
 
 	// Add query parameters if provided
@@ -221,7 +221,7 @@ func (p *ProjectsService) GetAllOccurrenceCounts(ctx context.Context, options Ge
 		return nil, err
 	}
 
-	var result GetAllOccurrenceCountsResponse
+	var result ProjectGetAllOccurrenceCountsResponse
 	if err := p.client.do(ctx, req, &result); err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func (p *ProjectsService) GetAllOccurrenceCounts(ctx context.Context, options Ge
 }
 
 // GetOccurrenceCounts gets occurrence counts for a specific project
-func (p *ProjectsService) GetOccurrenceCounts(ctx context.Context, projectID int, options GetOccurrenceCountsOptions) (GetOccurrenceCountsResponse, error) {
+func (p *ProjectsService) GetOccurrenceCounts(ctx context.Context, projectID int, options ProjectGetOccurrenceCountsOptions) (ProjectGetOccurrenceCountsResponse, error) {
 	path := fmt.Sprintf("/projects/%d/occurrences", projectID)
 
 	// Add query parameters if provided
@@ -254,7 +254,7 @@ func (p *ProjectsService) GetOccurrenceCounts(ctx context.Context, projectID int
 		return nil, err
 	}
 
-	var result GetOccurrenceCountsResponse
+	var result ProjectGetOccurrenceCountsResponse
 	if err := p.client.do(ctx, req, &result); err != nil {
 		return nil, err
 	}
@@ -263,14 +263,14 @@ func (p *ProjectsService) GetOccurrenceCounts(ctx context.Context, projectID int
 }
 
 // GetIntegrations gets all integrations for a specific project
-func (p *ProjectsService) GetIntegrations(ctx context.Context, projectID int) ([]Integration, error) {
+func (p *ProjectsService) GetIntegrations(ctx context.Context, projectID int) ([]ProjectIntegration, error) {
 	path := fmt.Sprintf("/projects/%d/integrations", projectID)
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var result []Integration
+	var result []ProjectIntegration
 	if err := p.client.do(ctx, req, &result); err != nil {
 		return nil, err
 	}

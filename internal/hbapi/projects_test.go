@@ -680,7 +680,7 @@ func TestGetAllOccurrenceCounts(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	counts, err := client.Projects.GetAllOccurrenceCounts(context.Background(), GetOccurrenceCountsOptions{})
+	counts, err := client.Projects.GetAllOccurrenceCounts(context.Background(), ProjectGetOccurrenceCountsOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -743,7 +743,7 @@ func TestGetAllOccurrenceCounts_WithOptions(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	options := GetOccurrenceCountsOptions{
+	options := ProjectGetOccurrenceCountsOptions{
 		Period:      "day",
 		Environment: "production",
 	}
@@ -769,7 +769,7 @@ func TestGetAllOccurrenceCounts_Error(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("invalid-token")
 
-	_, err := client.Projects.GetAllOccurrenceCounts(context.Background(), GetOccurrenceCountsOptions{})
+	_, err := client.Projects.GetAllOccurrenceCounts(context.Background(), ProjectGetOccurrenceCountsOptions{})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -820,7 +820,7 @@ func TestGetOccurrenceCounts(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	counts, err := client.Projects.GetOccurrenceCounts(context.Background(), 123, GetOccurrenceCountsOptions{})
+	counts, err := client.Projects.GetOccurrenceCounts(context.Background(), 123, ProjectGetOccurrenceCountsOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -871,7 +871,7 @@ func TestGetOccurrenceCounts_WithOptions(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	options := GetOccurrenceCountsOptions{
+	options := ProjectGetOccurrenceCountsOptions{
 		Period:      "week",
 		Environment: "staging",
 	}
@@ -901,7 +901,7 @@ func TestGetOccurrenceCounts_NotFound(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	_, err := client.Projects.GetOccurrenceCounts(context.Background(), 999, GetOccurrenceCountsOptions{})
+	_, err := client.Projects.GetOccurrenceCounts(context.Background(), 999, ProjectGetOccurrenceCountsOptions{})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -941,7 +941,7 @@ func TestGetOccurrenceCounts_OnlyPeriodOption(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	options := GetOccurrenceCountsOptions{
+	options := ProjectGetOccurrenceCountsOptions{
 		Period: "month",
 		// Environment intentionally left empty
 	}
@@ -981,7 +981,7 @@ func TestGetOccurrenceCounts_OnlyEnvironmentOption(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	options := GetOccurrenceCountsOptions{
+	options := ProjectGetOccurrenceCountsOptions{
 		// Period intentionally left empty
 		Environment: "development",
 	}
