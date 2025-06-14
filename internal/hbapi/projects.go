@@ -10,7 +10,11 @@ type ProjectsService struct {
 	client *Client
 }
 
-// ListAll returns all projects
+// ListAll returns all projects across all accounts accessible by the authenticated user.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-a-project-list-or-project-details
+//
+// GET /projects
 func (p *ProjectsService) ListAll(ctx context.Context) ([]Project, error) {
 	req, err := p.client.newRequest(ctx, "GET", "/projects", nil)
 	if err != nil {
@@ -25,7 +29,11 @@ func (p *ProjectsService) ListAll(ctx context.Context) ([]Project, error) {
 	return response.Results, nil
 }
 
-// ListByAccountID returns all projects filtered by account_id
+// ListByAccountID returns all projects filtered by account_id.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-a-project-list-or-project-details
+//
+// GET /projects?account_id={accountID}
 func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID string) ([]Project, error) {
 	path := fmt.Sprintf("/projects?account_id=%s", accountID)
 
@@ -42,7 +50,11 @@ func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID string)
 	return response.Results, nil
 }
 
-// Get returns a single project by ID
+// Get returns a single project by ID with full project details.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-a-project-list-or-project-details
+//
+// GET /projects/{id}
 func (p *ProjectsService) Get(ctx context.Context, id int) (*Project, error) {
 	path := fmt.Sprintf("/projects/%d", id)
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
@@ -69,7 +81,11 @@ type ProjectRequest struct {
 	UserSearchField       string `json:"user_search_field,omitempty"`
 }
 
-// Create creates a new project with the given parameters
+// Create creates a new project with the given parameters.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#create-a-project
+//
+// POST /projects?account_id={accountID}
 func (p *ProjectsService) Create(ctx context.Context, accountID string, req ProjectRequest) (*Project, error) {
 	if accountID == "" {
 		return nil, fmt.Errorf("account ID cannot be empty")
@@ -103,7 +119,11 @@ type UpdateResult struct {
 	Message string `json:"message"`
 }
 
-// Update updates an existing project with the given parameters
+// Update updates an existing project with the given parameters.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#update-a-project
+//
+// PUT /projects/{id}
 func (p *ProjectsService) Update(ctx context.Context, id int, req ProjectRequest) (*UpdateResult, error) {
 	body := map[string]interface{}{
 		"project": req,
@@ -132,7 +152,11 @@ type DeleteResult struct {
 	Message string `json:"message"`
 }
 
-// Delete deletes a project by ID
+// Delete deletes a project by ID.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#delete-a-project
+//
+// DELETE /projects/{id}
 func (p *ProjectsService) Delete(ctx context.Context, id int) (*DeleteResult, error) {
 
 	path := fmt.Sprintf("/projects/%d", id)
@@ -163,7 +187,11 @@ type ProjectOccurrenceCount [2]int64
 // ProjectGetOccurrenceCountsResponse represents the response from single project occurrence counts API
 type ProjectGetOccurrenceCountsResponse []ProjectOccurrenceCount
 
-// GetAllOccurrenceCounts gets occurrence counts for all projects
+// GetAllOccurrenceCounts gets occurrence counts for all projects.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-a-count-of-occurrences-for-all-projects-or-a-single-project
+//
+// GET /projects/occurrences
 func (p *ProjectsService) GetAllOccurrenceCounts(ctx context.Context, options ProjectGetOccurrenceCountsOptions) (ProjectGetAllOccurrenceCountsResponse, error) {
 	path := "/projects/occurrences"
 
@@ -200,7 +228,11 @@ func (p *ProjectsService) GetAllOccurrenceCounts(ctx context.Context, options Pr
 // The map key is the project ID as a string
 type ProjectGetAllOccurrenceCountsResponse map[string][]ProjectOccurrenceCount
 
-// GetOccurrenceCounts gets occurrence counts for a specific project
+// GetOccurrenceCounts gets occurrence counts for a specific project.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-a-count-of-occurrences-for-all-projects-or-a-single-project
+//
+// GET /projects/{projectID}/occurrences
 func (p *ProjectsService) GetOccurrenceCounts(ctx context.Context, projectID int, options ProjectGetOccurrenceCountsOptions) (ProjectGetOccurrenceCountsResponse, error) {
 	path := fmt.Sprintf("/projects/%d/occurrences", projectID)
 
@@ -245,7 +277,11 @@ type ProjectIntegration struct {
 	Type                 string                 `json:"type"`
 }
 
-// GetIntegrations gets all integrations for a specific project
+// GetIntegrations gets all integrations (channels) for a specific project.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-a-list-of-integrations-for-a-project
+//
+// GET /projects/{projectID}/integrations
 func (p *ProjectsService) GetIntegrations(ctx context.Context, projectID int) ([]ProjectIntegration, error) {
 	path := fmt.Sprintf("/projects/%d/integrations", projectID)
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
@@ -278,7 +314,11 @@ type ProjectGetReportOptions struct {
 	Environment string `json:"environment,omitempty"` // Filter by environment
 }
 
-// GetReport gets report data for a specific project
+// GetReport gets report data for a specific project.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-report-data
+//
+// GET /projects/{projectID}/reports/{reportType}
 func (p *ProjectsService) GetReport(ctx context.Context, projectID int, reportType ProjectReportType, options ProjectGetReportOptions) ([][]interface{}, error) {
 	path := fmt.Sprintf("/projects/%d/reports/%s", projectID, reportType)
 
