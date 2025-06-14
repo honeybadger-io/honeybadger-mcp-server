@@ -995,3 +995,53 @@ func TestGetOccurrenceCounts_OnlyEnvironmentOption(t *testing.T) {
 		t.Errorf("expected 1 data point, got %d", len(counts))
 	}
 }
+
+func TestGetIntegrations(t *testing.T) {
+	mockResponse := `[{"id": 9693, "active": false, "events": ["occurred"], "site_ids": [], "options": {"url": "http://test.com"}, "excluded_environments": [], "filters": [], "type": "WebHook"}]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/integrations" {
+			t.Errorf("expected path /v2/projects/123/integrations, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	integrations, err := client.Projects.GetIntegrations(context.Background(), 123)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(integrations) != 1 {
+		t.Errorf("expected 1 integration, got %d", len(integrations))
+	}
+	if integrations[0].ID != 9693 {
+		t.Errorf("expected integration ID 9693, got %d", integrations[0].ID)
+	}
+}
+
+func TestGetIntegrations_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Project not found"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	_, err := client.Projects.GetIntegrations(context.Background(), 999)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+	if apiErr.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
+	}
+}

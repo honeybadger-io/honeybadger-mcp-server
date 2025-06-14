@@ -32,6 +32,18 @@ type GetOccurrenceCountsResponse []OccurrenceCount
 // The map key is the project ID as a string
 type GetAllOccurrenceCountsResponse map[string][]OccurrenceCount
 
+// Integration represents a Honeybadger project integration (channel)
+type Integration struct {
+	ID                   int                    `json:"id"`
+	Active               bool                   `json:"active"`
+	Events               []string               `json:"events"`
+	SiteIDs              []string               `json:"site_ids"`
+	Options              map[string]interface{} `json:"options"`
+	ExcludedEnvironments []string               `json:"excluded_environments"`
+	Filters              []interface{}          `json:"filters"`
+	Type                 string                 `json:"type"`
+}
+
 // ProjectsService handles operations for the projects resource
 type ProjectsService struct {
 	client *Client
@@ -226,6 +238,22 @@ func (p *ProjectsService) GetOccurrenceCounts(ctx context.Context, projectID int
 	}
 
 	var result GetOccurrenceCountsResponse
+	if err := p.client.do(ctx, req, &result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// GetIntegrations gets all integrations for a specific project
+func (p *ProjectsService) GetIntegrations(ctx context.Context, projectID int) ([]Integration, error) {
+	path := fmt.Sprintf("/projects/%d/integrations", projectID)
+	req, err := p.client.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []Integration
 	if err := p.client.do(ctx, req, &result); err != nil {
 		return nil, err
 	}

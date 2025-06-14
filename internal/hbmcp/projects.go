@@ -177,6 +177,25 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			return handleGetProjectOccurrenceCounts(ctx, client, args)
 		},
 	)
+
+	// get_project_integrations tool
+	s.AddTool(
+		mcp.NewTool("get_project_integrations",
+			mcp.WithDescription("Get a list of integrations (channels) for a Honeybadger project"),
+			mcp.WithNumber("project_id",
+				mcp.Required(),
+				mcp.Description("The ID of the project to get integrations for"),
+				mcp.Min(1),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			args, ok := req.Params.Arguments.(map[string]interface{})
+			if !ok {
+				return mcp.NewToolResultError("Invalid arguments"), nil
+			}
+			return handleGetProjectIntegrations(ctx, client, args)
+		},
+	)
 }
 
 func handleListProjects(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
@@ -359,6 +378,26 @@ func handleGetProjectOccurrenceCounts(ctx context.Context, client *hbapi.Client,
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+func handleGetProjectIntegrations(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
+	projectID, err := validateIntParam(args, "project_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	integrations, err := client.Projects.GetIntegrations(ctx, projectID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project integrations: %v", err)), nil
+	}
+
+	// Return JSON response
+	jsonBytes, err := json.Marshal(integrations)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
