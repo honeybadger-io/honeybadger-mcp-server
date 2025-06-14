@@ -1045,3 +1045,128 @@ func TestGetIntegrations_NotFound(t *testing.T) {
 		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
 	}
 }
+
+func TestGetReport_ProjectNoticesByClass(t *testing.T) {
+	mockResponse := `[["RuntimeError", 8347], ["SocketError", 4651]]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/reports/notices_by_class" {
+			t.Errorf("expected path /v2/projects/123/reports/notices_by_class, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	report, err := client.Projects.GetReport(context.Background(), 123, ProjectNoticesByClass, ProjectGetReportOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report) != 2 {
+		t.Errorf("expected 2 report entries, got %d", len(report))
+	}
+	if report[0][0] != "RuntimeError" || report[0][1] != float64(8347) {
+		t.Errorf("unexpected first report entry: %v", report[0])
+	}
+}
+
+func TestGetReport_ProjectNoticesByLocation(t *testing.T) {
+	mockResponse := `[["inquiries#create", 2904], ["members#details", 862]]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/projects/456/reports/notices_by_location" {
+			t.Errorf("expected path /v2/projects/456/reports/notices_by_location, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	report, err := client.Projects.GetReport(context.Background(), 456, ProjectNoticesByLocation, ProjectGetReportOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report) != 2 {
+		t.Errorf("expected 2 report entries, got %d", len(report))
+	}
+}
+
+func TestGetReport_WithOptions(t *testing.T) {
+	mockResponse := `[["RuntimeError", 100]]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/projects/789/reports/notices_by_class" {
+			t.Errorf("expected path /v2/projects/789/reports/notices_by_class, got %s", r.URL.Path)
+		}
+		expectedQuery := "start=2023-01-01T00:00:00Z&stop=2023-01-31T23:59:59Z&environment=production"
+		if r.URL.RawQuery != expectedQuery {
+			t.Errorf("expected query %s, got %s", expectedQuery, r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	options := ProjectGetReportOptions{
+		Start:       "2023-01-01T00:00:00Z",
+		Stop:        "2023-01-31T23:59:59Z",
+		Environment: "production",
+	}
+	_, err := client.Projects.GetReport(context.Background(), 789, ProjectNoticesByClass, options)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetReport_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Project not found"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	_, err := client.Projects.GetReport(context.Background(), 999, ProjectNoticesByClass, ProjectGetReportOptions{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+	if apiErr.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
+	}
+}
+
+func TestGetReport_ProjectNoticesPerDay(t *testing.T) {
+	mockResponse := `[["2023-01-24T00:00:00.000000+00:00", 3161], ["2023-01-25T00:00:00.000000+00:00", 2620]]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/projects/100/reports/notices_per_day" {
+			t.Errorf("expected path /v2/projects/100/reports/notices_per_day, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	report, err := client.Projects.GetReport(context.Background(), 100, ProjectNoticesPerDay, ProjectGetReportOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report) != 2 {
+		t.Errorf("expected 2 report entries, got %d", len(report))
+	}
+}

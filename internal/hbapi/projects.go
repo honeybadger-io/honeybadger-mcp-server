@@ -44,6 +44,23 @@ type Integration struct {
 	Type                 string                 `json:"type"`
 }
 
+// ProjectReportType represents the type of report to fetch
+type ProjectReportType string
+
+const (
+	ProjectNoticesByClass    ProjectReportType = "notices_by_class"
+	ProjectNoticesByLocation ProjectReportType = "notices_by_location"
+	ProjectNoticesByUser     ProjectReportType = "notices_by_user"
+	ProjectNoticesPerDay     ProjectReportType = "notices_per_day"
+)
+
+// ProjectGetReportOptions represents options for getting report data
+type ProjectGetReportOptions struct {
+	Start       string `json:"start,omitempty"`       // ISO 8601 format date/time
+	Stop        string `json:"stop,omitempty"`        // ISO 8601 format date/time
+	Environment string `json:"environment,omitempty"` // Filter by environment
+}
+
 // ProjectsService handles operations for the projects resource
 type ProjectsService struct {
 	client *Client
@@ -254,6 +271,42 @@ func (p *ProjectsService) GetIntegrations(ctx context.Context, projectID int) ([
 	}
 
 	var result []Integration
+	if err := p.client.do(ctx, req, &result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// GetReport gets report data for a specific project
+func (p *ProjectsService) GetReport(ctx context.Context, projectID int, reportType ProjectReportType, options ProjectGetReportOptions) ([][]interface{}, error) {
+	path := fmt.Sprintf("/projects/%d/reports/%s", projectID, reportType)
+
+	// Add query parameters if provided
+	queryParams := make([]string, 0)
+	if options.Start != "" {
+		queryParams = append(queryParams, fmt.Sprintf("start=%s", options.Start))
+	}
+	if options.Stop != "" {
+		queryParams = append(queryParams, fmt.Sprintf("stop=%s", options.Stop))
+	}
+	if options.Environment != "" {
+		queryParams = append(queryParams, fmt.Sprintf("environment=%s", options.Environment))
+	}
+
+	if len(queryParams) > 0 {
+		path += "?" + queryParams[0]
+		for _, param := range queryParams[1:] {
+			path += "&" + param
+		}
+	}
+
+	req, err := p.client.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result [][]interface{}
 	if err := p.client.do(ctx, req, &result); err != nil {
 		return nil, err
 	}

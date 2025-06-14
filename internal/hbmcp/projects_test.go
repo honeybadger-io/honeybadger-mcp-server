@@ -865,3 +865,93 @@ func TestArgsToProjectRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleGetProjectReport(t *testing.T) {
+	mockResponse := `[["RuntimeError", 8347], ["SocketError", 4651]]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/reports/notices_by_class" {
+			t.Errorf("expected path /v2/projects/123/reports/notices_by_class, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	args := map[string]interface{}{
+		"project_id": float64(123),
+		"report":     "notices_by_class",
+	}
+
+	result, err := handleGetProjectReport(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleGetProjectReport() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+	}
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "RuntimeError") {
+		t.Error("Result should contain RuntimeError")
+	}
+}
+
+func TestHandleGetProjectReport_InvalidReport(t *testing.T) {
+	client := hbapi.NewClient().WithBaseURL("https://test.example.com").WithAuthToken("test-token")
+	args := map[string]interface{}{
+		"project_id": float64(123),
+		"report":     "invalid_report_type",
+	}
+
+	result, err := handleGetProjectReport(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleGetProjectReport() error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error result for invalid report type")
+	}
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "notices_by_class") {
+		t.Error("Error message should mention valid report types")
+	}
+}
+
+func TestHandleGetProjectReport_WithOptions(t *testing.T) {
+	mockResponse := `[["inquiries#create", 2904]]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/projects/456/reports/notices_by_location" {
+			t.Errorf("expected path /v2/projects/456/reports/notices_by_location, got %s", r.URL.Path)
+		}
+		expectedQuery := "start=2023-01-01T00:00:00Z&stop=2023-01-31T23:59:59Z&environment=production"
+		if r.URL.RawQuery != expectedQuery {
+			t.Errorf("expected query %s, got %s", expectedQuery, r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	args := map[string]interface{}{
+		"project_id":  float64(456),
+		"report":      "notices_by_location",
+		"start":       "2023-01-01T00:00:00Z",
+		"stop":        "2023-01-31T23:59:59Z",
+		"environment": "production",
+	}
+
+	result, err := handleGetProjectReport(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleGetProjectReport() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+	}
+}

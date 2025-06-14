@@ -196,6 +196,38 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 			return handleGetProjectIntegrations(ctx, client, args)
 		},
 	)
+
+	// get_project_report tool
+	s.AddTool(
+		mcp.NewTool("get_project_report",
+			mcp.WithDescription("Get report data for a Honeybadger project"),
+			mcp.WithNumber("project_id",
+				mcp.Required(),
+				mcp.Description("The ID of the project to get report data for"),
+				mcp.Min(1),
+			),
+			mcp.WithString("report",
+				mcp.Required(),
+				mcp.Description("The type of report to get: 'notices_by_class', 'notices_by_location', 'notices_by_user', or 'notices_per_day'"),
+			),
+			mcp.WithString("start",
+				mcp.Description("Start date/time in ISO 8601 format for the beginning of the reporting period"),
+			),
+			mcp.WithString("stop",
+				mcp.Description("Stop date/time in ISO 8601 format for the end of the reporting period"),
+			),
+			mcp.WithString("environment",
+				mcp.Description("Optional environment name to filter results"),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			args, ok := req.Params.Arguments.(map[string]interface{})
+			if !ok {
+				return mcp.NewToolResultError("Invalid arguments"), nil
+			}
+			return handleGetProjectReport(ctx, client, args)
+		},
+	)
 }
 
 func handleListProjects(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
@@ -398,6 +430,70 @@ func handleGetProjectIntegrations(ctx context.Context, client *hbapi.Client, arg
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(integrations)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+func handleGetProjectReport(ctx context.Context, client *hbapi.Client, args map[string]interface{}) (*mcp.CallToolResult, error) {
+	projectID, err := validateIntParam(args, "project_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	reportStr, err := validateStringParam(args, "report")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	// Validate and convert report type
+	var reportType hbapi.ProjectReportType
+	switch reportStr {
+	case "notices_by_class":
+		reportType = hbapi.ProjectNoticesByClass
+	case "notices_by_location":
+		reportType = hbapi.ProjectNoticesByLocation
+	case "notices_by_user":
+		reportType = hbapi.ProjectNoticesByUser
+	case "notices_per_day":
+		reportType = hbapi.ProjectNoticesPerDay
+	default:
+		return mcp.NewToolResultError("report must be one of: 'notices_by_class', 'notices_by_location', 'notices_by_user', 'notices_per_day'"), nil
+	}
+
+	// Build options struct
+	var options hbapi.ProjectGetReportOptions
+	if start, exists := args["start"]; exists {
+		if str, ok := start.(string); ok {
+			options.Start = str
+		} else {
+			return mcp.NewToolResultError("start must be a string"), nil
+		}
+	}
+	if stop, exists := args["stop"]; exists {
+		if str, ok := stop.(string); ok {
+			options.Stop = str
+		} else {
+			return mcp.NewToolResultError("stop must be a string"), nil
+		}
+	}
+	if environment, exists := args["environment"]; exists {
+		if str, ok := environment.(string); ok {
+			options.Environment = str
+		} else {
+			return mcp.NewToolResultError("environment must be a string"), nil
+		}
+	}
+
+	report, err := client.Projects.GetReport(ctx, projectID, reportType, options)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project report: %v", err)), nil
+	}
+
+	// Return JSON response
+	jsonBytes, err := json.Marshal(report)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
