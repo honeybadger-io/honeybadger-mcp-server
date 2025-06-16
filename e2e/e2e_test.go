@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"encoding/json"
 	"os/exec"
 	"strings"
 	"testing"
@@ -126,8 +125,8 @@ func TestMalformedMessage(t *testing.T) {
 	}
 }
 
-// TestUpdateProjectTool verifies the update_project tool works correctly
-func TestUpdateProjectTool(t *testing.T) {
+// TestProjectToolIntegration verifies project tools work correctly
+func TestProjectToolIntegration(t *testing.T) {
 	server, err := StartTestServer(t, "test-token")
 	if err != nil {
 		t.Fatalf("Failed to start server: %v", err)
@@ -145,13 +144,13 @@ func TestUpdateProjectTool(t *testing.T) {
 		t.Fatalf("Failed to call update_project tool: %v", err)
 	}
 
-	// Parse the result
+	// Verify result structure is correct (basic validation)
 	resultMap, ok := result.(map[string]interface{})
 	if !ok {
 		t.Fatalf("Unexpected result type: %T", result)
 	}
 
-	// Check for content array
+	// Check for content array (MCP standard response format)
 	content, ok := resultMap["content"].([]interface{})
 	if !ok {
 		t.Fatalf("No content in result: %+v", resultMap)
@@ -161,68 +160,128 @@ func TestUpdateProjectTool(t *testing.T) {
 		t.Fatal("Empty content array")
 	}
 
-	// Get the first content item
+	// Verify basic response structure
 	contentItem, ok := content[0].(map[string]interface{})
 	if !ok {
 		t.Fatalf("Unexpected content item type: %T", content[0])
 	}
 
-	// Verify it's a text type
 	if contentType, ok := contentItem["type"].(string); !ok || contentType != "text" {
 		t.Errorf("Unexpected content type: %v", contentItem["type"])
 	}
 
-	// Get the text content
-	text, ok := contentItem["text"].(string)
-	if !ok {
-		t.Fatalf("No text in content item: %+v", contentItem)
-	}
-
-	// Check if this is an error response (expected with test token)
-	if strings.Contains(text, "Failed to update project") {
-		// This is expected since we're using a test token
-		t.Logf("Got expected error response with test token: %s", text)
-		return
-	}
-
-	// Parse the JSON response (if it's a success response)
-	var updateResponse map[string]interface{}
-	if err := json.Unmarshal([]byte(text), &updateResponse); err != nil {
-		t.Fatalf("Failed to parse update response: %v, text: %s", err, text)
-	}
-
-	// Verify success
-	if success, ok := updateResponse["success"].(bool); !ok || !success {
-		t.Errorf("Unexpected success value: %v", updateResponse["success"])
-	}
-
-	// Verify message contains project ID
-	message, ok := updateResponse["message"].(string)
-	if !ok {
-		t.Fatal("No message in response")
-	}
-
-	if !strings.Contains(message, "123") {
-		t.Errorf("Message should contain project ID 123: %v", message)
-	}
-
-	if !strings.Contains(message, "successfully updated") {
-		t.Errorf("Message should contain 'successfully updated': %v", message)
+	// For e2e testing, we just verify we get a valid response structure
+	// The actual API behavior is tested in unit tests
+	if _, ok := contentItem["text"].(string); !ok {
+		t.Fatal("No text content in response")
 	}
 }
 
-// TestServerWithoutToken verifies the server requires an API token
-func TestServerWithoutToken(t *testing.T) {
-	// Try to start server without token by overriding the command
-	cmd := exec.Command("go", "run", "../cmd/honeybadger-mcp-server/main.go", "stdio")
+// TestFaultToolIntegration verifies fault tools work correctly
+func TestFaultToolIntegration(t *testing.T) {
+	server, err := StartTestServer(t, "test-token")
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+	defer server.Stop()
 
-	output, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("Expected server to fail without API token")
+	// Test list_faults tool with valid parameters
+	args := map[string]interface{}{
+		"project_id": 123,
+		"limit":      5,
 	}
 
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "auth-token is required") {
-		t.Errorf("Expected error about missing auth-token, got: %s", outputStr)
+	result, err := server.CallTool("list_faults", args)
+	if err != nil {
+		t.Fatalf("Failed to call list_faults tool: %v", err)
 	}
+
+	// Verify result structure is correct (basic validation)
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Unexpected result type: %T", result)
+	}
+
+	// Check for content array (MCP standard response format)
+	content, ok := resultMap["content"].([]interface{})
+	if !ok {
+		t.Fatalf("No content in result: %+v", resultMap)
+	}
+
+	if len(content) == 0 {
+		t.Fatal("Empty content array")
+	}
+
+	// Verify basic response structure
+	contentItem, ok := content[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Unexpected content item type: %T", content[0])
+	}
+
+	if contentType, ok := contentItem["type"].(string); !ok || contentType != "text" {
+		t.Errorf("Unexpected content type: %v", contentItem["type"])
+	}
+
+	// For e2e testing, we just verify we get a valid response structure
+	if _, ok := contentItem["text"].(string); !ok {
+		t.Fatal("No text content in response")
+	}
+}
+
+// TestServerEdgeCases verifies the server handles edge cases correctly
+func TestServerEdgeCases(t *testing.T) {
+	t.Run("ServerWithoutToken", func(t *testing.T) {
+		// Try to start server without token by overriding the command
+		cmd := exec.Command("go", "run", "../cmd/honeybadger-mcp-server/main.go", "stdio")
+
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatal("Expected server to fail without API token")
+		}
+
+		outputStr := string(output)
+		if !strings.Contains(outputStr, "auth-token is required") {
+			t.Errorf("Expected error about missing auth-token, got: %s", outputStr)
+		}
+	})
+
+	t.Run("ServerShutdownGracefully", func(t *testing.T) {
+		server, err := StartTestServer(t, "test-token")
+		if err != nil {
+			t.Fatalf("Failed to start server: %v", err)
+		}
+
+		// Verify server is running
+		if server.cmd.Process == nil {
+			t.Fatal("Server process is nil")
+		}
+
+		// Stop server and verify it shuts down without hanging
+		server.Stop()
+
+		// Process should be stopped
+		if server.cmd.ProcessState == nil {
+			t.Error("Process state should be set after stopping")
+		}
+	})
+
+	t.Run("InvalidToolArguments", func(t *testing.T) {
+		server, err := StartTestServer(t, "test-token")
+		if err != nil {
+			t.Fatalf("Failed to start server: %v", err)
+		}
+		defer server.Stop()
+
+		// Call valid tool with invalid arguments
+		args := map[string]interface{}{
+			"invalid_arg": "invalid_value",
+		}
+
+		_, err = server.CallTool("list_projects", args)
+		// Should not crash, may succeed or return validation error
+		// Either outcome is acceptable for e2e testing
+		if err != nil {
+			t.Logf("Got expected validation error: %v", err)
+		}
+	})
 }
