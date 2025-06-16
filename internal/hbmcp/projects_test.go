@@ -44,7 +44,7 @@ func TestHandleListProjects(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -82,7 +82,7 @@ func TestHandleListProjects(t *testing.T) {
 func TestHandleListProjects_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error": "Invalid API token"}`))
+		_, _ = w.Write([]byte(`{"error": "Invalid API token"}`))
 	}))
 	defer server.Close()
 
@@ -128,7 +128,7 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -178,7 +178,7 @@ func TestHandleGetProject(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -293,7 +293,7 @@ func TestHandleCreateProject(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -337,7 +337,7 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
 		}
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		w.Write([]byte(`{"error": "Name has already been taken"}`))
+		_, _ = w.Write([]byte(`{"error": "Name has already been taken"}`))
 	}))
 	defer server.Close()
 
@@ -587,7 +587,7 @@ func TestHandleDeleteProject(t *testing.T) {
 func TestHandleDeleteProject_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
 	}))
 	defer server.Close()
 
@@ -616,7 +616,6 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 		t.Error("Error message should contain 'Failed to delete project'")
 	}
 }
-
 
 func TestSanitizeProject(t *testing.T) {
 	project := &hbapi.Project{
@@ -647,7 +646,6 @@ func TestSanitizeProject(t *testing.T) {
 	}
 }
 
-
 func TestHandleGetProjectReport(t *testing.T) {
 	mockResponse := `[["RuntimeError", 8347], ["SocketError", 4651]]`
 
@@ -660,7 +658,7 @@ func TestHandleGetProjectReport(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -690,7 +688,7 @@ func TestHandleGetProjectReport(t *testing.T) {
 func TestHandleGetProjectReport_InvalidReport(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": "Invalid report type"}`))
+		_, _ = w.Write([]byte(`{"error": "Invalid report type"}`))
 	}))
 	defer server.Close()
 
@@ -736,7 +734,7 @@ func TestHandleGetProjectReport_WithOptions(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 

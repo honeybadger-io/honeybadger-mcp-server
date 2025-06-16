@@ -48,7 +48,7 @@ func TestHandleListFaults(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -105,7 +105,7 @@ func TestHandleListFaults_WithOptions(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"results": []}`))
+		_, _ = w.Write([]byte(`{"results": []}`))
 	}))
 	defer server.Close()
 
@@ -137,7 +137,7 @@ func TestHandleListFaults_WithOptions(t *testing.T) {
 func TestHandleListFaults_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error": "Invalid API token"}`))
+		_, _ = w.Write([]byte(`{"error": "Invalid API token"}`))
 	}))
 	defer server.Close()
 
@@ -221,7 +221,7 @@ func TestHandleGetFault(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -377,7 +377,7 @@ func TestHandleGetFault_InvalidFaultID(t *testing.T) {
 func TestHandleGetFault_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
 	}))
 	defer server.Close()
 
@@ -458,7 +458,7 @@ func TestHandleListFaultNotices(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -524,7 +524,7 @@ func TestHandleListFaultNotices_WithOptions(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"results": []}`))
+		_, _ = w.Write([]byte(`{"results": []}`))
 	}))
 	defer server.Close()
 
@@ -609,7 +609,7 @@ func TestHandleListFaultNotices_MissingFaultID(t *testing.T) {
 func TestHandleListFaultNotices_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
 	}))
 	defer server.Close()
 
@@ -662,7 +662,7 @@ func TestHandleListFaultAffectedUsers(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
+		_, _ = w.Write([]byte(mockResponse))
 	}))
 	defer server.Close()
 
@@ -722,7 +722,7 @@ func TestHandleListFaultAffectedUsers_WithSearch(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[]`))
+		_, _ = w.Write([]byte(`[]`))
 	}))
 	defer server.Close()
 
@@ -805,7 +805,7 @@ func TestHandleListFaultAffectedUsers_MissingFaultID(t *testing.T) {
 func TestHandleListFaultAffectedUsers_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
 	}))
 	defer server.Close()
 

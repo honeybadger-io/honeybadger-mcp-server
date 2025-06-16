@@ -92,7 +92,7 @@ func (c *Client) do(ctx context.Context, req *http.Request, v interface{}) error
 		}
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return WrapError(resp, nil)

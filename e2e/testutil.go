@@ -211,18 +211,18 @@ func (s *MCPTestServer) ListTools() ([]interface{}, error) {
 // Stop gracefully stops the test server
 func (s *MCPTestServer) Stop() {
 	if s.cmd != nil && s.cmd.Process != nil {
-		s.stdin.Close()
-		s.cmd.Process.Kill()
-		s.cmd.Wait()
+		_ = s.stdin.Close()
+		_ = s.cmd.Process.Kill()
+		_ = s.cmd.Wait()
 	}
 
 	// Clean up the test binary
-	os.Remove("../honeybadger-mcp-server-test")
+	_ = os.Remove("../honeybadger-mcp-server-test")
 }
 
 // ReadStderr reads any error output from the server
 func (s *MCPTestServer) ReadStderr() string {
 	var buf bytes.Buffer
-	io.Copy(&buf, s.stderr)
+	_, _ = io.Copy(&buf, s.stderr)
 	return buf.String()
 }

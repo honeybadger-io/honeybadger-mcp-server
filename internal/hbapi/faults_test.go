@@ -73,7 +73,7 @@ func TestFaultsList(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockFaults))
+		_, _ = w.Write([]byte(mockFaults))
 	}))
 	defer server.Close()
 
@@ -118,7 +118,7 @@ func TestFaultsList_WithOptions(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"results": []}`))
+		_, _ = w.Write([]byte(`{"results": []}`))
 	}))
 	defer server.Close()
 
@@ -141,7 +141,7 @@ func TestFaultsList_WithOptions(t *testing.T) {
 func TestFaultsList_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error": "Invalid API token"}`))
+		_, _ = w.Write([]byte(`{"error": "Invalid API token"}`))
 	}))
 	defer server.Close()
 
@@ -205,7 +205,7 @@ func TestGetFault(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockFault))
+		_, _ = w.Write([]byte(mockFault))
 	}))
 	defer server.Close()
 
@@ -238,7 +238,7 @@ func TestGetFault(t *testing.T) {
 func TestGetFault_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
 	}))
 	defer server.Close()
 
@@ -264,7 +264,7 @@ func TestGetFault_NotFound(t *testing.T) {
 func TestGetFault_ProjectNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
 	}))
 	defer server.Close()
 
@@ -372,7 +372,7 @@ func TestListNotices(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockNotices))
+		_, _ = w.Write([]byte(mockNotices))
 	}))
 	defer server.Close()
 
@@ -433,7 +433,7 @@ func TestListNotices_WithOptions(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"results": []}`))
+		_, _ = w.Write([]byte(`{"results": []}`))
 	}))
 	defer server.Close()
 
@@ -456,7 +456,7 @@ func TestListNotices_WithOptions(t *testing.T) {
 func TestListNotices_FaultNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
 	}))
 	defer server.Close()
 
@@ -482,7 +482,7 @@ func TestListNotices_FaultNotFound(t *testing.T) {
 func TestListNotices_ProjectNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
 	}))
 	defer server.Close()
 
@@ -537,7 +537,7 @@ func TestListAffectedUsers(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockUsers))
+		_, _ = w.Write([]byte(mockUsers))
 	}))
 	defer server.Close()
 
@@ -580,7 +580,7 @@ func TestListAffectedUsers_WithSearch(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[]`))
+		_, _ = w.Write([]byte(`[]`))
 	}))
 	defer server.Close()
 
@@ -601,7 +601,7 @@ func TestListAffectedUsers_WithSearch(t *testing.T) {
 func TestListAffectedUsers_FaultNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
 	}))
 	defer server.Close()
 
@@ -627,7 +627,7 @@ func TestListAffectedUsers_FaultNotFound(t *testing.T) {
 func TestListAffectedUsers_ProjectNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
 	}))
 	defer server.Close()
 

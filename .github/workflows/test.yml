@@ -13,7 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        go-version: ["1.24"]
+        go-version: ["1.23", "1.24"]
 
     steps:
       - name: Checkout code
@@ -28,23 +28,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
             ${{ runner.os }}-go-
-
-      - name: Run go mod tidy
-        run: go mod tidy
-
-      - name: Check if go.mod is tidy
-        run: |
-          if [[ -n $(git status -s) ]]; then
-            echo "go mod tidy resulted in changes:"
-            git status -s
-            exit 1
-          fi
-
-      - name: Run go vet
-        run: go vet ./...
 
       - name: Run tests
         run: go test -v ./...

@@ -57,22 +57,22 @@ type ProjectsResponse struct {
 
 // Fault represents a Honeybadger fault
 type Fault struct {
-	ID           int        `json:"id"`
-	Action       string     `json:"action"`
-	Assignee     *User      `json:"assignee"`
-	CommentsCount int       `json:"comments_count"`
-	Component    string     `json:"component"`
-	CreatedAt    time.Time  `json:"created_at"`
-	Environment  string     `json:"environment"`
-	Ignored      bool       `json:"ignored"`
-	Klass        string     `json:"klass"`
-	LastNoticeAt *time.Time `json:"last_notice_at"`
-	Message      string     `json:"message"`
-	NoticesCount int        `json:"notices_count"`
-	ProjectID    int        `json:"project_id"`
-	Resolved     bool       `json:"resolved"`
-	Tags         []string   `json:"tags"`
-	URL          string     `json:"url"`
+	ID            int        `json:"id"`
+	Action        string     `json:"action"`
+	Assignee      *User      `json:"assignee"`
+	CommentsCount int        `json:"comments_count"`
+	Component     string     `json:"component"`
+	CreatedAt     time.Time  `json:"created_at"`
+	Environment   string     `json:"environment"`
+	Ignored       bool       `json:"ignored"`
+	Klass         string     `json:"klass"`
+	LastNoticeAt  *time.Time `json:"last_notice_at"`
+	Message       string     `json:"message"`
+	NoticesCount  int        `json:"notices_count"`
+	ProjectID     int        `json:"project_id"`
+	Resolved      bool       `json:"resolved"`
+	Tags          []string   `json:"tags"`
+	URL           string     `json:"url"`
 }
 
 // NoticeEnvironment represents the environment information for a notice
@@ -122,4 +122,3 @@ type Notice struct {
 	ApplicationTrace []BacktraceEntry       `json:"application_trace"`
 	Deploy           interface{}            `json:"deploy"` // Can be null or object
 }
-

@@ -43,9 +43,9 @@ func init() {
 	stdioCmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
 
 	// Bind flags to viper
-	viper.BindPFlag("auth-token", stdioCmd.Flags().Lookup("auth-token"))
-	viper.BindPFlag("api-url", stdioCmd.Flags().Lookup("api-url"))
-	viper.BindPFlag("log-level", stdioCmd.Flags().Lookup("log-level"))
+	_ = viper.BindPFlag("auth-token", stdioCmd.Flags().Lookup("auth-token"))
+	_ = viper.BindPFlag("api-url", stdioCmd.Flags().Lookup("api-url"))
+	_ = viper.BindPFlag("log-level", stdioCmd.Flags().Lookup("log-level"))
 
 	rootCmd.AddCommand(stdioCmd)
 }
@@ -68,9 +68,9 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// Bind specific environment variables
-	viper.BindEnv("auth-token", "HONEYBADGER_PERSONAL_AUTH_TOKEN")
-	viper.BindEnv("api-url", "HONEYBADGER_API_URL")
-	viper.BindEnv("log-level", "LOG_LEVEL")
+	_ = viper.BindEnv("auth-token", "HONEYBADGER_PERSONAL_AUTH_TOKEN")
+	_ = viper.BindEnv("api-url", "HONEYBADGER_API_URL")
+	_ = viper.BindEnv("log-level", "LOG_LEVEL")
 
 	// Read config file if it exists
 	if err := viper.ReadInConfig(); err == nil {
