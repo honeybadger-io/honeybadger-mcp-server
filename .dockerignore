@@ -1,0 +1,12 @@
+.github
+.git
+.gitignore
+.dockerignore
+.claude/
+.vscode/
+.idea/
+e2e/
+**/*.md
+**/*_test.go
+LICENSE
+/honeybadger-mcp-server
