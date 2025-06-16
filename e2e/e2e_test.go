@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestServerStartup verifies the server starts correctly
@@ -35,14 +34,13 @@ func TestListTools(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 13 // create_project, delete_project, get_fault, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects, ping, update_project
+	expectedToolCount := 12 // create_project, delete_project, get_fault, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects, update_project
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools, got %d", expectedToolCount, len(tools))
 	}
 
 	// Track which tools we find
 	var foundTools []string
-	var pingTool map[string]interface{}
 	var updateProjectTool map[string]interface{}
 
 	for _, tool := range tools {
@@ -51,9 +49,6 @@ func TestListTools(t *testing.T) {
 				foundTools = append(foundTools, name)
 				t.Logf("Found tool: %s", name)
 
-				if name == "ping" {
-					pingTool = toolMap
-				}
 				if name == "update_project" {
 					updateProjectTool = toolMap
 				}
@@ -62,7 +57,7 @@ func TestListTools(t *testing.T) {
 	}
 
 	// Verify all expected tools are present
-	expectedTools := []string{"create_project", "delete_project", "get_fault", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "ping", "update_project"}
+	expectedTools := []string{"create_project", "delete_project", "get_fault", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "update_project"}
 	for _, expectedTool := range expectedTools {
 		found := false
 		for _, foundTool := range foundTools {
@@ -76,131 +71,13 @@ func TestListTools(t *testing.T) {
 		}
 	}
 
-	if pingTool == nil {
-		t.Fatal("Ping tool not found")
-	}
-
 	if updateProjectTool == nil {
 		t.Fatal("Update project tool not found")
-	}
-
-	// Verify ping tool properties
-	if desc, ok := pingTool["description"].(string); !ok || desc != "Test connectivity to the MCP server" {
-		t.Errorf("Unexpected ping tool description: %v", pingTool["description"])
 	}
 
 	// Verify update_project tool properties
 	if desc, ok := updateProjectTool["description"].(string); !ok || desc != "Update an existing Honeybadger project" {
 		t.Errorf("Unexpected update_project tool description: %v", updateProjectTool["description"])
-	}
-}
-
-// TestPingTool verifies the ping tool works correctly
-func TestPingTool(t *testing.T) {
-	server, err := StartTestServer(t, "test-token")
-	if err != nil {
-		t.Fatalf("Failed to start server: %v", err)
-	}
-	defer server.Stop()
-
-	result, err := server.CallTool("ping", nil)
-	if err != nil {
-		t.Fatalf("Failed to call ping tool: %v", err)
-	}
-
-	// Parse the result
-	resultMap, ok := result.(map[string]interface{})
-	if !ok {
-		t.Fatalf("Unexpected result type: %T", result)
-	}
-
-	// Check for content array
-	content, ok := resultMap["content"].([]interface{})
-	if !ok {
-		t.Fatalf("No content in result: %+v", resultMap)
-	}
-
-	if len(content) == 0 {
-		t.Fatal("Empty content array")
-	}
-
-	// Get the first content item
-	contentItem, ok := content[0].(map[string]interface{})
-	if !ok {
-		t.Fatalf("Unexpected content item type: %T", content[0])
-	}
-
-	// Verify it's a text type
-	if contentType, ok := contentItem["type"].(string); !ok || contentType != "text" {
-		t.Errorf("Unexpected content type: %v", contentItem["type"])
-	}
-
-	// Get the text content
-	text, ok := contentItem["text"].(string)
-	if !ok {
-		t.Fatalf("No text in content item: %+v", contentItem)
-	}
-
-	// Parse the JSON response
-	var pingResponse map[string]interface{}
-	if err := json.Unmarshal([]byte(text), &pingResponse); err != nil {
-		t.Fatalf("Failed to parse ping response: %v", err)
-	}
-
-	// Verify status
-	if status, ok := pingResponse["status"].(string); !ok || status != "pong" {
-		t.Errorf("Unexpected status: %v", pingResponse["status"])
-	}
-
-	// Verify timestamp
-	timestamp, ok := pingResponse["timestamp"].(string)
-	if !ok {
-		t.Fatal("No timestamp in response")
-	}
-
-	// Verify timestamp format
-	if _, err := time.Parse(time.RFC3339, timestamp); err != nil {
-		t.Errorf("Invalid timestamp format: %v", err)
-	}
-}
-
-// TestPingToolMultipleCalls verifies the ping tool can be called multiple times
-func TestPingToolMultipleCalls(t *testing.T) {
-	server, err := StartTestServer(t, "test-token")
-	if err != nil {
-		t.Fatalf("Failed to start server: %v", err)
-	}
-	defer server.Stop()
-
-	timestamps := make([]string, 0, 3)
-
-	for i := 0; i < 3; i++ {
-		result, err := server.CallTool("ping", nil)
-		if err != nil {
-			t.Fatalf("Failed to call ping tool (iteration %d): %v", i, err)
-		}
-
-		// Extract timestamp from response
-		resultMap := result.(map[string]interface{})
-		content := resultMap["content"].([]interface{})
-		contentItem := content[0].(map[string]interface{})
-		text := contentItem["text"].(string)
-
-		var pingResponse map[string]interface{}
-		json.Unmarshal([]byte(text), &pingResponse)
-
-		timestamp := pingResponse["timestamp"].(string)
-		timestamps = append(timestamps, timestamp)
-
-		// Small delay between calls to ensure different timestamps
-		time.Sleep(1 * time.Second)
-	}
-
-	// Verify all timestamps are different
-	for i := 1; i < len(timestamps); i++ {
-		if timestamps[i] == timestamps[i-1] {
-			t.Error("Timestamps should be different for each call")
-		}
 	}
 }
 

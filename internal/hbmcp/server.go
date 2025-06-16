@@ -2,8 +2,6 @@ package hbmcp
 
 import (
 	"context"
-	"encoding/json"
-	"time"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbapi"
@@ -60,24 +58,6 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	apiClient := hbapi.NewClient().
 		WithBaseURL(cfg.APIURL).
 		WithAuthToken(cfg.AuthToken)
-
-	// Register the ping tool
-	s.AddTool(
-		mcp.NewTool("ping",
-			mcp.WithDescription("Test connectivity to the MCP server"),
-		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			result := map[string]interface{}{
-				"status":    "pong",
-				"timestamp": time.Now().UTC().Format(time.RFC3339),
-			}
-			jsonBytes, err := json.Marshal(result)
-			if err != nil {
-				return mcp.NewToolResultError("Failed to marshal response"), nil
-			}
-			return mcp.NewToolResultText(string(jsonBytes)), nil
-		},
-	)
 
 	// Register project tools
 	RegisterProjectTools(s, apiClient)
