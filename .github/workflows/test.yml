@@ -35,5 +35,3 @@ jobs:
 
       - name: Run tests
         run: go test -v ./...
-        env:
-          HONEYBADGER_PERSONAL_AUTH_TOKEN: test_token
