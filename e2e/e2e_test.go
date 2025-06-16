@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -233,6 +234,16 @@ func TestServerEdgeCases(t *testing.T) {
 	t.Run("ServerWithoutToken", func(t *testing.T) {
 		// Try to start server without token by overriding the command
 		cmd := exec.Command("go", "run", "../cmd/honeybadger-mcp-server/main.go", "stdio")
+
+		// Clear only the auth token from environment while preserving other vars
+		env := os.Environ()
+		filteredEnv := make([]string, 0, len(env))
+		for _, e := range env {
+			if !strings.HasPrefix(e, "HONEYBADGER_PERSONAL_AUTH_TOKEN=") {
+				filteredEnv = append(filteredEnv, e)
+			}
+		}
+		cmd.Env = filteredEnv
 
 		output, err := cmd.CombinedOutput()
 		if err == nil {
