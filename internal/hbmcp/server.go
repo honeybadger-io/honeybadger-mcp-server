@@ -52,6 +52,7 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 		"1.0.0",
 		server.WithToolCapabilities(true),
 		server.WithLogging(),
+		server.WithRecovery(),
 		server.WithHooks(hooks),
 	)
 

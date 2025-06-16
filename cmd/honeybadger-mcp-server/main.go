@@ -103,7 +103,7 @@ func runStdio(cmd *cobra.Command, args []string) error {
 	// Run the server
 	logger.Info("Server ready, listening on stdio")
 	if err := server.ServeStdio(mcpServer); err != nil {
-		return fmt.Errorf("server error: %w", err)
+		logger.Error("Server error", "error", err)
 	}
 
 	logger.Info("Server stopped")
