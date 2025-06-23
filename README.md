@@ -15,7 +15,7 @@ docker build -t honeybadger-mcp-server .
 
 Then, configure your MCP client(s). You can find your personal auth token under the "Authentication" tab in your [Honeybadger User settings](https://app.honeybadger.io/users/edit).
 
-### Claude Desktop
+### Claude Desktop (and Cursor, and Windsurf)
 
 ```json
 {
@@ -33,6 +33,71 @@ Then, configure your MCP client(s). You can find your personal auth token under 
       "env": {
         "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
       }
+    }
+  }
+}
+```
+
+For Cursor, put this config in [`~/.cursor/mcp.json`](https://docs.cursor.com/context/model-context-protocol). Windsurf's config is at [`~/.codeium/windsurf/mcp_config.json`](https://docs.windsurf.com/windsurf/cascade/mcp). See Anthropic's [MCP quickstart guide](https://modelcontextprotocol.io/quickstart/user) for how to add the config to Claude Desktop.
+
+### VS Code
+
+```json
+{
+  "mcp": {
+    "inputs": [
+      {
+        "type": "promptString",
+        "id": "honeybadger_auth_token",
+        "description": "Honeybadger Personal Auth Token",
+        "password": true
+      }
+    ],
+    "servers": {
+      "honeybadger": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "HONEYBADGER_PERSONAL_AUTH_TOKEN",
+          "honeybadger-mcp-server"
+        ],
+        "env": {
+          "HONEYBADGER_PERSONAL_AUTH_TOKEN": "${input:honeybadger_auth_token}"
+        }
+      }
+    }
+  }
+}
+```
+
+See [Use MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more info.
+
+### Zed
+
+You can add the following directly to your Zed settings file (`~/.config/zed/settings.json`):
+
+```json
+{
+  "context_servers": {
+    "honeybadger": {
+      "command": {
+        "path": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "HONEYBADGER_PERSONAL_AUTH_TOKEN",
+           "honeybadger-mcp-server"
+        ],
+        "env": {
+          "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
+        }
+      },
+      "settings": {}
     }
   }
 }
