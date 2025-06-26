@@ -5,12 +5,10 @@ access to Honeybadger's API through the MCP protocol.
 
 ## Installation
 
-First, clone the repo and build the Docker image:
+First, pull the Docker image:
 
 ```bash
-git clone https://github.com/honeybadger-io/honeybadger-mcp-server.git
-cd honeybadger-mcp-server
-docker build -t honeybadger-mcp-server .
+docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
 ```
 
 Then, configure your MCP client(s). You can find your personal auth token under the "Authentication" tab in your [Honeybadger User settings](https://app.honeybadger.io/users/edit).
