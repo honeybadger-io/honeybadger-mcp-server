@@ -243,8 +243,8 @@ func TestFaultsList_WithPage(t *testing.T) {
 		t.Fatalf("List() error = %v", err)
 	}
 
-	// Verify pagination links are present
-	if response.Links == nil {
+	// Verify pagination links are present (check if any link is set)
+	if response.Links.Next == "" && response.Links.Prev == "" && response.Links.Self == "" {
 		t.Error("expected links to be present in response")
 	}
 }
