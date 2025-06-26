@@ -125,6 +125,33 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 			return handleListFaultAffectedUsers(ctx, client, req)
 		},
 	)
+
+	// get_fault_counts tool
+	s.AddTool(
+		mcp.NewTool("get_fault_counts",
+			mcp.WithDescription("Get fault count statistics for a project with optional filtering"),
+			mcp.WithNumber("project_id",
+				mcp.Required(),
+				mcp.Description("The ID of the project to get fault counts for"),
+				mcp.Min(1),
+			),
+			mcp.WithString("q",
+				mcp.Description("Search string to filter faults"),
+			),
+			mcp.WithString("created_after",
+				mcp.Description("Filter faults created after this timestamp"),
+			),
+			mcp.WithString("occurred_after",
+				mcp.Description("Filter faults that occurred after this timestamp"),
+			),
+			mcp.WithString("occurred_before",
+				mcp.Description("Filter faults that occurred before this timestamp"),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleGetFaultCounts(ctx, client, req)
+		},
+	)
 }
 
 func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -238,6 +265,35 @@ func handleListFaultAffectedUsers(ctx context.Context, client *hbapi.Client, req
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(users)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+func handleGetFaultCounts(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	// Since project_id is required, MCP will ensure it exists
+	projectID := req.GetInt("project_id", 0)
+	if projectID == 0 {
+		return mcp.NewToolResultError("project_id is required"), nil
+	}
+
+	// Build options struct (reuse same filtering options as List)
+	options := hbapi.FaultListOptions{
+		Q:              req.GetString("q", ""),
+		CreatedAfter:   parseTimestamp(req.GetString("created_after", "")),
+		OccurredAfter:  parseTimestamp(req.GetString("occurred_after", "")),
+		OccurredBefore: parseTimestamp(req.GetString("occurred_before", "")),
+	}
+
+	counts, err := client.Faults.GetCounts(ctx, projectID, options)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get fault counts: %v", err)), nil
+	}
+
+	// Return JSON response
+	jsonBytes, err := json.Marshal(counts)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}

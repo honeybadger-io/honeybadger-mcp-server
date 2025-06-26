@@ -185,3 +185,57 @@ func (f *FaultsService) ListAffectedUsers(ctx context.Context, projectID, faultI
 
 	return users, nil
 }
+
+// FaultCountsEnvironment represents fault counts grouped by environment with resolution and ignored status
+type FaultCountsEnvironment struct {
+	Environment string `json:"environment"` // Environment name (e.g., "production", "staging")
+	Resolved    bool   `json:"resolved"`    // Whether these faults are resolved
+	Ignored     bool   `json:"ignored"`     // Whether these faults are ignored
+	Count       int    `json:"count"`       // Number of faults in this group
+}
+
+// FaultCounts represents fault count statistics for a project
+type FaultCounts struct {
+	Total        int                      `json:"total"`        // Total count of all faults
+	Environments []FaultCountsEnvironment `json:"environments"` // Counts grouped by environment, resolution, and ignored status
+}
+
+// GetCounts returns fault count statistics for a project with optional filtering.
+//
+// Honeybadger API docs: https://docs.honeybadger.io/api/faults/#get-a-count-of-faults
+//
+// GET /v2/projects/{projectID}/faults/summary
+func (f *FaultsService) GetCounts(ctx context.Context, projectID int, options FaultListOptions) (*FaultCounts, error) {
+	path := fmt.Sprintf("/projects/%d/faults/summary", projectID)
+
+	// Build query parameters using url.Values (reuse same filtering options as List)
+	params := url.Values{}
+	if options.Q != "" {
+		params.Set("q", options.Q)
+	}
+	if options.CreatedAfter != nil {
+		params.Set("created_after", options.CreatedAfter.Format(time.RFC3339))
+	}
+	if options.OccurredAfter != nil {
+		params.Set("occurred_after", options.OccurredAfter.Format(time.RFC3339))
+	}
+	if options.OccurredBefore != nil {
+		params.Set("occurred_before", options.OccurredBefore.Format(time.RFC3339))
+	}
+
+	if len(params) > 0 {
+		path += "?" + params.Encode()
+	}
+
+	req, err := f.client.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var counts FaultCounts
+	if err := f.client.do(ctx, req, &counts); err != nil {
+		return nil, err
+	}
+
+	return &counts, nil
+}

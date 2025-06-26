@@ -766,3 +766,187 @@ func TestListAffectedUsers_ProjectNotFound(t *testing.T) {
 		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
 	}
 }
+
+func TestGetFaultCounts(t *testing.T) {
+	mockCounts := `{
+		"total": 2,
+		"environments": [
+			{
+				"environment": "production",
+				"resolved": true,
+				"ignored": false,
+				"count": 1
+			},
+			{
+				"environment": "production",
+				"resolved": false,
+				"ignored": false,
+				"count": 1
+			}
+		]
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/faults/summary" {
+			t.Errorf("expected path /v2/projects/123/faults/summary, got %s", r.URL.Path)
+		}
+		// Check Basic Auth
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			t.Error("expected Basic Auth to be set")
+		}
+		if username != "test-token" {
+			t.Errorf("expected Basic Auth username test-token, got %s", username)
+		}
+		if password != "" {
+			t.Errorf("expected Basic Auth password to be empty, got %s", password)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(mockCounts))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	counts, err := client.Faults.GetCounts(context.Background(), 123, FaultListOptions{})
+	if err != nil {
+		t.Fatalf("GetCounts() error = %v", err)
+	}
+
+	if counts.Total != 2 {
+		t.Errorf("expected total count 2, got %d", counts.Total)
+	}
+
+	if len(counts.Environments) != 2 {
+		t.Errorf("expected 2 environment entries, got %d", len(counts.Environments))
+	}
+
+	// Check first environment entry
+	env1 := counts.Environments[0]
+	if env1.Environment != "production" {
+		t.Errorf("expected first environment 'production', got %s", env1.Environment)
+	}
+	if env1.Resolved != true {
+		t.Errorf("expected first environment resolved to be true, got %v", env1.Resolved)
+	}
+	if env1.Ignored != false {
+		t.Errorf("expected first environment ignored to be false, got %v", env1.Ignored)
+	}
+	if env1.Count != 1 {
+		t.Errorf("expected first environment count 1, got %d", env1.Count)
+	}
+
+	// Check second environment entry
+	env2 := counts.Environments[1]
+	if env2.Environment != "production" {
+		t.Errorf("expected second environment 'production', got %s", env2.Environment)
+	}
+	if env2.Resolved != false {
+		t.Errorf("expected second environment resolved to be false, got %v", env2.Resolved)
+	}
+	if env2.Ignored != false {
+		t.Errorf("expected second environment ignored to be false, got %v", env2.Ignored)
+	}
+	if env2.Count != 1 {
+		t.Errorf("expected second environment count 1, got %d", env2.Count)
+	}
+}
+
+func TestGetFaultCounts_WithOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("q") != "environment:production" {
+			t.Errorf("expected q=environment:production, got %s", query.Get("q"))
+		}
+		if query.Get("created_after") != "2024-01-01T00:00:00Z" {
+			t.Errorf("expected created_after=2024-01-01T00:00:00Z, got %s", query.Get("created_after"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"total": 1, "environments": []}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	createdAfter, _ := time.Parse(time.RFC3339, "2024-01-01T00:00:00Z")
+	options := FaultListOptions{
+		Q:            "environment:production",
+		CreatedAfter: &createdAfter,
+	}
+
+	_, err := client.Faults.GetCounts(context.Background(), 123, options)
+	if err != nil {
+		t.Fatalf("GetCounts() error = %v", err)
+	}
+}
+
+func TestGetFaultCounts_ProjectNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"errors": "Project not found"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	_, err := client.Faults.GetCounts(context.Background(), 999, FaultListOptions{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+
+	if apiErr.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
+	}
+
+	if apiErr.Message != "Project not found" {
+		t.Errorf("expected error message 'Project not found', got %s", apiErr.Message)
+	}
+}
+
+func TestGetFaultCounts_InvalidResource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"errors": "Invalid resource"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	_, err := client.Faults.GetCounts(context.Background(), 123, FaultListOptions{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+
+	if apiErr.StatusCode != 400 {
+		t.Errorf("expected status code 400, got %d", apiErr.StatusCode)
+	}
+
+	if apiErr.Message != "Invalid resource" {
+		t.Errorf("expected error message 'Invalid resource', got %s", apiErr.Message)
+	}
+}
