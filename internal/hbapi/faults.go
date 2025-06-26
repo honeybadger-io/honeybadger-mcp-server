@@ -25,10 +25,7 @@ type FaultListOptions struct {
 }
 
 // FaultListResponse represents the API response for listing faults
-type FaultListResponse struct {
-	Results []Fault                `json:"results"`
-	Links   map[string]interface{} `json:"links"`
-}
+type FaultListResponse = ListResponse[Fault]
 
 // List returns a list of faults for a project with optional filtering and ordering.
 //
@@ -107,10 +104,7 @@ type FaultListNoticesOptions struct {
 }
 
 // FaultNoticesResponse represents the API response for listing fault notices
-type FaultNoticesResponse struct {
-	Results []Notice               `json:"results"`
-	Links   map[string]interface{} `json:"links"`
-}
+type FaultNoticesResponse = ListResponse[Notice]
 
 // ListNotices returns a list of notices for a specific fault with optional filtering.
 //

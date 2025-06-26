@@ -118,3 +118,16 @@ type Notice struct {
 	ApplicationTrace []BacktraceEntry       `json:"application_trace"`
 	Deploy           interface{}            `json:"deploy"` // Can be null or object
 }
+
+// PaginationLinks represents the pagination links in API responses
+type PaginationLinks struct {
+	Next string `json:"next"`
+	Prev string `json:"prev"`
+	Self string `json:"self"`
+}
+
+// ListResponse represents a generic list response with results and pagination links
+type ListResponse[T any] struct {
+	Results []T             `json:"results"`
+	Links   PaginationLinks `json:"links"`
+}

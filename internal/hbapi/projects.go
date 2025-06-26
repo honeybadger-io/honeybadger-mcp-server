@@ -13,10 +13,7 @@ type ProjectsService struct {
 }
 
 // ProjectsResponse represents the API response for listing projects
-type ProjectsResponse struct {
-	Results []Project              `json:"results"`
-	Links   map[string]interface{} `json:"links"`
-}
+type ProjectsResponse = ListResponse[Project]
 
 // ListAll returns all projects across all accounts accessible by the authenticated user.
 //
