@@ -882,3 +882,175 @@ func TestHandleListFaultAffectedUsers_Error(t *testing.T) {
 		t.Error("Error message should contain 'Failed to list fault affected users'")
 	}
 }
+
+func TestHandleGetFaultCounts(t *testing.T) {
+	mockResponse := `{
+		"total": 2,
+		"environments": [
+			{
+				"environment": "production",
+				"resolved": true,
+				"ignored": false,
+				"count": 1
+			},
+			{
+				"environment": "production",
+				"resolved": false,
+				"ignored": false,
+				"count": 1
+			}
+		]
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v2/projects/123/faults/summary" {
+			t.Errorf("expected path /v2/projects/123/faults/summary, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+			},
+		},
+	}
+
+	result, err := handleGetFaultCounts(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFaultCounts() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+
+	// Check that fault counts data is present
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "production") {
+		t.Error("Environment information should be present in response")
+	}
+
+	// Verify the response can be unmarshaled as fault counts
+	var response hbapi.FaultCounts
+	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
+		t.Errorf("Response should be valid JSON fault counts response: %v", err)
+	}
+
+	if response.Total != 2 {
+		t.Errorf("expected total count 2, got %d", response.Total)
+	}
+
+	if len(response.Environments) != 2 {
+		t.Errorf("expected 2 environment entries, got %d", len(response.Environments))
+	}
+}
+
+func TestHandleGetFaultCounts_WithOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("q") != "environment:production" {
+			t.Errorf("expected q=environment:production, got %s", query.Get("q"))
+		}
+		if query.Get("created_after") != "2024-01-01T00:00:00Z" {
+			t.Errorf("expected created_after=2024-01-01T00:00:00Z, got %s", query.Get("created_after"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"total": 1, "environments": []}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id":    123,
+				"q":             "environment:production",
+				"created_after": "2024-01-01T00:00:00Z",
+			},
+		},
+	}
+
+	result, err := handleGetFaultCounts(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFaultCounts() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+}
+
+func TestHandleGetFaultCounts_MissingProjectID(t *testing.T) {
+	client := hbapi.NewClient()
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{},
+		},
+	}
+
+	result, err := handleGetFaultCounts(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFaultCounts() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for missing project ID")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "project_id is required") {
+		t.Error("Error message should mention project_id is required")
+	}
+}
+
+func TestHandleGetFaultCounts_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"errors": "Invalid API token"}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("invalid-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+			},
+		},
+	}
+
+	result, err := handleGetFaultCounts(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleGetFaultCounts() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "Failed to get fault counts") {
+		t.Error("Error message should contain 'Failed to get fault counts'")
+	}
+}
