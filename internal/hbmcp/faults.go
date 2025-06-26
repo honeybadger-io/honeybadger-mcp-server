@@ -42,6 +42,10 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 				mcp.Description("Order results by 'recent' or 'frequent'"),
 				mcp.Enum("recent", "frequent"),
 			),
+			mcp.WithNumber("page",
+				mcp.Description("Page number for pagination"),
+				mcp.Min(1),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListFaults(ctx, client, req)
@@ -138,6 +142,7 @@ func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 		OccurredBefore: parseTimestamp(req.GetString("occurred_before", "")),
 		Limit:          req.GetInt("limit", 0),
 		Order:          req.GetString("order", ""),
+		Page:           req.GetInt("page", 0),
 	}
 
 	response, err := client.Faults.List(ctx, projectID, options)

@@ -134,6 +134,52 @@ func TestHandleListFaults_WithOptions(t *testing.T) {
 	}
 }
 
+func TestHandleListFaults_WithPage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("page") != "2" {
+			t.Errorf("expected page=2, got %s", query.Get("page"))
+		}
+		if query.Get("limit") != "25" {
+			t.Errorf("expected limit=25, got %s", query.Get("limit"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"results": [], "links": {"next": "https://app.honeybadger.io/v2/projects/123/faults?page=3"}}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+				"page":       2,
+				"limit":      25,
+			},
+		},
+	}
+
+	result, err := handleListFaults(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleListFaults() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+
+	// Verify the response contains pagination links
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "page=3") {
+		t.Error("Response should contain pagination links")
+	}
+}
+
 func TestHandleListFaults_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

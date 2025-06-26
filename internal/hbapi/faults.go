@@ -21,6 +21,7 @@ type FaultListOptions struct {
 	OccurredBefore *time.Time // Filter faults that occurred before this time
 	Limit          int        // Max 25
 	Order          string     // "recent" or "frequent"
+	Page           int        // Page number for pagination
 }
 
 // FaultListResponse represents the API response for listing faults
@@ -56,6 +57,9 @@ func (f *FaultsService) List(ctx context.Context, projectID int, options FaultLi
 	}
 	if options.Order != "" {
 		params.Set("order", options.Order)
+	}
+	if options.Page > 0 {
+		params.Set("page", strconv.Itoa(options.Page))
 	}
 
 	if len(params) > 0 {
