@@ -82,7 +82,7 @@ func TestHandleListProjects(t *testing.T) {
 func TestHandleListProjects_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error": "Invalid API token"}`))
+		_, _ = w.Write([]byte(`{"errors": "Invalid API token"}`))
 	}))
 	defer server.Close()
 
@@ -337,7 +337,7 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
 		}
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`{"error": "Name has already been taken"}`))
+		_, _ = w.Write([]byte(`{"errors": "Name has already been taken"}`))
 	}))
 	defer server.Close()
 
@@ -587,7 +587,7 @@ func TestHandleDeleteProject(t *testing.T) {
 func TestHandleDeleteProject_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Project not found"}`))
 	}))
 	defer server.Close()
 
@@ -688,7 +688,7 @@ func TestHandleGetProjectReport(t *testing.T) {
 func TestHandleGetProjectReport_InvalidReport(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error": "Invalid report type"}`))
+		_, _ = w.Write([]byte(`{"errors": "Invalid report type"}`))
 	}))
 	defer server.Close()
 

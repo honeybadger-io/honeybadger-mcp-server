@@ -63,7 +63,7 @@ func TestListProjects(t *testing.T) {
 func TestListProjects_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error": "Invalid API token"}`))
+		_, _ = w.Write([]byte(`{"errors": "Invalid API token"}`))
 	}))
 	defer server.Close()
 
@@ -176,7 +176,7 @@ func TestGetProject(t *testing.T) {
 func TestGetProject_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Project not found"}`))
 	}))
 	defer server.Close()
 
@@ -252,7 +252,7 @@ func TestCreateProject(t *testing.T) {
 func TestCreateProject_ValidationError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`{"error": "Name has already been taken"}`))
+		_, _ = w.Write([]byte(`{"errors": "Name has already been taken"}`))
 	}))
 	defer server.Close()
 
@@ -574,7 +574,7 @@ func TestDeleteProject(t *testing.T) {
 func TestDeleteProject_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Project not found"}`))
 	}))
 	defer server.Close()
 
@@ -726,7 +726,7 @@ func TestGetAllOccurrenceCounts_WithOptions(t *testing.T) {
 func TestGetAllOccurrenceCounts_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error": "Invalid API token"}`))
+		_, _ = w.Write([]byte(`{"errors": "Invalid API token"}`))
 	}))
 	defer server.Close()
 
@@ -861,7 +861,7 @@ func TestGetOccurrenceCounts_WithOptions(t *testing.T) {
 func TestGetOccurrenceCounts_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Project not found"}`))
 	}))
 	defer server.Close()
 
@@ -996,7 +996,7 @@ func TestGetIntegrations(t *testing.T) {
 func TestGetIntegrations_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Project not found"}`))
 	}))
 	defer server.Close()
 
@@ -1106,7 +1106,7 @@ func TestGetReport_WithOptions(t *testing.T) {
 func TestGetReport_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Project not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Project not found"}`))
 	}))
 	defer server.Close()
 

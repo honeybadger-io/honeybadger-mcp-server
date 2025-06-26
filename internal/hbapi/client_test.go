@@ -155,7 +155,7 @@ func TestDo_ErrorHandling(t *testing.T) {
 		{
 			name:         "400 Bad Request with JSON error",
 			statusCode:   400,
-			responseBody: `{"error": "Invalid request"}`,
+			responseBody: `{"errors": "Invalid request"}`,
 			expectedMsg:  "Invalid request",
 		},
 		{
@@ -167,13 +167,13 @@ func TestDo_ErrorHandling(t *testing.T) {
 		{
 			name:         "404 Not Found",
 			statusCode:   404,
-			responseBody: `{"error": "Project not found"}`,
+			responseBody: `{"errors": "Project not found"}`,
 			expectedMsg:  "Project not found",
 		},
 		{
 			name:         "500 Internal Server Error",
 			statusCode:   500,
-			responseBody: `{"error": "Internal server error"}`,
+			responseBody: `{"errors": "Internal server error"}`,
 			expectedMsg:  "Internal server error",
 		},
 		{

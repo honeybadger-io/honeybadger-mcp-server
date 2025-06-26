@@ -183,7 +183,7 @@ func TestHandleListFaults_WithPage(t *testing.T) {
 func TestHandleListFaults_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error": "Invalid API token"}`))
+		_, _ = w.Write([]byte(`{"errors": "Invalid API token"}`))
 	}))
 	defer server.Close()
 
@@ -423,7 +423,7 @@ func TestHandleGetFault_InvalidFaultID(t *testing.T) {
 func TestHandleGetFault_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Fault not found"}`))
 	}))
 	defer server.Close()
 
@@ -655,7 +655,7 @@ func TestHandleListFaultNotices_MissingFaultID(t *testing.T) {
 func TestHandleListFaultNotices_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Fault not found"}`))
 	}))
 	defer server.Close()
 
@@ -851,7 +851,7 @@ func TestHandleListFaultAffectedUsers_MissingFaultID(t *testing.T) {
 func TestHandleListFaultAffectedUsers_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "Fault not found"}`))
+		_, _ = w.Write([]byte(`{"errors": "Fault not found"}`))
 	}))
 	defer server.Close()
 
