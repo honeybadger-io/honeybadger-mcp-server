@@ -207,6 +207,48 @@ func TestFaultsList_WithOptions(t *testing.T) {
 	}
 }
 
+func TestFaultsList_WithPage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("page") != "3" {
+			t.Errorf("expected page=3, got %s", query.Get("page"))
+		}
+		if query.Get("limit") != "25" {
+			t.Errorf("expected limit=25, got %s", query.Get("limit"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"results": [],
+			"links": {
+				"prev": "https://app.honeybadger.io/v2/projects/123/faults?page=2",
+				"next": "https://app.honeybadger.io/v2/projects/123/faults?page=4"
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	options := FaultListOptions{
+		Page:  3,
+		Limit: 25,
+	}
+
+	response, err := client.Faults.List(context.Background(), 123, options)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	// Verify pagination links are present
+	if response.Links == nil {
+		t.Error("expected links to be present in response")
+	}
+}
+
 func TestFaultsList_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
