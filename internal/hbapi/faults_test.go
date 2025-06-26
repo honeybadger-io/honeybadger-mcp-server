@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestFaultsList(t *testing.T) {
@@ -442,10 +443,15 @@ func TestListNotices_WithOptions(t *testing.T) {
 		WithAuthToken("test-token")
 
 	options := FaultListNoticesOptions{
-		CreatedAfter:  "2024-01-01T00:00:00Z",
-		CreatedBefore: "2024-01-02T00:00:00Z",
+		CreatedAfter:  &time.Time{},
+		CreatedBefore: &time.Time{},
 		Limit:         10,
 	}
+	// Parse the time strings
+	createdAfter, _ := time.Parse(time.RFC3339, "2024-01-01T00:00:00Z")
+	createdBefore, _ := time.Parse(time.RFC3339, "2024-01-02T00:00:00Z")
+	options.CreatedAfter = &createdAfter
+	options.CreatedBefore = &createdBefore
 
 	_, err := client.Faults.ListNotices(context.Background(), 123, 456, options)
 	if err != nil {
@@ -504,6 +510,7 @@ func TestListNotices_ProjectNotFound(t *testing.T) {
 		t.Errorf("expected status code 404, got %d", apiErr.StatusCode)
 	}
 }
+
 func TestListAffectedUsers(t *testing.T) {
 	mockUsers := `[
 		{

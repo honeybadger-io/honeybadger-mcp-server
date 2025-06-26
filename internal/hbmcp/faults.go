@@ -133,9 +133,9 @@ func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	// Build options struct
 	options := hbapi.FaultListOptions{
 		Q:              req.GetString("q", ""),
-		CreatedAfter:   req.GetString("created_after", ""),
-		OccurredAfter:  req.GetString("occurred_after", ""),
-		OccurredBefore: req.GetString("occurred_before", ""),
+		CreatedAfter:   parseTimestamp(req.GetString("created_after", "")),
+		OccurredAfter:  parseTimestamp(req.GetString("occurred_after", "")),
+		OccurredBefore: parseTimestamp(req.GetString("occurred_before", "")),
 		Limit:          req.GetInt("limit", 0),
 		Order:          req.GetString("order", ""),
 	}
@@ -192,8 +192,8 @@ func handleListFaultNotices(ctx context.Context, client *hbapi.Client, req mcp.C
 
 	// Build options struct
 	options := hbapi.FaultListNoticesOptions{
-		CreatedAfter:  req.GetString("created_after", ""),
-		CreatedBefore: req.GetString("created_before", ""),
+		CreatedAfter:  parseTimestamp(req.GetString("created_after", "")),
+		CreatedBefore: parseTimestamp(req.GetString("created_before", "")),
 		Limit:         req.GetInt("limit", 0),
 	}
 

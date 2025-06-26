@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestListProjects(t *testing.T) {
@@ -1089,9 +1090,11 @@ func TestGetReport_WithOptions(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	start, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
+	stop, _ := time.Parse(time.RFC3339, "2023-01-31T23:59:59Z")
 	options := ProjectGetReportOptions{
-		Start:       "2023-01-01T00:00:00Z",
-		Stop:        "2023-01-31T23:59:59Z",
+		Start:       &start,
+		Stop:        &stop,
 		Environment: "production",
 	}
 	_, err := client.Projects.GetReport(context.Background(), 789, ProjectNoticesByClass, options)
