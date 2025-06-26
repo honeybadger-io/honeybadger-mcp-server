@@ -226,11 +226,20 @@ api-url: "https://app.honeybadger.io"
   - `occurred_before` : Filter faults that occurred before this timestamp (string, optional)
   - `limit` : Maximum number of faults to return (max 25) (number, optional)
   - `order` : Order results by 'recent' or 'frequent' (string, optional)
+  - `page` : Page number for pagination (number, optional)
 
 - **get_fault** - Get detailed information for a specific fault in a project
 
   - `project_id` : The ID of the project containing the fault (number, required)
   - `fault_id` : The ID of the fault to retrieve (number, required)
+
+- **get_fault_counts** - Get fault count statistics for a project with optional filtering
+
+  - `project_id` : The ID of the project to get fault counts for (number, required)
+  - `q` : Search string to filter faults (string, optional)
+  - `created_after` : Filter faults created after this timestamp (string, optional)
+  - `occurred_after` : Filter faults that occurred after this timestamp (string, optional)
+  - `occurred_before` : Filter faults that occurred before this timestamp (string, optional)
 
 - **list_fault_notices** - Get a list of notices (individual error events) for a specific fault
 
@@ -248,7 +257,7 @@ api-url: "https://app.honeybadger.io"
 
 ## Development
 
-Run tests:
+Run the tests:
 
 ```bash
 go test ./...
