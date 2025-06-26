@@ -169,8 +169,8 @@ func (p *ProjectsService) Delete(ctx context.Context, id int) (*DeleteResult, er
 
 // ProjectGetOccurrenceCountsOptions represents options for getting occurrence counts
 type ProjectGetOccurrenceCountsOptions struct {
-	Period      string `json:"period,omitempty"`      // "hour", "day", "week", or "month"
-	Environment string `json:"environment,omitempty"` // Filter by environment
+	Period      string // "hour", "day", "week", or "month"
+	Environment string // Filter by environment
 }
 
 // ProjectOccurrenceCount represents a single occurrence count data point [timestamp, count]
@@ -295,9 +295,9 @@ const (
 
 // ProjectGetReportOptions represents options for getting report data
 type ProjectGetReportOptions struct {
-	Start       string `json:"start,omitempty"`       // ISO 8601 format date/time
-	Stop        string `json:"stop,omitempty"`        // ISO 8601 format date/time
-	Environment string `json:"environment,omitempty"` // Filter by environment
+	Start       string // ISO 8601 format date/time
+	Stop        string // ISO 8601 format date/time
+	Environment string // Filter by environment
 }
 
 // GetReport gets report data for a specific project.
