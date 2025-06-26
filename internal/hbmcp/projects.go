@@ -451,8 +451,8 @@ func handleGetProjectReport(ctx context.Context, client *hbapi.Client, req mcp.C
 
 	// Build options struct using typed getters
 	options := hbapi.ProjectGetReportOptions{
-		Start:       req.GetString("start", ""),
-		Stop:        req.GetString("stop", ""),
+		Start:       parseTimestamp(req.GetString("start", "")),
+		Stop:        parseTimestamp(req.GetString("stop", "")),
 		Environment: req.GetString("environment", ""),
 	}
 

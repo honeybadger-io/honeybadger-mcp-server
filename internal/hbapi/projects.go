@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"time"
 )
 
 // ProjectsService handles operations for the projects resource
@@ -295,9 +296,9 @@ const (
 
 // ProjectGetReportOptions represents options for getting report data
 type ProjectGetReportOptions struct {
-	Start       string // ISO 8601 format date/time
-	Stop        string // ISO 8601 format date/time
-	Environment string // Filter by environment
+	Start       *time.Time // ISO 8601 format date/time
+	Stop        *time.Time // ISO 8601 format date/time
+	Environment string     // Filter by environment
 }
 
 // GetReport gets report data for a specific project.
@@ -310,11 +311,11 @@ func (p *ProjectsService) GetReport(ctx context.Context, projectID int, reportTy
 
 	// Build query parameters using url.Values
 	params := url.Values{}
-	if options.Start != "" {
-		params.Set("start", options.Start)
+	if options.Start != nil {
+		params.Set("start", options.Start.Format(time.RFC3339))
 	}
-	if options.Stop != "" {
-		params.Set("stop", options.Stop)
+	if options.Stop != nil {
+		params.Set("stop", options.Stop.Format(time.RFC3339))
 	}
 	if options.Environment != "" {
 		params.Set("environment", options.Environment)

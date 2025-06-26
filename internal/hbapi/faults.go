@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // FaultsService handles operations for the faults resource
@@ -14,12 +15,12 @@ type FaultsService struct {
 
 // FaultListOptions represents options for listing faults
 type FaultListOptions struct {
-	Q              string // Search string
-	CreatedAfter   string // Timestamp string
-	OccurredAfter  string // Timestamp string
-	OccurredBefore string // Timestamp string
-	Limit          int    // Max 25
-	Order          string // "recent" or "frequent"
+	Q              string     // Search string
+	CreatedAfter   *time.Time // Filter faults created after this time
+	OccurredAfter  *time.Time // Filter faults that occurred after this time
+	OccurredBefore *time.Time // Filter faults that occurred before this time
+	Limit          int        // Max 25
+	Order          string     // "recent" or "frequent"
 }
 
 // FaultListResponse represents the API response for listing faults
@@ -41,14 +42,14 @@ func (f *FaultsService) List(ctx context.Context, projectID int, options FaultLi
 	if options.Q != "" {
 		params.Set("q", options.Q)
 	}
-	if options.CreatedAfter != "" {
-		params.Set("created_after", options.CreatedAfter)
+	if options.CreatedAfter != nil {
+		params.Set("created_after", options.CreatedAfter.Format(time.RFC3339))
 	}
-	if options.OccurredAfter != "" {
-		params.Set("occurred_after", options.OccurredAfter)
+	if options.OccurredAfter != nil {
+		params.Set("occurred_after", options.OccurredAfter.Format(time.RFC3339))
 	}
-	if options.OccurredBefore != "" {
-		params.Set("occurred_before", options.OccurredBefore)
+	if options.OccurredBefore != nil {
+		params.Set("occurred_before", options.OccurredBefore.Format(time.RFC3339))
 	}
 	if options.Limit > 0 {
 		params.Set("limit", strconv.Itoa(options.Limit))
@@ -96,9 +97,9 @@ func (f *FaultsService) Get(ctx context.Context, projectID, faultID int) (*Fault
 
 // FaultListNoticesOptions represents options for listing notices for a fault
 type FaultListNoticesOptions struct {
-	CreatedAfter  string // Timestamp string
-	CreatedBefore string // Timestamp string
-	Limit         int    // Max 25
+	CreatedAfter  *time.Time // Filter notices created after this time
+	CreatedBefore *time.Time // Filter notices created before this time
+	Limit         int        // Max 25
 }
 
 // FaultNoticesResponse represents the API response for listing fault notices
@@ -117,11 +118,11 @@ func (f *FaultsService) ListNotices(ctx context.Context, projectID, faultID int,
 
 	// Build query parameters using url.Values
 	params := url.Values{}
-	if options.CreatedAfter != "" {
-		params.Set("created_after", options.CreatedAfter)
+	if options.CreatedAfter != nil {
+		params.Set("created_after", options.CreatedAfter.Format(time.RFC3339))
 	}
-	if options.CreatedBefore != "" {
-		params.Set("created_before", options.CreatedBefore)
+	if options.CreatedBefore != nil {
+		params.Set("created_before", options.CreatedBefore.Format(time.RFC3339))
 	}
 	if options.Limit > 0 {
 		params.Set("limit", strconv.Itoa(options.Limit))
