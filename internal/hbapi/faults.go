@@ -14,12 +14,12 @@ type FaultsService struct {
 
 // FaultListOptions represents options for listing faults
 type FaultListOptions struct {
-	Q              string `json:"q,omitempty"`               // Search string
-	CreatedAfter   string `json:"created_after,omitempty"`   // Timestamp string
-	OccurredAfter  string `json:"occurred_after,omitempty"`  // Timestamp string
-	OccurredBefore string `json:"occurred_before,omitempty"` // Timestamp string
-	Limit          int    `json:"limit,omitempty"`           // Max 25
-	Order          string `json:"order,omitempty"`           // "recent" or "frequent"
+	Q              string // Search string
+	CreatedAfter   string // Timestamp string
+	OccurredAfter  string // Timestamp string
+	OccurredBefore string // Timestamp string
+	Limit          int    // Max 25
+	Order          string // "recent" or "frequent"
 }
 
 // FaultListResponse represents the API response for listing faults
@@ -96,9 +96,9 @@ func (f *FaultsService) Get(ctx context.Context, projectID, faultID int) (*Fault
 
 // FaultListNoticesOptions represents options for listing notices for a fault
 type FaultListNoticesOptions struct {
-	CreatedAfter  string `json:"created_after,omitempty"`  // Timestamp string
-	CreatedBefore string `json:"created_before,omitempty"` // Timestamp string
-	Limit         int    `json:"limit,omitempty"`          // Max 25
+	CreatedAfter  string // Timestamp string
+	CreatedBefore string // Timestamp string
+	Limit         int    // Max 25
 }
 
 // FaultNoticesResponse represents the API response for listing fault notices
@@ -152,7 +152,7 @@ type FaultAffectedUser struct {
 
 // FaultListAffectedUsersOptions represents options for listing affected users for a fault
 type FaultListAffectedUsersOptions struct {
-	Q string `json:"q,omitempty"` // Search string
+	Q string // Search string
 }
 
 // ListAffectedUsers returns a list of users affected by a specific fault.
