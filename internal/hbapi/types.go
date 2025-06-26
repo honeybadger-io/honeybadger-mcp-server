@@ -50,11 +50,6 @@ type Project struct {
 	Users                []User     `json:"users"`
 }
 
-// ProjectsResponse represents the API response for listing projects
-type ProjectsResponse struct {
-	Results []Project `json:"results"`
-}
-
 // Fault represents a Honeybadger fault
 type Fault struct {
 	ID                  int        `json:"id"`

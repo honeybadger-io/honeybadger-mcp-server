@@ -46,17 +46,17 @@ func TestListProjects(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	projects, err := client.Projects.ListAll(context.Background())
+	response, err := client.Projects.ListAll(context.Background())
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}
 
-	if len(projects) != 2 {
-		t.Errorf("expected 2 projects, got %d", len(projects))
+	if len(response.Results) != 2 {
+		t.Errorf("expected 2 projects, got %d", len(response.Results))
 	}
 
-	if projects[0].Name != "Project 1" {
-		t.Errorf("expected first project name 'Project 1', got %v", projects[0].Name)
+	if response.Results[0].Name != "Project 1" {
+		t.Errorf("expected first project name 'Project 1', got %v", response.Results[0].Name)
 	}
 }
 
@@ -124,17 +124,17 @@ func TestListProjects_WithAccountID(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	projects, err := client.Projects.ListByAccountID(context.Background(), "K7xmQqN")
+	response, err := client.Projects.ListByAccountID(context.Background(), "K7xmQqN")
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}
 
-	if len(projects) != 2 {
-		t.Errorf("expected 2 projects, got %d", len(projects))
+	if len(response.Results) != 2 {
+		t.Errorf("expected 2 projects, got %d", len(response.Results))
 	}
 
-	if projects[0].Name != "Project 1" {
-		t.Errorf("expected first project name 'Project 1', got %v", projects[0].Name)
+	if response.Results[0].Name != "Project 1" {
+		t.Errorf("expected first project name 'Project 1', got %v", response.Results[0].Name)
 	}
 }
 
