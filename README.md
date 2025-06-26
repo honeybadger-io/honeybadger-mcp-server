@@ -26,7 +26,7 @@ Then, configure your MCP client(s). You can find your personal auth token under 
         "--rm",
         "-e",
         "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-        "honeybadger-mcp-server"
+        "ghcr.io/honeybadger-io/honeybadger-mcp-server"
       ],
       "env": {
         "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
@@ -60,7 +60,7 @@ For Cursor, put this config in [`~/.cursor/mcp.json`](https://docs.cursor.com/co
           "--rm",
           "-e",
           "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-          "honeybadger-mcp-server"
+          "ghcr.io/honeybadger-io/honeybadger-mcp-server"
         ],
         "env": {
           "HONEYBADGER_PERSONAL_AUTH_TOKEN": "${input:honeybadger_auth_token}"
@@ -89,7 +89,7 @@ You can add the following directly to your Zed settings file (`~/.config/zed/set
           "--rm",
           "-e",
           "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-           "honeybadger-mcp-server"
+           "ghcr.io/honeybadger-io/honeybadger-mcp-server"
         ],
         "env": {
           "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
@@ -101,11 +101,31 @@ You can add the following directly to your Zed settings file (`~/.config/zed/set
 }
 ```
 
+### Building Docker locally
+
+To build the Docker image and run it locally:
+
+```bash
+git clone git@github.com:honeybadger-io/honeybadger-mcp-server.git
+cd honeybadger-mcp-server
+docker build -t honeybadger-mcp-server .
+```
+
+Then you can replace "ghcr.io/honeybadger-io/honeybadger-mcp-server" with
+"honeybadger-mcp-server" in any of the configs above. Or you can run the image
+directly:
+
+```bash
+docker run -i --rm -e HONEYBADGER_PERSONAL_ACCESS_TOKEN honeybadger-mcp-server
+```
+
 ### Building from source
 
 If you don't have Docker, you can build the server from source:
 
 ```bash
+git clone git@github.com:honeybadger-io/honeybadger-mcp-server.git
+cd honeybadger-mcp-server
 go build -o honeybadger-mcp-server ./cmd/honeybadger-mcp-server
 ```
 
