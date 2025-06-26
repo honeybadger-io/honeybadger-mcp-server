@@ -202,14 +202,14 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 
 func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// Extract account_id parameter (optional)
-	var projects []hbapi.Project
+	var response *hbapi.ProjectsResponse
 	var err error
 
 	accountID := req.GetString("account_id", "")
 	if accountID != "" {
-		projects, err = client.Projects.ListByAccountID(ctx, accountID)
+		response, err = client.Projects.ListByAccountID(ctx, accountID)
 	} else {
-		projects, err = client.Projects.ListAll(ctx)
+		response, err = client.Projects.ListAll(ctx)
 	}
 
 	if err != nil {
@@ -217,12 +217,12 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallT
 	}
 
 	// Sanitize the response to remove API tokens
-	for i := range projects {
-		sanitizeProject(&projects[i])
+	for i := range response.Results {
+		sanitizeProject(&response.Results[i])
 	}
 
 	// Return JSON response
-	jsonBytes, err := json.Marshal(projects)
+	jsonBytes, err := json.Marshal(response)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}

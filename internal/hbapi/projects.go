@@ -12,12 +12,18 @@ type ProjectsService struct {
 	client *Client
 }
 
+// ProjectsResponse represents the API response for listing projects
+type ProjectsResponse struct {
+	Results []Project              `json:"results"`
+	Links   map[string]interface{} `json:"links"`
+}
+
 // ListAll returns all projects across all accounts accessible by the authenticated user.
 //
 // Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-a-project-list-or-project-details
 //
 // GET /projects
-func (p *ProjectsService) ListAll(ctx context.Context) ([]Project, error) {
+func (p *ProjectsService) ListAll(ctx context.Context) (*ProjectsResponse, error) {
 	req, err := p.client.newRequest(ctx, "GET", "/projects", nil)
 	if err != nil {
 		return nil, err
@@ -28,7 +34,7 @@ func (p *ProjectsService) ListAll(ctx context.Context) ([]Project, error) {
 		return nil, err
 	}
 
-	return response.Results, nil
+	return &response, nil
 }
 
 // ListByAccountID returns all projects filtered by account_id.
@@ -36,7 +42,7 @@ func (p *ProjectsService) ListAll(ctx context.Context) ([]Project, error) {
 // Honeybadger API docs: https://docs.honeybadger.io/api/projects/#get-a-project-list-or-project-details
 //
 // GET /projects?account_id={accountID}
-func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID string) ([]Project, error) {
+func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID string) (*ProjectsResponse, error) {
 	path := fmt.Sprintf("/projects?account_id=%s", accountID)
 
 	req, err := p.client.newRequest(ctx, "GET", path, nil)
@@ -49,7 +55,7 @@ func (p *ProjectsService) ListByAccountID(ctx context.Context, accountID string)
 		return nil, err
 	}
 
-	return response.Results, nil
+	return &response, nil
 }
 
 // Get returns a single project by ID with full project details.
