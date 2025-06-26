@@ -38,7 +38,7 @@ func WrapError(resp *http.Response, err error) error {
 				if bodyMap, ok := jsonBody.(map[string]interface{}); ok {
 					if msg, ok := bodyMap["message"].(string); ok {
 						apiErr.Message = msg
-					} else if msg, ok := bodyMap["error"].(string); ok {
+					} else if msg, ok := bodyMap["errors"].(string); ok {
 						apiErr.Message = msg
 					}
 				}
