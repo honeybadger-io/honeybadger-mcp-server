@@ -102,6 +102,74 @@ func TestFaultsList(t *testing.T) {
 	if response.Results[1].Resolved != true {
 		t.Errorf("expected second fault to be resolved, got %v", response.Results[1].Resolved)
 	}
+
+	// Verify that notices_count_in_range is nil when not provided
+	if response.Results[0].NoticesCountInRange != nil {
+		t.Errorf("expected notices_count_in_range to be nil when not provided, got %v", *response.Results[0].NoticesCountInRange)
+	}
+}
+
+func TestFaultsList_WithNoticesCountInRange(t *testing.T) {
+	mockFaults := `{
+		"results": [
+			{
+				"id": 1,
+				"action": "index",
+				"assignee": null,
+				"comments_count": 0,
+				"component": "HomeController",
+				"created_at": "2024-01-01T00:00:00Z",
+				"environment": "production",
+				"ignored": false,
+				"klass": "NoMethodError",
+				"last_notice_at": "2024-01-02T00:00:00Z",
+				"message": "undefined method 'foo' for nil:NilClass",
+				"notices_count": 100,
+				"notices_count_in_range": 15,
+				"project_id": 123,
+				"resolved": false,
+				"tags": ["urgent", "production"],
+				"url": "https://app.honeybadger.io/projects/123/faults/1"
+			}
+		],
+		"links": {}
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(mockFaults))
+	}))
+	defer server.Close()
+
+	client := NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	response, err := client.Faults.List(context.Background(), 123, FaultListOptions{
+		Q: "search query", // Simulate a search that would trigger notices_count_in_range
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	if len(response.Results) != 1 {
+		t.Errorf("expected 1 fault, got %d", len(response.Results))
+	}
+
+	fault := response.Results[0]
+
+	// Verify normal notices_count
+	if fault.NoticesCount != 100 {
+		t.Errorf("expected notices_count to be 100, got %d", fault.NoticesCount)
+	}
+
+	// Verify notices_count_in_range is properly parsed
+	if fault.NoticesCountInRange == nil {
+		t.Errorf("expected notices_count_in_range to be present, got nil")
+	} else if *fault.NoticesCountInRange != 15 {
+		t.Errorf("expected notices_count_in_range to be 15, got %d", *fault.NoticesCountInRange)
+	}
 }
 
 func TestFaultsList_WithOptions(t *testing.T) {
