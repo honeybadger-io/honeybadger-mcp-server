@@ -13,7 +13,9 @@ docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
 
 Then, configure your MCP client(s). You can find your personal auth token under the "Authentication" tab in your [Honeybadger User settings](https://app.honeybadger.io/users/edit).
 
-### Claude Desktop (and Cursor, and Windsurf)
+### Cursor, Windsurf, and Claude Desktop 
+
+Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/context/model-context-protocol), or `~/.codeium/windsurf/mcp_config.json` for [Windsurf](https://docs.windsurf.com/windsurf/cascade/mcp). See Anthropic's [MCP quickstart guide](https://modelcontextprotocol.io/quickstart/user) for how to locate your `claude_desktop_config.json` for Claude Desktop:
 
 ```json
 {
@@ -36,9 +38,9 @@ Then, configure your MCP client(s). You can find your personal auth token under 
 }
 ```
 
-For Cursor, put this config in [`~/.cursor/mcp.json`](https://docs.cursor.com/context/model-context-protocol). Windsurf's config is at [`~/.codeium/windsurf/mcp_config.json`](https://docs.windsurf.com/windsurf/cascade/mcp). See Anthropic's [MCP quickstart guide](https://modelcontextprotocol.io/quickstart/user) for how to add the config to Claude Desktop.
-
 ### VS Code
+
+Add the following to your [user settings](https://code.visualstudio.com/docs/configure/settings#_settings-json-file) or `.vscode/mcp.json` in your workspace:
 
 ```json
 {
@@ -75,7 +77,7 @@ See [Use MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/chat
 
 ### Zed
 
-You can add the following directly to your Zed settings file (`~/.config/zed/settings.json`):
+Add the following to your Zed settings file in `~/.config/zed/settings.json`:
 
 ```json
 {
