@@ -216,10 +216,7 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallT
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
 
-	// Sanitize the response to remove API tokens
-	for i := range response.Results {
-		sanitizeProject(&response.Results[i])
-	}
+	// Include API tokens in response to allow LLM configuration
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(response)
@@ -241,8 +238,7 @@ func handleGetProject(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
 
-	// Sanitize the response to remove API tokens
-	sanitizeProject(project)
+	// Include API tokens in response to allow LLM configuration
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(project)
@@ -293,8 +289,7 @@ func handleCreateProject(ctx context.Context, client *hbapi.Client, req mcp.Call
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
 
-	// Sanitize the response to remove API tokens
-	sanitizeProject(project)
+	// Include API tokens in response to allow LLM configuration
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(project)
@@ -470,9 +465,4 @@ func handleGetProjectReport(ctx context.Context, client *hbapi.Client, req mcp.C
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// Sanitization functions to remove sensitive data like API tokens
 
-func sanitizeProject(project *hbapi.Project) {
-	// Remove token field
-	project.Token = ""
-}

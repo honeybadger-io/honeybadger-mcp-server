@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbapi"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -67,10 +66,10 @@ func TestHandleListProjects(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that tokens are sanitized
+	// Check that tokens are now included in response
 	resultText := getResultText(result)
-	if strings.Contains(resultText, "secret123") {
-		t.Error("Token should be sanitized from response")
+	if !strings.Contains(resultText, "secret123") {
+		t.Error("Token should be included in response")
 	}
 
 	// Check that project data is still present
@@ -154,10 +153,10 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that tokens are sanitized
+	// Check that tokens are now included in response
 	resultText := getResultText(result)
-	if strings.Contains(resultText, "secret123") {
-		t.Error("Token should be sanitized from response")
+	if !strings.Contains(resultText, "secret123") {
+		t.Error("Token should be included in response")
 	}
 
 	// Check that project data is still present
@@ -203,9 +202,9 @@ func TestHandleGetProject(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that token is sanitized
-	if strings.Contains(getResultText(result), "secret123") {
-		t.Error("Token should be sanitized from response")
+	// Check that token is now included in response
+	if !strings.Contains(getResultText(result), "secret123") {
+		t.Error("Token should be included in response")
 	}
 
 	// Check that project data is still present
@@ -319,9 +318,9 @@ func TestHandleCreateProject(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that API key is sanitized
-	if strings.Contains(getResultText(result), "secret789") {
-		t.Error("API key should be sanitized from response")
+	// Check that API key is now included in response
+	if !strings.Contains(getResultText(result), "secret789") {
+		t.Error("API key should be included in response")
 	}
 
 	// Check that project data is still present
@@ -617,34 +616,6 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 	}
 }
 
-func TestSanitizeProject(t *testing.T) {
-	project := &hbapi.Project{
-		ID:        123,
-		Name:      "Test Project",
-		Active:    true,
-		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Token:     "secret123",
-		Owner:     hbapi.Account{ID: 1, Email: "user@example.com", Name: "User 1"},
-	}
-
-	sanitizeProject(project)
-
-	// Check that token field is removed
-	if project.Token != "" {
-		t.Error("token field should be cleared")
-	}
-
-	// Check that non-sensitive fields remain
-	if project.ID != 123 {
-		t.Error("project id should remain")
-	}
-	if project.Name != "Test Project" {
-		t.Error("project name should remain")
-	}
-	if project.Owner.Email != "user@example.com" {
-		t.Error("owner fields should remain")
-	}
-}
 
 func TestHandleGetProjectReport(t *testing.T) {
 	mockResponse := `[["RuntimeError", 8347], ["SocketError", 4651]]`
