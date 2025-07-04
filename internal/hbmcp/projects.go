@@ -216,8 +216,6 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallT
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
 
-	// Include API tokens in response to allow LLM configuration
-
 	// Return JSON response
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
@@ -237,8 +235,6 @@ func handleGetProject(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
-
-	// Include API tokens in response to allow LLM configuration
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(project)
@@ -288,8 +284,6 @@ func handleCreateProject(ctx context.Context, client *hbapi.Client, req mcp.Call
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
-
-	// Include API tokens in response to allow LLM configuration
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(project)
@@ -464,5 +458,3 @@ func handleGetProjectReport(ctx context.Context, client *hbapi.Client, req mcp.C
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
-
-

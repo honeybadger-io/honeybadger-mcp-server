@@ -66,15 +66,23 @@ func TestHandleListProjects(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that tokens are now included in response
+	// Verify the response can be unmarshaled as a projects list response
 	resultText := getResultText(result)
-	if !strings.Contains(resultText, "secret123") {
-		t.Error("Token should be included in response")
+	var response hbapi.ProjectsResponse
+	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
+		t.Errorf("Response should be valid JSON projects list response: %v", err)
 	}
 
-	// Check that project data is still present
-	if !strings.Contains(resultText, "Project 1") {
-		t.Error("Project name should be present in response")
+	if len(response.Results) != 2 {
+		t.Errorf("expected 2 projects, got %d", len(response.Results))
+	}
+
+	if response.Results[0].Name != "Project 1" {
+		t.Errorf("expected first project name 'Project 1', got %s", response.Results[0].Name)
+	}
+
+	if response.Results[1].Name != "Project 2" {
+		t.Errorf("expected second project name 'Project 2', got %s", response.Results[1].Name)
 	}
 }
 
@@ -135,7 +143,6 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
-	// Test with account_id parameter
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Arguments: map[string]interface{}{
@@ -153,15 +160,23 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that tokens are now included in response
+	// Verify the response can be unmarshaled as a projects list response
 	resultText := getResultText(result)
-	if !strings.Contains(resultText, "secret123") {
-		t.Error("Token should be included in response")
+	var response hbapi.ProjectsResponse
+	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
+		t.Errorf("Response should be valid JSON projects list response: %v", err)
 	}
 
-	// Check that project data is still present
-	if !strings.Contains(resultText, "Project 1") {
-		t.Error("Project name should be present in response")
+	if len(response.Results) != 1 {
+		t.Errorf("expected 1 project, got %d", len(response.Results))
+	}
+
+	if response.Results[0].Name != "Project 1" {
+		t.Errorf("expected project name 'Project 1', got %s", response.Results[0].Name)
+	}
+
+	if response.Results[0].ID != 1 {
+		t.Errorf("expected project ID 1, got %d", response.Results[0].ID)
 	}
 }
 
@@ -202,14 +217,23 @@ func TestHandleGetProject(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that token is now included in response
-	if !strings.Contains(getResultText(result), "secret123") {
-		t.Error("Token should be included in response")
+	// Verify the response can be unmarshaled as a project
+	resultText := getResultText(result)
+	var project hbapi.Project
+	if err := json.Unmarshal([]byte(resultText), &project); err != nil {
+		t.Errorf("Response should be valid JSON project: %v", err)
 	}
 
-	// Check that project data is still present
-	if !strings.Contains(getResultText(result), "Test Project") {
-		t.Error("Project name should be present in response")
+	if project.ID != 123 {
+		t.Errorf("expected project ID 123, got %d", project.ID)
+	}
+
+	if project.Name != "Test Project" {
+		t.Errorf("expected project name 'Test Project', got %s", project.Name)
+	}
+
+	if !project.Active {
+		t.Error("expected project to be active")
 	}
 }
 
@@ -318,14 +342,27 @@ func TestHandleCreateProject(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Check that API key is now included in response
-	if !strings.Contains(getResultText(result), "secret789") {
-		t.Error("API key should be included in response")
+	// Verify the response can be unmarshaled as a project
+	resultText := getResultText(result)
+	var project hbapi.Project
+	if err := json.Unmarshal([]byte(resultText), &project); err != nil {
+		t.Errorf("Response should be valid JSON project: %v", err)
 	}
 
-	// Check that project data is still present
-	if !strings.Contains(getResultText(result), "New Project") {
-		t.Error("Project name should be present in response")
+	if project.ID != 456 {
+		t.Errorf("expected project ID 456, got %d", project.ID)
+	}
+
+	if project.Name != "New Project" {
+		t.Errorf("expected project name 'New Project', got %s", project.Name)
+	}
+
+	if !project.Active {
+		t.Error("expected created project to be active")
+	}
+
+	if project.Owner.Email != "user@example.com" {
+		t.Errorf("expected owner email 'user@example.com', got %s", project.Owner.Email)
 	}
 }
 
@@ -615,7 +652,6 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 		t.Error("Error message should contain 'Failed to delete project'")
 	}
 }
-
 
 func TestHandleGetProjectReport(t *testing.T) {
 	mockResponse := `[["RuntimeError", 8347], ["SocketError", 4651]]`
