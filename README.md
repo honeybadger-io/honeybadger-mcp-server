@@ -118,7 +118,7 @@ Then you can replace "ghcr.io/honeybadger-io/honeybadger-mcp-server" with
 directly:
 
 ```bash
-docker run -i --rm -e HONEYBADGER_PERSONAL_ACCESS_TOKEN honeybadger-mcp-server
+docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN honeybadger-mcp-server
 ```
 
 ### Building from source
