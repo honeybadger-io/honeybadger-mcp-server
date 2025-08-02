@@ -122,8 +122,12 @@ type NoticeRequest struct {
 // BacktraceEntry represents a single entry in the error backtrace
 type BacktraceEntry struct {
 	Number  StringOrInt            `json:"number"`
+	Column  *StringOrInt           `json:"column,omitempty"`
 	File    string                 `json:"file"`
 	Method  string                 `json:"method"`
+	Class   string                 `json:"class,omitempty"`
+	Type    string                 `json:"type,omitempty"`
+	Args    []interface{}          `json:"args,omitempty"`
 	Source  map[string]interface{} `json:"source,omitempty"`
 	Context string                 `json:"context,omitempty"`
 }

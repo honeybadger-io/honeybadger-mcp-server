@@ -116,6 +116,48 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "backtrace entry with all optional fields",
+			input: `{
+				"number": "25",
+				"column": 15,
+				"file": "/app/models/user.rb",
+				"method": "authenticate",
+				"class": "User",
+				"type": "instance",
+				"args": ["email@example.com", "password"],
+				"source": {"25": "user = User.find_by(email: email)"},
+				"context": "app"
+			}`,
+			want: BacktraceEntry{
+				Number:  "25",
+				Column:  func() *StringOrInt { s := StringOrInt("15"); return &s }(),
+				File:    "/app/models/user.rb",
+				Method:  "authenticate",
+				Class:   "User",
+				Type:    "instance",
+				Args:    []interface{}{"email@example.com", "password"},
+				Source:  map[string]interface{}{"25": "user = User.find_by(email: email)"},
+				Context: "app",
+			},
+			wantErr: false,
+		},
+		{
+			name: "backtrace entry with column as string",
+			input: `{
+				"number": 42,
+				"column": "8",
+				"file": "/lib/helper.js",
+				"method": "processData"
+			}`,
+			want: BacktraceEntry{
+				Number: "42",
+				Column: func() *StringOrInt { s := StringOrInt("8"); return &s }(),
+				File:   "/lib/helper.js",
+				Method: "processData",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -138,6 +180,26 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 				}
 				if entry.Context != tt.want.Context {
 					t.Errorf("BacktraceEntry.Context = %v, want %v", entry.Context, tt.want.Context)
+				}
+				// Check Column
+				if tt.want.Column != nil && entry.Column != nil {
+					if string(*entry.Column) != string(*tt.want.Column) {
+						t.Errorf("BacktraceEntry.Column = %v, want %v", *entry.Column, *tt.want.Column)
+					}
+				} else if (tt.want.Column == nil) != (entry.Column == nil) {
+					t.Errorf("BacktraceEntry.Column = %v, want %v", entry.Column, tt.want.Column)
+				}
+				// Check Class
+				if entry.Class != tt.want.Class {
+					t.Errorf("BacktraceEntry.Class = %v, want %v", entry.Class, tt.want.Class)
+				}
+				// Check Type
+				if entry.Type != tt.want.Type {
+					t.Errorf("BacktraceEntry.Type = %v, want %v", entry.Type, tt.want.Type)
+				}
+				// Check Args length
+				if len(entry.Args) != len(tt.want.Args) {
+					t.Errorf("BacktraceEntry.Args length = %v, want %v", len(entry.Args), len(tt.want.Args))
 				}
 			}
 		})
