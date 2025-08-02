@@ -16,6 +16,8 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("list_faults",
 			mcp.WithDescription("Get a list of faults for a project with optional filtering and ordering"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to get faults for"),
@@ -56,6 +58,8 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("get_fault",
 			mcp.WithDescription("Get detailed information for a specific fault in a project"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
@@ -76,6 +80,8 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("list_fault_notices",
 			mcp.WithDescription("Get a list of notices (individual error events) for a specific fault"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
@@ -107,6 +113,8 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("list_fault_affected_users",
 			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
@@ -130,6 +138,8 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("get_fault_counts",
 			mcp.WithDescription("Get fault count statistics for a project with optional filtering"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to get fault counts for"),
