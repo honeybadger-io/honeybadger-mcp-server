@@ -32,7 +32,7 @@ func (n *Number) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	return fmt.Errorf("Number: cannot unmarshal %s into integer or string", data)
+	return fmt.Errorf("Number: cannot unmarshal value into integer or string")
 }
 
 // User represents a Honeybadger user
