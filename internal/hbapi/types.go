@@ -1,6 +1,39 @@
 package hbapi
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"time"
+)
+
+// Number is a custom type that can unmarshal from either a string or integer JSON value
+// and stores it as an integer
+type Number int
+
+// UnmarshalJSON implements json.Unmarshaler interface to handle both string and integer values
+func (n *Number) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as integer first
+	var num int
+	if err := json.Unmarshal(data, &num); err == nil {
+		*n = Number(num)
+		return nil
+	}
+
+	// If that fails, try as string and parse to int
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		// Try to parse the string as an integer
+		parsed, err := strconv.Atoi(str)
+		if err != nil {
+			return fmt.Errorf("Number: cannot parse string %q as integer: %v", str, err)
+		}
+		*n = Number(parsed)
+		return nil
+	}
+
+	return fmt.Errorf("Number: cannot unmarshal value into integer or string")
+}
 
 // User represents a Honeybadger user
 type User struct {
@@ -95,9 +128,13 @@ type NoticeRequest struct {
 
 // BacktraceEntry represents a single entry in the error backtrace
 type BacktraceEntry struct {
-	Number  string                 `json:"number"`
+	Number  Number                 `json:"number"`
+	Column  *Number                `json:"column,omitempty"`
 	File    string                 `json:"file"`
 	Method  string                 `json:"method"`
+	Class   string                 `json:"class,omitempty"`
+	Type    string                 `json:"type,omitempty"`
+	Args    []interface{}          `json:"args,omitempty"`
 	Source  map[string]interface{} `json:"source,omitempty"`
 	Context string                 `json:"context,omitempty"`
 }
