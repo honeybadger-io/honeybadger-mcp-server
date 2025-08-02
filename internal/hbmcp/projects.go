@@ -16,6 +16,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithDescription("List all Honeybadger projects"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("account_id",
 				mcp.Description("Optional account ID to filter projects by specific account"),
 			),
@@ -29,6 +31,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("get_project",
 			mcp.WithDescription("Get a single Honeybadger project by ID"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to retrieve"),
@@ -138,6 +142,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("get_project_occurrence_counts",
 			mcp.WithDescription("Get occurrence counts for all projects or a specific project"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
 				mcp.Description("Optional project ID to get occurrence counts for a specific project"),
 				mcp.Min(1),
@@ -159,6 +165,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("get_project_integrations",
 			mcp.WithDescription("Get a list of integrations (channels) for a Honeybadger project"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to get integrations for"),
@@ -174,6 +182,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("get_project_report",
 			mcp.WithDescription("Get report data for a Honeybadger project"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to get report data for"),
