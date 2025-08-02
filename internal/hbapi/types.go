@@ -1,6 +1,32 @@
 package hbapi
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+// StringOrInt is a custom type that can unmarshal from either a string or integer JSON value
+type StringOrInt string
+
+// UnmarshalJSON implements json.Unmarshaler interface to handle both string and integer values
+func (s *StringOrInt) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string first
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		*s = StringOrInt(str)
+		return nil
+	}
+
+	// If that fails, try as integer
+	var num int
+	if err := json.Unmarshal(data, &num); err == nil {
+		*s = StringOrInt(fmt.Sprintf("%d", num))
+		return nil
+	}
+
+	return fmt.Errorf("StringOrInt: cannot unmarshal %s into string or integer", data)
+}
 
 // User represents a Honeybadger user
 type User struct {
@@ -95,7 +121,7 @@ type NoticeRequest struct {
 
 // BacktraceEntry represents a single entry in the error backtrace
 type BacktraceEntry struct {
-	Number  string                 `json:"number"`
+	Number  StringOrInt            `json:"number"`
 	File    string                 `json:"file"`
 	Method  string                 `json:"method"`
 	Source  map[string]interface{} `json:"source,omitempty"`
