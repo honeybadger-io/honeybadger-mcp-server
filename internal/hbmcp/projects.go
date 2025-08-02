@@ -48,6 +48,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("create_project",
 			mcp.WithDescription("Create a new Honeybadger project"),
+			mcp.WithReadOnlyHintAnnotation(false),
+			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("account_id",
 				mcp.Required(),
 				mcp.Description("The account ID to associate the project with"),
@@ -88,6 +90,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("update_project",
 			mcp.WithDescription("Update an existing Honeybadger project"),
+			mcp.WithReadOnlyHintAnnotation(false),
+			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to update"),
@@ -127,6 +131,8 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	s.AddTool(
 		mcp.NewTool("delete_project",
 			mcp.WithDescription("Delete a Honeybadger project"),
+			mcp.WithReadOnlyHintAnnotation(false),
+			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to delete"),
