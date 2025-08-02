@@ -5,36 +5,47 @@ import (
 	"testing"
 )
 
-func TestStringOrInt_UnmarshalJSON(t *testing.T) {
+func TestNumber_UnmarshalJSON(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    string
+		want    int
 		wantErr bool
 	}{
 		{
 			name:    "string value",
 			input:   `"123"`,
-			want:    "123",
+			want:    123,
 			wantErr: false,
 		},
 		{
 			name:    "integer value",
 			input:   `123`,
-			want:    "123",
+			want:    123,
 			wantErr: false,
 		},
 		{
 			name:    "zero integer",
 			input:   `0`,
-			want:    "0",
+			want:    0,
 			wantErr: false,
 		},
 		{
 			name:    "negative integer",
 			input:   `-1`,
-			want:    "-1",
+			want:    -1,
 			wantErr: false,
+		},
+		{
+			name:    "string negative integer",
+			input:   `"-42"`,
+			want:    -42,
+			wantErr: false,
+		},
+		{
+			name:    "non-numeric string should fail",
+			input:   `"abc"`,
+			wantErr: true,
 		},
 		{
 			name:    "boolean value should fail",
@@ -50,14 +61,14 @@ func TestStringOrInt_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var s StringOrInt
-			err := json.Unmarshal([]byte(tt.input), &s)
+			var n Number
+			err := json.Unmarshal([]byte(tt.input), &n)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("StringOrInt.UnmarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Number.UnmarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !tt.wantErr && string(s) != tt.want {
-				t.Errorf("StringOrInt.UnmarshalJSON() = %v, want %v", s, tt.want)
+			if !tt.wantErr && int(n) != tt.want {
+				t.Errorf("Number.UnmarshalJSON() = %v, want %v", n, tt.want)
 			}
 		})
 	}
@@ -78,7 +89,7 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 				"method": "someMethod"
 			}`,
 			want: BacktraceEntry{
-				Number: "42",
+				Number: 42,
 				File:   "/path/to/file.js",
 				Method: "someMethod",
 			},
@@ -92,7 +103,7 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 				"method": "someMethod"
 			}`,
 			want: BacktraceEntry{
-				Number: "42",
+				Number: 42,
 				File:   "/path/to/file.js",
 				Method: "someMethod",
 			},
@@ -108,7 +119,7 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 				"context": "app"
 			}`,
 			want: BacktraceEntry{
-				Number:  "10",
+				Number:  10,
 				File:    "/app/index.js",
 				Method:  "handleError",
 				Source:  map[string]interface{}{"10": "throw new Error();"},
@@ -130,8 +141,8 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 				"context": "app"
 			}`,
 			want: BacktraceEntry{
-				Number:  "25",
-				Column:  func() *StringOrInt { s := StringOrInt("15"); return &s }(),
+				Number:  25,
+				Column:  numberPtr(15),
 				File:    "/app/models/user.rb",
 				Method:  "authenticate",
 				Class:   "User",
@@ -151,12 +162,54 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 				"method": "processData"
 			}`,
 			want: BacktraceEntry{
-				Number: "42",
-				Column: func() *StringOrInt { s := StringOrInt("8"); return &s }(),
+				Number: 42,
+				Column: numberPtr(8),
 				File:   "/lib/helper.js",
 				Method: "processData",
 			},
 			wantErr: false,
+		},
+		{
+			name: "number as string negative",
+			input: `{
+				"number": "-10",
+				"file": "/app/test.rb",
+				"method": "test"
+			}`,
+			want: BacktraceEntry{
+				Number: -10,
+				File:   "/app/test.rb",
+				Method: "test",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid string number",
+			input: `{
+				"number": "abc",
+				"file": "/app/test.rb",
+				"method": "test"
+			}`,
+			wantErr: true,
+		},
+		{
+			name: "number as boolean should fail",
+			input: `{
+				"number": true,
+				"file": "/app/test.rb",
+				"method": "test"
+			}`,
+			wantErr: true,
+		},
+		{
+			name: "column as boolean should fail",
+			input: `{
+				"number": 1,
+				"column": true,
+				"file": "/app/test.rb",
+				"method": "test"
+			}`,
+			wantErr: true,
 		},
 	}
 
@@ -169,7 +222,7 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 				return
 			}
 			if !tt.wantErr {
-				if string(entry.Number) != string(tt.want.Number) {
+				if int(entry.Number) != int(tt.want.Number) {
 					t.Errorf("BacktraceEntry.Number = %v, want %v", entry.Number, tt.want.Number)
 				}
 				if entry.File != tt.want.File {
@@ -183,7 +236,7 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 				}
 				// Check Column
 				if tt.want.Column != nil && entry.Column != nil {
-					if string(*entry.Column) != string(*tt.want.Column) {
+					if int(*entry.Column) != int(*tt.want.Column) {
 						t.Errorf("BacktraceEntry.Column = %v, want %v", *entry.Column, *tt.want.Column)
 					}
 				} else if (tt.want.Column == nil) != (entry.Column == nil) {
@@ -204,4 +257,10 @@ func TestBacktraceEntry_UnmarshalJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Helper function to create Number pointers
+func numberPtr(i int) *Number {
+	n := Number(i)
+	return &n
 }

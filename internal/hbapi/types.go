@@ -3,29 +3,36 @@ package hbapi
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
 
-// StringOrInt is a custom type that can unmarshal from either a string or integer JSON value
-type StringOrInt string
+// Number is a custom type that can unmarshal from either a string or integer JSON value
+// and stores it as an integer
+type Number int
 
 // UnmarshalJSON implements json.Unmarshaler interface to handle both string and integer values
-func (s *StringOrInt) UnmarshalJSON(data []byte) error {
-	// Try to unmarshal as string first
-	var str string
-	if err := json.Unmarshal(data, &str); err == nil {
-		*s = StringOrInt(str)
-		return nil
-	}
-
-	// If that fails, try as integer
+func (n *Number) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as integer first
 	var num int
 	if err := json.Unmarshal(data, &num); err == nil {
-		*s = StringOrInt(fmt.Sprintf("%d", num))
+		*n = Number(num)
 		return nil
 	}
 
-	return fmt.Errorf("StringOrInt: cannot unmarshal %s into string or integer", data)
+	// If that fails, try as string and parse to int
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		// Try to parse the string as an integer
+		parsed, err := strconv.Atoi(str)
+		if err != nil {
+			return fmt.Errorf("Number: cannot parse string %q as integer: %v", str, err)
+		}
+		*n = Number(parsed)
+		return nil
+	}
+
+	return fmt.Errorf("Number: cannot unmarshal %s into integer or string", data)
 }
 
 // User represents a Honeybadger user
@@ -121,8 +128,8 @@ type NoticeRequest struct {
 
 // BacktraceEntry represents a single entry in the error backtrace
 type BacktraceEntry struct {
-	Number  StringOrInt            `json:"number"`
-	Column  *StringOrInt           `json:"column,omitempty"`
+	Number  Number                 `json:"number"`
+	Column  *Number                `json:"column,omitempty"`
 	File    string                 `json:"file"`
 	Method  string                 `json:"method"`
 	Class   string                 `json:"class,omitempty"`
