@@ -38,6 +38,14 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
 }
 ```
 
+### Claude Code
+
+Run this command to configure [Claude Code](https://www.anthropic.com/claude-code):
+
+```bash
+claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="HONEYBADGER_PERSONAL_AUTH_TOKEN" ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
+```
+
 ### VS Code
 
 Add the following to your [user settings](https://code.visualstudio.com/docs/configure/settings#_settings-json-file) or `.vscode/mcp.json` in your workspace:
