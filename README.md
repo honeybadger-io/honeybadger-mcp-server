@@ -162,8 +162,13 @@ And then configure your MCP client to run the server directly:
 | Environment Variable              | Required | Default                    | Description                                 |
 | --------------------------------- | -------- | -------------------------- | ------------------------------------------- |
 | `HONEYBADGER_PERSONAL_AUTH_TOKEN` | yes      | —                          | API token for Honeybadger                   |
+| `HONEYBADGER_READ_ONLY`           | no       | true                       | Run in read-only mode, excluding write operations like `delete_project` |
 | `LOG_LEVEL`                       | no       | info                       | Log verbosity (debug, info, warn, error)    |
 | `HONEYBADGER_API_URL`             | no       | https://app.honeybadger.io | Override the base URL for Honeybadger's API |
+
+**Important**: The server runs in **read-only mode by default** for security. This means only read operations (like `list_projects`, `get_project`, `list_faults`) are available. Write operations such as `create_project`, `update_project`, and `delete_project` are excluded to prevent accidental modifications.
+
+To enable write operations, explicitly set `HONEYBADGER_READ_ONLY=false`. **Use with caution** as this allows destructive operations like deleting projects.
 
 ### Command Line Options
 
@@ -173,9 +178,14 @@ When running the server via the CLI you can configure the server with command-li
 # Run with custom configuration
 ./honeybadger-mcp-server stdio --auth-token your_token --log-level debug --api-url https://custom.honeybadger.io
 
+# Enable write operations (use with caution)
+./honeybadger-mcp-server stdio --auth-token your_token --read-only=false
+
 # Get help
 ./honeybadger-mcp-server stdio --help
 ```
+
+The `--read-only` flag defaults to `true`. Set `--read-only=false` to enable write operations like `create_project`, `update_project`, and `delete_project`.
 
 ### Configuration File
 
@@ -185,6 +195,7 @@ You can also use a configuration file at `~/.honeybadger-mcp-server.yaml`:
 auth-token: "your_token_here"
 log-level: "info"
 api-url: "https://app.honeybadger.io"
+read-only: true
 ```
 
 ## Tools
@@ -199,7 +210,7 @@ api-url: "https://app.honeybadger.io"
 
   - `id` : The ID of the project to retrieve (number, required)
 
-- **create_project** - Create a new Honeybadger project
+- **create_project** - Create a new Honeybadger project *(requires `read-only=false`)*
 
   - `account_id` : The account ID to associate the project with (string, required)
   - `name` : The name of the new project (string, required)
@@ -210,7 +221,7 @@ api-url: "https://app.honeybadger.io"
   - `purge_days` : The number of days to retain data (up to the max number of days available to your subscription plan) (number, optional)
   - `user_search_field` : A field such as 'context.user_email' that you provide in your error context (string, optional)
 
-- **update_project** - Update an existing Honeybadger project
+- **update_project** - Update an existing Honeybadger project *(requires `read-only=false`)*
 
   - `id` : The ID of the project to update (number, required)
   - `name` : The name of the project (string, optional)
@@ -221,7 +232,7 @@ api-url: "https://app.honeybadger.io"
   - `purge_days` : The number of days to retain data (up to the max number of days available to your subscription plan) (number, optional)
   - `user_search_field` : A field such as 'context.user_email' that you provide in your error context (string, optional)
 
-- **delete_project** - Delete a Honeybadger project
+- **delete_project** - Delete a Honeybadger project *(requires `read-only=false`)*
 
   - `id` : The ID of the project to delete (number, required)
 
