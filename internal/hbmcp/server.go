@@ -10,6 +10,17 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// filterReadOnlyTools filters tools to only include those marked as read-only
+func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
+	var readOnlyTools []mcp.Tool
+	for _, tool := range tools {
+		if tool.Annotations.ReadOnlyHint != nil && *tool.Annotations.ReadOnlyHint {
+			readOnlyTools = append(readOnlyTools, tool)
+		}
+	}
+	return readOnlyTools
+}
+
 // NewServer creates a new MCP server instance with configured tools
 func NewServer(cfg *config.Config) *server.MCPServer {
 	// Setup logger with configured level
@@ -55,13 +66,7 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	// Add read-only filter if needed
 	if cfg.ReadOnly {
 		serverOptions = append(serverOptions, server.WithToolFilter(func(ctx context.Context, tools []mcp.Tool) []mcp.Tool {
-			var readOnlyTools []mcp.Tool
-			for _, tool := range tools {
-				if tool.Annotations.ReadOnlyHint != nil && *tool.Annotations.ReadOnlyHint {
-					readOnlyTools = append(readOnlyTools, tool)
-				}
-			}
-			return readOnlyTools
+			return filterReadOnlyTools(tools)
 		}))
 	}
 
