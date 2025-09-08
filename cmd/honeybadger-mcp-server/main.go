@@ -41,7 +41,7 @@ func init() {
 	stdioCmd.Flags().String("auth-token", "", "Honeybadger API token (required)")
 	stdioCmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger API URL")
 	stdioCmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
-	stdioCmd.Flags().Bool("read-only", false, "Run in read-only mode, excluding destructive tools")
+	stdioCmd.Flags().Bool("read-only", true, "Run in read-only mode, excluding destructive tools")
 
 	// Bind flags to viper
 	_ = viper.BindPFlag("auth-token", stdioCmd.Flags().Lookup("auth-token"))
@@ -68,6 +68,9 @@ func initConfig() {
 	viper.SetEnvPrefix("")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
+
+	// Set defaults
+	viper.SetDefault("read-only", true)
 
 	// Bind specific environment variables
 	_ = viper.BindEnv("auth-token", "HONEYBADGER_PERSONAL_AUTH_TOKEN")
