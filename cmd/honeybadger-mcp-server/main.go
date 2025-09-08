@@ -41,11 +41,13 @@ func init() {
 	stdioCmd.Flags().String("auth-token", "", "Honeybadger API token (required)")
 	stdioCmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger API URL")
 	stdioCmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
+	stdioCmd.Flags().Bool("read-only", false, "Run in read-only mode, excluding destructive tools")
 
 	// Bind flags to viper
 	_ = viper.BindPFlag("auth-token", stdioCmd.Flags().Lookup("auth-token"))
 	_ = viper.BindPFlag("api-url", stdioCmd.Flags().Lookup("api-url"))
 	_ = viper.BindPFlag("log-level", stdioCmd.Flags().Lookup("log-level"))
+	_ = viper.BindPFlag("read-only", stdioCmd.Flags().Lookup("read-only"))
 
 	rootCmd.AddCommand(stdioCmd)
 }
@@ -71,6 +73,7 @@ func initConfig() {
 	_ = viper.BindEnv("auth-token", "HONEYBADGER_PERSONAL_AUTH_TOKEN")
 	_ = viper.BindEnv("api-url", "HONEYBADGER_API_URL")
 	_ = viper.BindEnv("log-level", "LOG_LEVEL")
+	_ = viper.BindEnv("read-only", "HONEYBADGER_READ_ONLY")
 
 	// Read config file if it exists
 	if err := viper.ReadInConfig(); err == nil {
@@ -84,6 +87,7 @@ func runStdio(cmd *cobra.Command, args []string) error {
 		viper.GetString("auth-token"),
 		viper.GetString("api-url"),
 		viper.GetString("log-level"),
+		viper.GetBool("read-only"),
 	)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
@@ -96,7 +100,8 @@ func runStdio(cmd *cobra.Command, args []string) error {
 	logger.Info("Starting Honeybadger MCP Server",
 		"version", "1.0.0",
 		"log_level", cfg.LogLevel,
-		"api_url", cfg.APIURL)
+		"api_url", cfg.APIURL,
+		"read_only", cfg.ReadOnly)
 
 	mcpServer := hbmcp.NewServer(cfg)
 
