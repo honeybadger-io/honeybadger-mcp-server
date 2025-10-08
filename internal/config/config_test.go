@@ -53,6 +53,7 @@ func TestLoad(t *testing.T) {
 		authToken string
 		apiURL    string
 		logLevel  string
+		readOnly  bool
 		wantErr   bool
 	}{
 		{
@@ -60,6 +61,15 @@ func TestLoad(t *testing.T) {
 			authToken: "test-token",
 			apiURL:    "https://api.honeybadger.io/v2",
 			logLevel:  "info",
+			readOnly:  false,
+			wantErr:   false,
+		},
+		{
+			name:      "valid configuration read-only",
+			authToken: "test-token",
+			apiURL:    "https://api.honeybadger.io/v2",
+			logLevel:  "info",
+			readOnly:  true,
 			wantErr:   false,
 		},
 		{
@@ -67,6 +77,7 @@ func TestLoad(t *testing.T) {
 			authToken: "",
 			apiURL:    "https://api.honeybadger.io/v2",
 			logLevel:  "info",
+			readOnly:  false,
 			wantErr:   true,
 		},
 		{
@@ -74,13 +85,14 @@ func TestLoad(t *testing.T) {
 			authToken: "test-token",
 			apiURL:    "",
 			logLevel:  "",
+			readOnly:  false,
 			wantErr:   false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := Load(tt.authToken, tt.apiURL, tt.logLevel)
+			cfg, err := Load(tt.authToken, tt.apiURL, tt.logLevel, tt.readOnly)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -94,6 +106,9 @@ func TestLoad(t *testing.T) {
 				}
 				if cfg.LogLevel != tt.logLevel {
 					t.Errorf("Load() LogLevel = %v, want %v", cfg.LogLevel, tt.logLevel)
+				}
+				if cfg.ReadOnly != tt.readOnly {
+					t.Errorf("Load() ReadOnly = %v, want %v", cfg.ReadOnly, tt.readOnly)
 				}
 			}
 		})

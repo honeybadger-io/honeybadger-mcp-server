@@ -37,6 +37,11 @@ type MCPMessage struct {
 
 // StartTestServer starts a new MCP server subprocess for testing
 func StartTestServer(t *testing.T, apiToken string) (*MCPTestServer, error) {
+	return StartTestServerWithReadOnly(t, apiToken, false)
+}
+
+// StartTestServerWithReadOnly starts a new MCP server subprocess for testing with configurable read-only mode
+func StartTestServerWithReadOnly(t *testing.T, apiToken string, readOnly bool) (*MCPTestServer, error) {
 	if apiToken == "" {
 		apiToken = "test-token"
 	}
@@ -47,8 +52,12 @@ func StartTestServer(t *testing.T, apiToken string) (*MCPTestServer, error) {
 		return nil, fmt.Errorf("failed to build server: %w", err)
 	}
 
-	// Start the server
-	cmd := exec.Command("../honeybadger-mcp-server-test", "stdio", "--auth-token", apiToken)
+	// Start the server with read-only flag
+	args := []string{"stdio", "--auth-token", apiToken}
+	if !readOnly {
+		args = append(args, "--read-only=false")
+	}
+	cmd := exec.Command("../honeybadger-mcp-server-test", args...)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

@@ -10,6 +10,7 @@ type Config struct {
 	AuthToken string
 	APIURL    string
 	LogLevel  string
+	ReadOnly  bool
 }
 
 // Validate checks that all required configuration values are present
@@ -21,11 +22,12 @@ func (c *Config) Validate() error {
 }
 
 // Load returns a validated configuration
-func Load(authToken, apiURL, logLevel string) (*Config, error) {
+func Load(authToken, apiURL, logLevel string, readOnly bool) (*Config, error) {
 	cfg := &Config{
 		AuthToken: authToken,
 		APIURL:    apiURL,
 		LogLevel:  logLevel,
+		ReadOnly:  readOnly,
 	}
 
 	if err := cfg.Validate(); err != nil {

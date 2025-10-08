@@ -21,7 +21,7 @@ func TestServerStartup(t *testing.T) {
 	}
 }
 
-// TestListTools verifies the tools/list method works correctly
+// TestListTools verifies the tools/list method works correctly in non-read-only mode
 func TestListTools(t *testing.T) {
 	server, err := StartTestServer(t, "test-token")
 	if err != nil {
@@ -78,6 +78,62 @@ func TestListTools(t *testing.T) {
 	// Verify update_project tool properties
 	if desc, ok := updateProjectTool["description"].(string); !ok || desc != "Update an existing Honeybadger project" {
 		t.Errorf("Unexpected update_project tool description: %v", updateProjectTool["description"])
+	}
+}
+
+// TestListToolsReadOnly verifies the tools/list method works correctly in read-only mode
+func TestListToolsReadOnly(t *testing.T) {
+	server, err := StartTestServerWithReadOnly(t, "test-token", true)
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+	defer server.Stop()
+
+	tools, err := server.ListTools()
+	if err != nil {
+		t.Fatalf("Failed to list tools: %v", err)
+	}
+
+	expectedToolCount := 10 // get_fault, get_fault_counts, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects
+	if len(tools) != expectedToolCount {
+		t.Errorf("Expected %d tools in read-only mode, got %d", expectedToolCount, len(tools))
+	}
+
+	// Track which tools we find
+	var foundTools []string
+
+	for _, tool := range tools {
+		if toolMap, ok := tool.(map[string]interface{}); ok {
+			if name, ok := toolMap["name"].(string); ok {
+				foundTools = append(foundTools, name)
+				t.Logf("Found tool: %s", name)
+			}
+		}
+	}
+
+	// Verify only read-only tools are present
+	expectedReadOnlyTools := []string{"get_fault", "get_fault_counts", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects"}
+	for _, expectedTool := range expectedReadOnlyTools {
+		found := false
+		for _, foundTool := range foundTools {
+			if foundTool == expectedTool {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected read-only tool %s not found. Found tools: %v", expectedTool, foundTools)
+		}
+	}
+
+	// Verify destructive tools are NOT present
+	destructiveTools := []string{"create_project", "delete_project", "update_project"}
+	for _, destructiveTool := range destructiveTools {
+		for _, foundTool := range foundTools {
+			if foundTool == destructiveTool {
+				t.Errorf("Destructive tool %s should not be present in read-only mode", destructiveTool)
+			}
+		}
 	}
 }
 

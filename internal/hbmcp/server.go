@@ -10,6 +10,17 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// filterReadOnlyTools filters tools to only include those marked as read-only
+func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
+	var readOnlyTools []mcp.Tool
+	for _, tool := range tools {
+		if tool.Annotations.ReadOnlyHint != nil && *tool.Annotations.ReadOnlyHint {
+			readOnlyTools = append(readOnlyTools, tool)
+		}
+	}
+	return readOnlyTools
+}
+
 // NewServer creates a new MCP server instance with configured tools
 func NewServer(cfg *config.Config) *server.MCPServer {
 	// Setup logger with configured level
@@ -45,14 +56,21 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	})
 
 	// Create new MCP server with enhanced configuration
-	s := server.NewMCPServer(
-		"honeybadger-mcp-server",
-		"1.0.0",
+	serverOptions := []server.ServerOption{
 		server.WithToolCapabilities(true),
 		server.WithLogging(),
 		server.WithRecovery(),
 		server.WithHooks(hooks),
-	)
+	}
+
+	// Add read-only filter if needed
+	if cfg.ReadOnly {
+		serverOptions = append(serverOptions, server.WithToolFilter(func(ctx context.Context, tools []mcp.Tool) []mcp.Tool {
+			return filterReadOnlyTools(tools)
+		}))
+	}
+
+	s := server.NewMCPServer("honeybadger-mcp-server", "1.0.0", serverOptions...)
 
 	// Create API client
 	apiClient := hbapi.NewClient().
