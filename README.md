@@ -11,7 +11,7 @@ First, pull the Docker image:
 docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
 ```
 
-Then, configure your MCP client(s). You can find your personal auth token under the "Authentication" tab in your [Honeybadger User settings](https://app.honeybadger.io/users/edit).
+Then, configure your MCP client(s). You can find your personal auth token under the "Authentication" tab in your [Honeybadger User settings](https://app.honeybadger.io/users/edit#auth-tokens).
 
 ### Cursor, Windsurf, and Claude Desktop 
 
