@@ -11,9 +11,9 @@ First, pull the Docker image:
 docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
 ```
 
-Then, configure your MCP client(s). You can find your personal auth token under the "Authentication" tab in your [Honeybadger User settings](https://app.honeybadger.io/users/edit#auth-tokens).
+Then, configure your MCP client(s). You can find your personal API key under the "Authentication" tab in your [Honeybadger User settings](https://app.honeybadger.io/users/edit#authentication).
 
-### Cursor, Windsurf, and Claude Desktop 
+### Cursor, Windsurf, and Claude Desktop
 
 Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/context/model-context-protocol), or `~/.codeium/windsurf/mcp_config.json` for [Windsurf](https://docs.windsurf.com/windsurf/cascade/mcp). See Anthropic's [MCP quickstart guide](https://modelcontextprotocol.io/quickstart/user) for how to locate your `claude_desktop_config.json` for Claude Desktop:
 
@@ -31,7 +31,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
         "ghcr.io/honeybadger-io/honeybadger-mcp-server"
       ],
       "env": {
-        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
+        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal API key"
       }
     }
   }
@@ -43,7 +43,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
 Run this command to configure [Claude Code](https://www.anthropic.com/claude-code):
 
 ```bash
-claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="HONEYBADGER_PERSONAL_AUTH_TOKEN" ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
+claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="personal API key" ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
 ```
 
 ### VS Code
@@ -57,7 +57,7 @@ Add the following to your [user settings](https://code.visualstudio.com/docs/con
       {
         "type": "promptString",
         "id": "honeybadger_auth_token",
-        "description": "Honeybadger Personal Auth Token",
+        "description": "Honeybadger personal API key",
         "password": true
       }
     ],
@@ -99,10 +99,10 @@ Add the following to your Zed settings file in `~/.config/zed/settings.json`:
           "--rm",
           "-e",
           "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-           "ghcr.io/honeybadger-io/honeybadger-mcp-server"
+          "ghcr.io/honeybadger-io/honeybadger-mcp-server"
         ],
         "env": {
-          "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
+          "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal API key"
         }
       },
       "settings": {}
@@ -148,7 +148,7 @@ And then configure your MCP client to run the server directly:
       "command": "/path/to/honeybadger-mcp-server",
       "args": ["stdio"],
       "env": {
-        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
+        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal API key"
       }
     }
   }
@@ -159,12 +159,12 @@ And then configure your MCP client to run the server directly:
 
 ### Environment Variables
 
-| Environment Variable              | Required | Default                    | Description                                 |
-| --------------------------------- | -------- | -------------------------- | ------------------------------------------- |
-| `HONEYBADGER_PERSONAL_AUTH_TOKEN` | yes      | —                          | API token for Honeybadger                   |
+| Environment Variable              | Required | Default                    | Description                                                             |
+| --------------------------------- | -------- | -------------------------- | ----------------------------------------------------------------------- |
+| `HONEYBADGER_PERSONAL_AUTH_TOKEN` | yes      | —                          | Your Honeybadger personal API key                                       |
 | `HONEYBADGER_READ_ONLY`           | no       | true                       | Run in read-only mode, excluding write operations like `delete_project` |
-| `LOG_LEVEL`                       | no       | info                       | Log verbosity (debug, info, warn, error)    |
-| `HONEYBADGER_API_URL`             | no       | https://app.honeybadger.io | Override the base URL for Honeybadger's API |
+| `LOG_LEVEL`                       | no       | info                       | Log verbosity (debug, info, warn, error)                                |
+| `HONEYBADGER_API_URL`             | no       | https://app.honeybadger.io | Override the base URL for Honeybadger's API                             |
 
 **Important**: The server runs in **read-only mode by default** for security. This means only read operations (like `list_projects`, `get_project`, `list_faults`) are available. Write operations such as `create_project`, `update_project`, and `delete_project` are excluded to prevent accidental modifications.
 
@@ -203,15 +203,12 @@ read-only: true
 ### Projects
 
 - **list_projects** - List all Honeybadger projects
-
   - `account_id` : Account ID to filter projects by specific account (string, optional)
 
 - **get_project** - Get detailed information for a single project by ID
-
   - `id` : The ID of the project to retrieve (number, required)
 
-- **create_project** - Create a new Honeybadger project *(requires `read-only=false`)*
-
+- **create_project** - Create a new Honeybadger project _(requires `read-only=false`)_
   - `account_id` : The account ID to associate the project with (string, required)
   - `name` : The name of the new project (string, required)
   - `resolve_errors_on_deploy` : Whether all unresolved faults should be marked as resolved when a deploy is recorded (boolean, optional)
@@ -221,8 +218,7 @@ read-only: true
   - `purge_days` : The number of days to retain data (up to the max number of days available to your subscription plan) (number, optional)
   - `user_search_field` : A field such as 'context.user_email' that you provide in your error context (string, optional)
 
-- **update_project** - Update an existing Honeybadger project *(requires `read-only=false`)*
-
+- **update_project** - Update an existing Honeybadger project _(requires `read-only=false`)_
   - `id` : The ID of the project to update (number, required)
   - `name` : The name of the project (string, optional)
   - `resolve_errors_on_deploy` : Whether all unresolved faults should be marked as resolved when a deploy is recorded (boolean, optional)
@@ -232,22 +228,18 @@ read-only: true
   - `purge_days` : The number of days to retain data (up to the max number of days available to your subscription plan) (number, optional)
   - `user_search_field` : A field such as 'context.user_email' that you provide in your error context (string, optional)
 
-- **delete_project** - Delete a Honeybadger project *(requires `read-only=false`)*
-
+- **delete_project** - Delete a Honeybadger project _(requires `read-only=false`)_
   - `id` : The ID of the project to delete (number, required)
 
 - **get_project_occurrence_counts** - Get occurrence counts for all projects or a specific project
-
   - `project_id` : Project ID to get occurrence counts for a specific project (number, optional)
   - `period` : Time period for grouping data: 'hour', 'day', 'week', or 'month'. Defaults to 'hour' (string, optional)
   - `environment` : Environment name to filter results (string, optional)
 
 - **get_project_integrations** - Get a list of integrations (channels) for a Honeybadger project
-
   - `project_id` : The ID of the project to get integrations for (number, required)
 
 - **get_project_report** - Get report data for a Honeybadger project
-
   - `project_id` : The ID of the project to get report data for (number, required)
   - `report` : The type of report to get: 'notices_by_class', 'notices_by_location', 'notices_by_user', or 'notices_per_day' (string, required)
   - `start` : Start date/time in ISO 8601 format for the beginning of the reporting period (string, optional)
@@ -257,7 +249,6 @@ read-only: true
 ### Faults
 
 - **list_faults** - Get a list of faults for a project with optional filtering and ordering
-
   - `project_id` : The ID of the project to get faults for (number, required)
   - `q` : Search string to filter faults (string, optional)
   - `created_after` : Filter faults created after this timestamp (string, optional)
@@ -268,12 +259,10 @@ read-only: true
   - `page` : Page number for pagination (number, optional)
 
 - **get_fault** - Get detailed information for a specific fault in a project
-
   - `project_id` : The ID of the project containing the fault (number, required)
   - `fault_id` : The ID of the fault to retrieve (number, required)
 
 - **get_fault_counts** - Get fault count statistics for a project with optional filtering
-
   - `project_id` : The ID of the project to get fault counts for (number, required)
   - `q` : Search string to filter faults (string, optional)
   - `created_after` : Filter faults created after this timestamp (string, optional)
@@ -281,7 +270,6 @@ read-only: true
   - `occurred_before` : Filter faults that occurred before this timestamp (string, optional)
 
 - **list_fault_notices** - Get a list of notices (individual error events) for a specific fault
-
   - `project_id` : The ID of the project containing the fault (number, required)
   - `fault_id` : The ID of the fault to get notices for (number, required)
   - `created_after` : Filter notices created after this timestamp (string, optional)
@@ -289,7 +277,6 @@ read-only: true
   - `limit` : Maximum number of notices to return (max 25) (number, optional)
 
 - **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts
-
   - `project_id` : The ID of the project containing the fault (number, required)
   - `fault_id` : The ID of the fault to get affected users for (number, required)
   - `q` : Search string to filter affected users (string, optional)
