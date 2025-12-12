@@ -281,6 +281,14 @@ read-only: true
   - `fault_id` : The ID of the fault to get affected users for (number, required)
   - `q` : Search string to filter affected users (string, optional)
 
+### Insights
+
+- **query_insights** - Execute a BadgerQL query against Insights data
+  - `project_id` : The ID of the project to query insights for (number, required)
+  - `query` : BadgerQL query string to execute against your Insights data (string, required)
+  - `ts` : Time range - shortcuts like 'today', 'week', or ISO 8601 duration (e.g., 'PT3H'). Defaults to PT3H (string, optional)
+  - `timezone` : IANA timezone identifier (e.g., 'America/New_York') for timestamp interpretation (string, optional)
+
 ## Development
 
 Run the tests:

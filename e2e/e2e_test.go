@@ -34,7 +34,7 @@ func TestListTools(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 13 // create_project, delete_project, get_fault, get_fault_counts, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects, update_project
+	expectedToolCount := 14 // create_project, delete_project, get_fault, get_fault_counts, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights, update_project
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools, got %d", expectedToolCount, len(tools))
 	}
@@ -57,7 +57,7 @@ func TestListTools(t *testing.T) {
 	}
 
 	// Verify all expected tools are present
-	expectedTools := []string{"create_project", "delete_project", "get_fault", "get_fault_counts", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "update_project"}
+	expectedTools := []string{"create_project", "delete_project", "get_fault", "get_fault_counts", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights", "update_project"}
 	for _, expectedTool := range expectedTools {
 		found := false
 		for _, foundTool := range foundTools {
@@ -94,7 +94,7 @@ func TestListToolsReadOnly(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 10 // get_fault, get_fault_counts, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects
+	expectedToolCount := 11 // get_fault, get_fault_counts, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools in read-only mode, got %d", expectedToolCount, len(tools))
 	}
@@ -112,7 +112,7 @@ func TestListToolsReadOnly(t *testing.T) {
 	}
 
 	// Verify only read-only tools are present
-	expectedReadOnlyTools := []string{"get_fault", "get_fault_counts", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects"}
+	expectedReadOnlyTools := []string{"get_fault", "get_fault_counts", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights"}
 	for _, expectedTool := range expectedReadOnlyTools {
 		found := false
 		for _, foundTool := range foundTools {
@@ -251,6 +251,58 @@ func TestFaultToolIntegration(t *testing.T) {
 	result, err := server.CallTool("list_faults", args)
 	if err != nil {
 		t.Fatalf("Failed to call list_faults tool: %v", err)
+	}
+
+	// Verify result structure is correct (basic validation)
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Unexpected result type: %T", result)
+	}
+
+	// Check for content array (MCP standard response format)
+	content, ok := resultMap["content"].([]interface{})
+	if !ok {
+		t.Fatalf("No content in result: %+v", resultMap)
+	}
+
+	if len(content) == 0 {
+		t.Fatal("Empty content array")
+	}
+
+	// Verify basic response structure
+	contentItem, ok := content[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Unexpected content item type: %T", content[0])
+	}
+
+	if contentType, ok := contentItem["type"].(string); !ok || contentType != "text" {
+		t.Errorf("Unexpected content type: %v", contentItem["type"])
+	}
+
+	// For e2e testing, we just verify we get a valid response structure
+	if _, ok := contentItem["text"].(string); !ok {
+		t.Fatal("No text content in response")
+	}
+}
+
+// TestInsightsToolIntegration verifies insights tools work correctly
+func TestInsightsToolIntegration(t *testing.T) {
+	server, err := StartTestServer(t, "test-token")
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+	defer server.Stop()
+
+	// Test query_insights tool with valid parameters
+	args := map[string]interface{}{
+		"project_id": 123,
+		"query":      "stats count()",
+		"ts":         "today",
+	}
+
+	result, err := server.CallTool("query_insights", args)
+	if err != nil {
+		t.Fatalf("Failed to call query_insights tool: %v", err)
 	}
 
 	// Verify result structure is correct (basic validation)

@@ -83,5 +83,8 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	// Register fault tools
 	RegisterFaultTools(s, apiClient)
 
+	// Register insights tools
+	RegisterInsightsTools(s, apiClient)
+
 	return s
 }
