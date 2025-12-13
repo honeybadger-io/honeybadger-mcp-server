@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "honeybadger": {
+      "command": "go",
+      "args": ["run", "./cmd/honeybadger-mcp-server", "stdio"],
+      "env": {
+        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "${HONEYBADGER_PERSONAL_AUTH_TOKEN}"
+      }
+    }
+  }
+}
