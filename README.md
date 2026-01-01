@@ -291,7 +291,24 @@ read-only: true
 
 ## Development
 
-Run the tests:
+### Local Development Setup
+
+This project uses the [`api-go`](https://github.com/honeybadger-io/api-go) library for API interactions. For local development, you'll need to set up a Go workspace to work with both repositories simultaneously.
+
+From the parent directory containing both `honeybadger-mcp-server` and `api-go`:
+
+```bash
+# Initialize the workspace (if not already done)
+go work init
+go work use ./honeybadger-mcp-server
+go work use ./api-go
+
+# The go.work file is gitignored and won't be committed
+```
+
+Now you can work on both repositories and changes to `api-go` will be immediately reflected when working on the MCP server.
+
+### Running Tests
 
 ```bash
 go test ./...
