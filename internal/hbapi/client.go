@@ -18,7 +18,6 @@ type Client struct {
 	// Resource services
 	Projects *ProjectsService
 	Faults   *FaultsService
-	Insights *InsightsService
 }
 
 func NewClient() *Client {
@@ -32,7 +31,6 @@ func NewClient() *Client {
 	// Initialize resource services
 	c.Projects = &ProjectsService{client: c}
 	c.Faults = &FaultsService{client: c}
-	c.Insights = &InsightsService{client: c}
 	return c
 }
 

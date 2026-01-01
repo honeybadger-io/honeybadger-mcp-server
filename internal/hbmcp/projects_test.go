@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbapi"
+	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
