@@ -3,8 +3,8 @@ package hbmcp
 import (
 	"context"
 
+	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
-	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbapi"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/logging"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

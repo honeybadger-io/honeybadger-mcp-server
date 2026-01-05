@@ -291,7 +291,47 @@ read-only: true
 
 ## Development
 
-Run the tests:
+### Local Development Setup
+
+This project uses the [`api-go`](https://github.com/honeybadger-io/api-go) library for API interactions. For local development, you'll need to set up a Go workspace to work with both repositories simultaneously.
+
+From the parent directory containing both `honeybadger-mcp-server` and `api-go`:
+
+```bash
+# Initialize the workspace (if not already done)
+go work init
+go work use ./honeybadger-mcp-server
+go work use ./api-go
+
+# The go.work file is gitignored and won't be committed
+```
+
+Now you can work on both repositories and changes to `api-go` will be immediately reflected when working on the MCP server.
+
+### Working with Dependencies
+
+When using the workspace, Go uses the local `api-go` directory instead of fetching from GitHub. However, `go.sum` must still contain checksums for the published `api-go` module to support:
+- CI/CD builds (which don't have the workspace)
+- Developers who clone only this repository
+- Docker builds
+
+**When to use `GOWORK=off`:**
+
+```bash
+# Update dependencies and go.sum with published module checksums
+GOWORK=off go mod tidy
+
+# Install a specific version of a dependency
+GOWORK=off go get github.com/some/package@v1.2.3
+
+# Test the build as if no workspace exists (simulates CI/end-user builds)
+GOWORK=off go build ./...
+GOWORK=off go test ./...
+```
+
+The `GOWORK=off` flag temporarily disables the workspace, ensuring that `go.sum` contains the correct checksums for the published modules.
+
+### Running Tests
 
 ```bash
 go test ./...
