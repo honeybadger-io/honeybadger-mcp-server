@@ -2,6 +2,7 @@ package hbmcp
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 
@@ -10,12 +11,15 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+//go:embed docs/insights.md
+var insightsReference string
+
 // RegisterInsightsTools registers all insights-related MCP tools
 func RegisterInsightsTools(s *server.MCPServer, client *hbapi.Client) {
 	// query_insights tool
 	s.AddTool(
 		mcp.NewTool("query_insights",
-			mcp.WithDescription("Execute a BadgerQL query against Insights data"),
+			mcp.WithDescription("Execute a BadgerQL query against Insights data. Before constructing a query, call the get_insights_reference tool if you are unfamiliar with Insights."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -36,6 +40,18 @@ func RegisterInsightsTools(s *server.MCPServer, client *hbapi.Client) {
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleQueryInsights(ctx, client, req)
+		},
+	)
+
+	// get_insights_reference tool
+	s.AddTool(
+		mcp.NewTool("get_insights_reference",
+			mcp.WithDescription("Returns the Honeybadger Insights reference covering BadgerQL query syntax, available functions, common patterns, shareable URLs, and dashboard configuration. Call this before working with Insights tools."),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleGetInsightsReference(ctx, req)
 		},
 	)
 }
@@ -63,6 +79,10 @@ func handleQueryInsights(ctx context.Context, client *hbapi.Client, req mcp.Call
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to query insights: %v", err)), nil
 	}
 
+	if response.Error != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Insights query error: %s", response.Error.Message)), nil
+	}
+
 	// Return JSON response
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
@@ -70,4 +90,8 @@ func handleQueryInsights(ctx context.Context, client *hbapi.Client, req mcp.Call
 	}
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+func handleGetInsightsReference(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return mcp.NewToolResultText(insightsReference), nil
 }
