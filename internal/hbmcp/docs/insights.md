@@ -32,10 +32,10 @@ Call the `query_insights` tool with these arguments:
 
 - `project_id` (required) — integer project ID.
 - `query` (required) — BadgerQL query string.
-- `ts` (optional) — time range. Defaults to `PT3H` (last 3 hours). Use `"week"`, `"P1D"`, etc. for wider windows.
+- `ts` (optional) — time range. Defaults to `PT3H` (last 3 hours). Use `"week"`, `"P1D"`, etc. for wider windows. Format is ISO 8601 duration: `PT{n}H` (hours), `P{n}D` (days), `P{n}W` (weeks), or shortcuts `"today"`, `"yesterday"`, `"week"`, `"month"`.
 - `timezone` (optional) — IANA timezone name for timestamp interpretation.
 
-The response contains `results` (array of row objects), `meta` (query info, field names, schema, row counts, time range), and `error` (null on success, `{"message": "..."}` on failure).
+The response contains `results` (array of row objects) and `meta` (query info, field names, schema, row counts, time range). An optional `error` field may be omitted on success and is present as `{"message": "..."}` when an inline error occurs.
 
 ### Minimal working query
 
@@ -458,12 +458,11 @@ The `ts` parameter on query_insights controls the time window.
     "total_rows": 1,
     "start_at": "2024-01-01T00:00:00Z",
     "end_at": "2024-01-01T03:00:00Z"
-  },
-  "error": null
+  }
 }
 ```
 
-When `error` is present, it contains `{"message": "..."}` describing the issue.
+On failure, an `error` field is included: `{"message": "..."}` describing the issue.
 
 # Shareable Insights URLs
 
