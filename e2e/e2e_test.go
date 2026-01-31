@@ -34,7 +34,7 @@ func TestListTools(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 15 // create_project, delete_project, get_fault, get_fault_counts, get_insights_reference, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights, update_project
+	expectedToolCount := 20 // create_dashboard, create_project, delete_dashboard, delete_project, get_dashboard, get_fault, get_fault_counts, get_insights_reference, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_dashboards, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights, update_dashboard, update_project
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools, got %d", expectedToolCount, len(tools))
 	}
@@ -57,7 +57,7 @@ func TestListTools(t *testing.T) {
 	}
 
 	// Verify all expected tools are present
-	expectedTools := []string{"create_project", "delete_project", "get_fault", "get_fault_counts", "get_insights_reference", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights", "update_project"}
+	expectedTools := []string{"create_dashboard", "create_project", "delete_dashboard", "delete_project", "get_dashboard", "get_fault", "get_fault_counts", "get_insights_reference", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_dashboards", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights", "update_dashboard", "update_project"}
 	for _, expectedTool := range expectedTools {
 		found := false
 		for _, foundTool := range foundTools {
@@ -94,7 +94,7 @@ func TestListToolsReadOnly(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 12 // get_fault, get_fault_counts, get_insights_reference, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights
+	expectedToolCount := 14 // get_dashboard, get_fault, get_fault_counts, get_insights_reference, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_dashboards, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools in read-only mode, got %d", expectedToolCount, len(tools))
 	}
@@ -112,7 +112,7 @@ func TestListToolsReadOnly(t *testing.T) {
 	}
 
 	// Verify only read-only tools are present
-	expectedReadOnlyTools := []string{"get_fault", "get_fault_counts", "get_insights_reference", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights"}
+	expectedReadOnlyTools := []string{"get_dashboard", "get_fault", "get_fault_counts", "get_insights_reference", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_dashboards", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights"}
 	for _, expectedTool := range expectedReadOnlyTools {
 		found := false
 		for _, foundTool := range foundTools {
@@ -127,7 +127,7 @@ func TestListToolsReadOnly(t *testing.T) {
 	}
 
 	// Verify destructive tools are NOT present
-	destructiveTools := []string{"create_project", "delete_project", "update_project"}
+	destructiveTools := []string{"create_dashboard", "create_project", "delete_dashboard", "delete_project", "update_dashboard", "update_project"}
 	for _, destructiveTool := range destructiveTools {
 		for _, foundTool := range foundTools {
 			if foundTool == destructiveTool {

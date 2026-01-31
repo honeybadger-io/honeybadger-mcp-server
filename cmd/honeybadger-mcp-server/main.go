@@ -43,11 +43,11 @@ func init() {
 	stdioCmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
 	stdioCmd.Flags().Bool("read-only", true, "Run in read-only mode, excluding destructive tools")
 
-	// Bind flags to viper
+	// Bind flags to viper (excluding read-only, which is handled manually
+	// in runStdio to avoid viper's pflag default shadowing env vars)
 	_ = viper.BindPFlag("auth-token", stdioCmd.Flags().Lookup("auth-token"))
 	_ = viper.BindPFlag("api-url", stdioCmd.Flags().Lookup("api-url"))
 	_ = viper.BindPFlag("log-level", stdioCmd.Flags().Lookup("log-level"))
-	_ = viper.BindPFlag("read-only", stdioCmd.Flags().Lookup("read-only"))
 
 	rootCmd.AddCommand(stdioCmd)
 }
@@ -85,12 +85,18 @@ func initConfig() {
 }
 
 func runStdio(cmd *cobra.Command, args []string) error {
+	// Resolve read-only: CLI flag takes priority, otherwise use env/config/default
+	readOnly := viper.GetBool("read-only")
+	if cmd.Flags().Changed("read-only") {
+		readOnly, _ = cmd.Flags().GetBool("read-only")
+	}
+
 	// Load configuration
 	cfg, err := config.Load(
 		viper.GetString("auth-token"),
 		viper.GetString("api-url"),
 		viper.GetString("log-level"),
-		viper.GetBool("read-only"),
+		readOnly,
 	)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
