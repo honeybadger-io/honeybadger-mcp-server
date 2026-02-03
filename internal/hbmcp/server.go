@@ -86,5 +86,8 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	// Register insights tools
 	RegisterInsightsTools(s, apiClient)
 
+	// Register dashboard tools
+	RegisterDashboardTools(s, apiClient)
+
 	return s
 }

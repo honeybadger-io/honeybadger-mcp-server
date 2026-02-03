@@ -488,21 +488,125 @@ Construct URLs to link directly to query results in the Insights UI.
 | `ts` | no | Time range as ISO 8601 interval: `{start}/{end}` |
 | `stream_ids` | no | JSON array of stream IDs to filter |
 
-## View Types and Parameters
+## View Types and Chart Config
 
-| View | Required Params | Optional Params |
-|------|-----------------|-----------------|
-| `table` | — | — |
-| `billboard` | — | `titleField`, `valueField`, `subtitleField`, `statusField`, `groupType` |
-| `line` | — | `xField`, `yField`, `zField`, `yFieldUnit`, `yAxisLabel`, `yAxisMin`, `yAxisMax`, `groupType` |
-| `area` | — | `xField`, `yField`, `zField`, `stacked`, `groupType` |
-| `bar` | `categoryField`, `valueField` | `labelField`, `groupField`, `horizontal`, `stacked`, `groupType` |
-| `histogram` | `xField`, `yField` | `zField`, `xFieldUnit`, `yFieldUnit` |
-| `scatter` | `xField`, `yField` | `groupField`, `scaleField` |
-| `heatmap` | `xField`, `yField`, `zField` | `yFieldUnit`, `steps` |
-| `pie` | `nameField`, `valueField` | — |
+Each view type accepts a `chart_config` object with the fields below. All views also accept an optional `groups` object for custom series colors (see below).
 
-Note: Heatmap queries must include | sort xField, yField to render correctly.
+### `table`
+
+No additional config.
+
+### `billboard`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `titleField` | no | Field for title text |
+| `valueField` | conditional | Required when `groupType` is `"events"` |
+| `titleURLField` | no | Field containing URL for title link |
+| `subtitleField` | no | Field for subtitle text |
+| `statusField` | no | Field for status indicator |
+| `groupType` | no | `"fields"` or `"events"` |
+
+### `line`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `xField` | no | X-axis field |
+| `yField` | conditional | Required when `groupType` is `"events"` |
+| `zField` | no | Series/group field |
+| `colorField` | no | Field for line color |
+| `xFieldUnit` | no | Unit for X-axis values |
+| `yFieldUnit` | no | Unit for Y-axis values |
+| `groupType` | no | `"fields"` or `"events"` |
+| `yAxisLabel` | no | Left Y-axis label |
+| `yAxisMin` | no | Left Y-axis minimum (number) |
+| `yAxisMax` | no | Left Y-axis maximum (number) |
+| `rightYAxisFormat` | no | Format for right Y-axis |
+| `rightYAxisLabel` | no | Right Y-axis label |
+| `rightYAxisMin` | no | Right Y-axis minimum (number) |
+| `rightYAxisMax` | no | Right Y-axis maximum (number) |
+
+Line `groups` entries also accept `axis`: `"left"` or `"right"` to assign a series to the right Y-axis.
+
+### `area`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `xField` | no | X-axis field |
+| `yField` | conditional | Required when `groupType` is `"events"` |
+| `zField` | no | Series/group field |
+| `groupType` | no | `"fields"` or `"events"` |
+| `stacked` | no | Stack series (boolean) |
+
+### `bar`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `categoryField` | yes | Category axis field |
+| `valueField` | yes | Value axis field |
+| `valueFieldUnit` | no | Unit for value axis |
+| `labelField` | no | Label field |
+| `groupType` | no | `"fields"` or `"events"` |
+| `groupField` | no | Field to group bars by |
+| `horizontal` | no | Horizontal bars (boolean) |
+| `stacked` | no | Stack bars (boolean) |
+
+### `histogram`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `xField` | yes | X-axis field |
+| `yField` | yes | Y-axis field |
+| `zField` | no | Series/group field |
+| `xFieldUnit` | no | Unit for X-axis values |
+| `yFieldUnit` | no | Unit for Y-axis values |
+
+### `scatter`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `xField` | yes | X-axis field |
+| `yField` | yes | Y-axis field |
+| `groupField` | no | Field to color points by |
+| `scaleField` | no | Field to size points by |
+
+### `heatmap`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `xField` | yes | X-axis field |
+| `yField` | yes | Y-axis field |
+| `zField` | yes | Value/intensity field |
+| `yFieldUnit` | no | Unit for Y-axis values |
+| `steps` | no | Number of color steps (integer, min 1) |
+
+Note: Heatmap queries must include `| sort xField, yField` to render correctly.
+
+### `pie`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `nameField` | yes | Slice label field |
+| `valueField` | yes | Slice value field |
+
+### `groups` — Custom Series Colors
+
+All chart types accept a `groups` object in `chart_config` to assign colors to specific series. Keys are series names, values are objects with a `color` string:
+
+```json
+{
+  "view": "line",
+  "chart_config": {
+    "yField": "count",
+    "groups": {
+      "web": {"color": "#4A90D9"},
+      "api": {"color": "#E74C3C"}
+    }
+  }
+}
+```
+
+For `line` charts, group entries can also include `"axis": "right"` to plot a series on the right Y-axis.
 
 ## Example
 
@@ -518,3 +622,160 @@ URL:
 ```
 
 When surfacing findings, include these links so users can view results in the UI, adjust the query, or share with their team.
+
+# Dashboards
+
+Dashboards are collections of widgets displayed on a project's Insights page. Use the dashboard tools to create, update, list, get, and delete dashboards.
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_dashboards` | List all dashboards for a project |
+| `get_dashboard` | Get a single dashboard by ID |
+| `create_dashboard` | Create a new dashboard |
+| `update_dashboard` | Update an existing dashboard |
+| `delete_dashboard` | Delete a dashboard |
+
+## Creating a Dashboard
+
+Call `create_dashboard` with:
+
+- `project_id` (required) — integer project ID.
+- `title` (required) — dashboard title string.
+- `widgets` (required) — JSON string containing an array of widget objects.
+- `default_ts` (optional) — default time range. ISO 8601 duration (e.g., `P1D`, `PT3H`) or keyword (`today`, `yesterday`, `week`, `month`).
+
+### Example
+
+```json
+{
+  "project_id": 12345,
+  "title": "Production Overview",
+  "default_ts": "P1D",
+  "widgets": "[{\"type\":\"insights_vis\",\"presentation\":{\"title\":\"Error Rate\"},\"grid\":{\"x\":0,\"y\":0,\"w\":6,\"h\":4},\"config\":{\"query\":\"filter event_type::str == \\\"notice\\\" | stats count() by bin(1h)\",\"vis\":{\"view\":\"line\"}}},{\"type\":\"errors\",\"presentation\":{\"title\":\"Recent Errors\"},\"grid\":{\"x\":6,\"y\":0,\"w\":6,\"h\":4},\"config\":{\"limit\":10,\"sort\":\"last_seen_desc\"}}]"
+}
+```
+
+## Widget Structure
+
+Each widget object has:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | yes | Widget type (see below) |
+| `grid` | no | Layout position: `{x, y, w, h}` (integers, grid units) |
+| `presentation` | no | Display options: `{title, subtitle}` |
+| `config` | no | Type-specific configuration |
+
+## Widget Types
+
+### `insights_vis` — Insights Query Visualization
+
+Displays a BadgerQL query result as a chart or table.
+
+**Config:**
+
+| Field | Description |
+|-------|-------------|
+| `query` | BadgerQL query string |
+| `streams` | Array of stream names: `["default"]`, `["internal"]`, or both |
+| `vis` | Visualization settings (see below) |
+
+**`vis` object:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `view` | yes | Chart type: `table`, `billboard`, `line`, `area`, `bar`, `histogram`, `scatter`, `heatmap`, `pie` |
+| `chart_config` | no | View-specific options (same as Shareable URL params above) |
+
+**Example — line chart of error counts:**
+```json
+{
+  "type": "insights_vis",
+  "presentation": {"title": "Errors Over Time"},
+  "config": {
+    "query": "filter event_type::str == \"notice\" | stats count() by bin(1h)",
+    "vis": {"view": "line"}
+  }
+}
+```
+
+**Example — bar chart of top controllers:**
+```json
+{
+  "type": "insights_vis",
+  "presentation": {"title": "Top Controllers"},
+  "config": {
+    "query": "filter event_type::str == \"process_action.action_controller\" | stats count() by controller::str | sort count desc | limit 10",
+    "vis": {"view": "bar", "chart_config": {"categoryField": "controller", "valueField": "count"}}
+  }
+}
+```
+
+**Example — billboard showing total requests:**
+```json
+{
+  "type": "insights_vis",
+  "presentation": {"title": "Total Requests"},
+  "config": {
+    "query": "filter event_type::str == \"request.handled\" | stats count()",
+    "vis": {"view": "billboard"}
+  }
+}
+```
+
+### `errors` — Error List
+
+| Config Field | Description |
+|-------------|-------------|
+| `limit` | Max errors to show (integer) |
+| `query` | Search string to filter errors |
+| `sort` | Sort order: `last_seen_desc`, `last_seen_asc`, `times_desc`, `times_asc` |
+
+### `alarms` — Alarm Status
+
+| Config Field | Description |
+|-------------|-------------|
+| `limit` | Max alarms to show (integer) |
+| `filter_state` | Filter: `all`, `triggered`, `ok` |
+
+### `deployments` — Deploy History
+
+| Config Field | Description |
+|-------------|-------------|
+| `limit` | Max deploys to show (integer) |
+| `override_time` | Whether to use custom time range (boolean) |
+| `ts` | Custom time range string |
+
+### `checkins` — Check-In Status
+
+| Config Field | Description |
+|-------------|-------------|
+| `limit` | Max check-ins to show (integer) |
+| `sort_order` | Sort by: `state_name`, `name`, `last_reported` |
+
+### `uptime` — Uptime Monitors
+
+| Config Field | Description |
+|-------------|-------------|
+| `limit` | Max monitors to show (integer) |
+
+## Updating a Dashboard
+
+Call `update_dashboard` with `project_id`, `dashboard_id`, `title`, `widgets`, and optionally `default_ts`. The entire widget array is replaced — include all widgets, not just changed ones.
+
+## Grid Layout
+
+The dashboard uses a 12-column grid. Widget positions are set via `grid`:
+
+- `x` — column offset (0–11)
+- `y` — row offset (0 = top)
+- `w` — width in columns (1–12)
+- `h` — height in row units
+
+Example two-column layout:
+```
+Widget A: {x:0, y:0, w:6, h:4}    Widget B: {x:6, y:0, w:6, h:4}
+Widget C: {x:0, y:4, w:12, h:4}
+```
