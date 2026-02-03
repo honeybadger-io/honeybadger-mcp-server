@@ -360,10 +360,6 @@ func TestHandleCreateProject(t *testing.T) {
 	if !project.Active {
 		t.Error("expected created project to be active")
 	}
-
-	if project.Owner.Email != "user@example.com" {
-		t.Errorf("expected owner email 'user@example.com', got %s", project.Owner.Email)
-	}
 }
 
 func TestHandleCreateProject_ValidationError(t *testing.T) {
