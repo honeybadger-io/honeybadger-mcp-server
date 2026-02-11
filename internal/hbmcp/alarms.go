@@ -67,7 +67,7 @@ func RegisterAlarmTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 			mcp.WithString("query",
 				mcp.Required(),
-				mcp.Description("BadgerQL query for the alarm (e.g., 'filter event_type::str == \"notice\" | stats count()')"),
+				mcp.Description("BadgerQL query for the alarm (e.g., 'filter event_type::str == \"notice\"'). The alarm system wraps the query to count results automatically."),
 			),
 			mcp.WithString("evaluation_period",
 				mcp.Required(),
@@ -85,7 +85,7 @@ func RegisterAlarmTools(s *server.MCPServer, client *hbapi.Client) {
 			),
 			mcp.WithString("lookback_lag",
 				mcp.Required(),
-				mcp.Description("Delay before evaluating to allow data to arrive (e.g., 1m, 0s for no lag)"),
+				mcp.Description("Delay before evaluating to allow data to arrive (e.g., 1m, or 0s for no lag)."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

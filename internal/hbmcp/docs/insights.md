@@ -643,7 +643,7 @@ filter status::int >= 500
 
 URL:
 ```
-/projects/5/insights/query?query=filter+status%3A%3Aint+%3E%3D+500%0A%7C+stats+count%28%29+by+bin%281h%29&view=line&xField=bin(1h)&ts=2026-01-22T00:00:00/2026-01-29T00:00:00
+/projects/5/insights/query?query=filter+status%3A%3Aint+%3E%3D+500%0A%7C+stats+count%28%29+as+count+by+bin%281h%29&view=line&xField=bin(1h)&ts=2026-01-22T00:00:00/2026-01-29T00:00:00
 ```
 
 When surfacing findings, include these links so users can view results in the UI, adjust the query, or share with their team.
@@ -841,12 +841,12 @@ Call `create_alarm` with:
 
 - `project_id` (required) — integer project ID.
 - `name` (required) — alarm name string.
-- `query` (required) — BadgerQL query string. Must return a numeric result for the trigger to evaluate.
+- `query` (required) — BadgerQL query string. For count-based alarms (`alert_result_count`), this can be any query that returns rows (e.g., a `filter`); the system automatically wraps it to count matching results per evaluation period.
 - `evaluation_period` (required) — how often the alarm is evaluated (e.g., `5m`, `1h`, `1d`). Minimum `1m`.
 - `trigger_config` (required) — JSON string defining when to trigger the alarm (see below).
 - `description` (optional) — alarm description.
 - `stream_ids` (optional) — JSON array of stream IDs to query (defaults to `["default"]`).
-- `lookback_lag` (required) — delay before evaluating to allow data to arrive (e.g., `1m`, or `0m` for no lag).
+- `lookback_lag` (required) — delay before evaluating to allow data to arrive (e.g., `1m`, or `0s` for no lag).
 
 ### Example
 
@@ -967,7 +967,7 @@ Call `update_alarm` with `project_id`, `alarm_id`, and the fields to update. All
 ## Evaluation Timing
 
 - **evaluation_period** — How often the alarm checks (e.g., `5m`, `1h`, `1d`). Minimum `1m`, must be more granular than a week.
-- **lookback_lag** — Delay before evaluating to allow data to arrive (e.g., `1m`, or `0m` for no lag).
+- **lookback_lag** — Delay before evaluating to allow data to arrive (e.g., `1m`, or `0s` for no lag).
 
 The alarm evaluates at each period boundary, looking back over the `evaluation_period` duration (offset by `lookback_lag` if set).
 
