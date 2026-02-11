@@ -89,5 +89,8 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	// Register dashboard tools
 	RegisterDashboardTools(s, apiClient)
 
+	// Register alarm tools
+	RegisterAlarmTools(s, apiClient)
+
 	return s
 }

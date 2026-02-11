@@ -3,15 +3,17 @@
 ## Cheat Sheet
 
 ```
-stats count()                                    # count events
-stats count() by field::str                      # count grouped by field
-stats count() by bin(1h)                         # time series (hourly)
+stats count() as count                           # count events
+stats count() as count by field::str             # count grouped by field
+stats count() as count by bin(1h)                # time series (hourly)
 filter field::str == "value"                     # filter events
-filter field::int >= 400 | stats count()         # filter then aggregate
-stats avg(field::int) by group::str              # average by group
+filter field::int >= 400 | stats count() as count  # filter then aggregate
+stats avg(field::int) as avg by group::str       # average by group
 | sort avg desc | limit 10                       # sort + limit results
 | only @ts, field1, field2                       # restrict output columns
 ```
+
+**Always alias aggregate functions** — `stats count() as count`, not `stats count()`. Without an alias, the output column is literally `count()`, which is hard to reference in `sort`, `filter`, or a second `stats`.
 
 Pipe `|` joins functions. Type-hint fields once with `::int`, `::str`, `::float`, `::bool` to tell BadgerQL which storage bucket to find the data in.
 
@@ -24,7 +26,7 @@ Call the `query_insights` tool with these arguments:
 ```json
 {
   "project_id": 12345,
-  "query": "stats count() by event_type::str | sort count desc",
+  "query": "stats count() as count by event_type::str | sort count desc",
   "ts": "P1D",
   "timezone": "America/New_York"
 }
@@ -47,33 +49,36 @@ This returns the total event count for the project within the default `PT3H` win
 
 ### Starter queries — copy and adapt
 
-**1. What event types exist?** (run this first to discover available data)
+**1. What event types exist?** (always run this first to discover available data)
 ```
-stats count() by event_type::str
+stats count() as count by event_type::str
 | sort count desc
 ```
 
-**2. What fields are on an event type?** (inspect one event to see its fields)
+**2. What fields are on an event type?** (this single query returns one sample event per event type — showing all field names, values, and actual types so you can pick the right `::type` hint)
 ```
-filter event_type::str == "request.handled"
-| limit 1
+fields @preview | limit 1 by event_type::str
 ```
 
-**3. Error count over time:**
+This returns one sample for **every** event type in one call. Do NOT run separate per-event-type queries — use this single query to see all fields across all event types at once. Different event types have different fields. For example, `process_action.action_controller` events have `controller`, `action`, `duration` but likely not `country` or `session_id`. Custom events like `checkout.intent` may have `country`, `gateway`, etc. Run this query before writing analytical queries to avoid wasting round trips guessing at field names or type hints.
+
+**3. When investigating a problem**, break down by every low-cardinality categorical field. Review `@preview` and identify fields that represent categories or dimensions (e.g., types, statuses, names, regions) rather than unique identifiers (e.g., IDs, timestamps, emails). Include each noteworthy field as a `by` field in your analytical queries, or explicitly state why it is irrelevant. Skip high-cardinality fields like IDs or free-text values. Presenting conclusions without checking all available dimensions is an incomplete analysis — do not summarize findings until every noteworthy field has been considered or ruled out.
+
+**4. Error count over time:**
 ```
 filter event_type::str == "notice"
-| stats count() by bin(1h)
+| stats count() as count by bin(1h)
 ```
 
-**4. Top controllers by request count:**
+**5. Top controllers by request count:**
 ```
 filter event_type::str == "process_action.action_controller"
-| stats count() by controller::str
+| stats count() as count by controller::str
 | sort count desc
 | limit 10
 ```
 
-**5. Latency percentiles by endpoint:**
+**6. Latency percentiles by endpoint:**
 ```
 filter event_type::str == "process_action.action_controller"
 | stats
@@ -84,7 +89,7 @@ filter event_type::str == "process_action.action_controller"
 | sort p95 desc
 ```
 
-**6. Unique users affected by faults:**
+**7. Unique users affected by faults:**
 ```
 filter event_type::str == "notice"
 | stats unique(user::str) as `Affected Users` by fault_id::int
@@ -92,7 +97,7 @@ filter event_type::str == "notice"
 | limit 10
 ```
 
-**7. Status code breakdown over time:**
+**8. Status code breakdown over time:**
 ```
 filter event_type::str == "process_action.action_controller"
 | fields cond(
@@ -102,11 +107,11 @@ filter event_type::str == "process_action.action_controller"
     status::int >= 500, "5XX",
     "OTHER"
   ) as status_group
-| stats count() by status_group, bin(1h) as `time`
+| stats count() as count by status_group, bin(1h) as `time`
 | sort time asc
 ```
 
-**8. Apdex score by controller:**
+**9. Apdex score by controller:**
 ```
 filter event_type::str == "request.handled"
 | stats round(apdex(duration::int, 200000), 3) as apdex by controller::str
@@ -115,17 +120,37 @@ filter event_type::str == "request.handled"
 
 ### Best practices for writing queries
 
-- **Start with `stats count()`** to verify data exists before building complex queries.
-- **Discover fields** by filtering to one event type and using `| limit 1` to inspect a sample event.
-- **Hint types once** — `filter status::int > 400 | stats count() by status` works; don't re-hint `status` after the first use.
+- **Always run the discovery queries first** (starter queries 1 and 2 above). Run `@preview` for every event type you plan to query. This tells you exactly which fields exist and what types they are, so you don't waste queries guessing.
+- **Pick type hints from `@preview` output** — if `@preview` shows `duration: 28.7`, use `::float`, not `::int`. If it shows `status: 200`, use `::int`. Getting this wrong returns empty results and costs a round trip.
+- **Don't assume fields exist across event types** — each event type has its own set of fields. A field like `country` may exist on `checkout.intent` but not on `process_action.action_controller`. Always check `@preview` first rather than querying with `filter isNotNull(field::str)` to probe for fields.
+- **Hint types once** — `filter status::int > 400 | stats count() as count by status` works; don't re-hint `status` after the first use.
 - **Keep output small** — always end with `| sort ... | limit N` and use `| only` to restrict columns. Large unbounded results are slow and hard to read.
 - **Use `event_type::str`** to filter to the kind of event you care about. Common event types include `notice`, `request.handled`, `process_action.action_controller`, `sql.active_record`, `perform.sidekiq`, `uptime_check`.
 
+### Correlating across event types
+
+When fields you need are spread across different event types, group by a shared key (e.g. `session_id`) and use `first()`/`last()` to pull fields from different event types into the same aggregation row. These functions skip null values, so if a field only exists on one event type, `first()` will find it regardless of row order.
+
+```
+filter event_type::str in ["process_action.action_controller", "checkout.intent"]
+| stats first(country::str) as country,
+        first(duration::float) as duration,
+        first(controller::str) as controller
+    by session_id::str
+| filter isNotNull(country) and controller == "CheckoutController"
+| stats avg(duration) as avg_dur, count() as cnt by country
+| sort avg_dur desc
+```
+
+Note: double aggregation (`stats | filter | stats`) works, but the second `stats` and any `filter` between them must reference the **aliases** produced by the first `stats`, not the original field names with type hints. After the first `stats`, the original fields no longer exist — only the aliases do.
+
 ### Common pitfalls
 
+- **Unaliased aggregate functions**: `stats count()` produces a column named `count()`, not `count`. Always alias: `stats count() as count`. Without an alias, `sort count desc` will fail because there is no column named `count`.
 - **Missing pipes**: Every function after the first must be preceded by `|`. Multi-line queries need `|` at the start of each new function line.
-- **Wrong type hint**: Data is stored per type, so `status::str` looks in the string bucket — if the data is actually stored as an integer, you'll get empty results or a type error. Use `::int` for numbers, `::str` for strings.
+- **Wrong type hint**: Data is stored per type, so `status::str` looks in the string bucket — if the data is actually stored as an integer, you'll get empty results or a type error. Use `::int` for whole numbers, `::float` for decimals, `::str` for strings. Check `@preview` output to see actual values and pick the right hint. A common mistake is using `::int` for a field that is actually a float (e.g., `duration`).
 - **Forgetting type hints**: Without a hint, BadgerQL doesn't know which storage bucket to look in, which can produce errors or empty results.
+- **Assuming fields exist on an event type**: Don't blindly query fields like `country::str` or `session_id::str` on event types that may not have them. Run the `@preview` discovery query first. If you need data from multiple event types, see "Correlating across event types" above.
 - **`bin()` without interval**: `bin()` auto-selects bucket size based on the query time range. Pass an explicit interval like `bin(1h)` for predictable output.
 - **`ts` defaults to `PT3H`** (last 3 hours): If you're looking for older data, set `ts` explicitly (e.g., `"week"`, `"P1D"`, `"P30D"`).
 
@@ -148,7 +173,7 @@ Functions are combined with the pipe operator `|`:
 ```
 fields status_code::int, controller::str
 | filter status_code > 400
-| stats count() by controller
+| stats count() as count by controller
 | sort count desc
 | limit 10
 ```
@@ -236,10 +261,10 @@ stats agg_expr[, ...]* by [expr][, ...]*
 Group and aggregate data. The `by` clause specifies grouping fields. Aggregate expressions must use an aggregate function (count, sum, avg, min, max, unique, percentile, first, last, apdex).
 
 ```
-stats count()
-stats count() by status_code::int
-stats avg(duration::int), count() by controller::str, action::str
-stats percentile(95, duration::int) by bin(1h)
+stats count() as count
+stats count() as count by status_code::int
+stats avg(duration::int) as avg, count() as count by controller::str, action::str
+stats percentile(95, duration::int) as p95 by bin(1h)
 ```
 
 ### limit
@@ -447,7 +472,7 @@ The `ts` parameter on query_insights controls the time window.
     {"ts": "2024-01-01T00:00:00Z", "count": 42, "name": "web"}
   ],
   "meta": {
-    "query": "stats count() by name::str",
+    "query": "stats count() as count by name::str",
     "fields": ["ts", "count", "name"],
     "schema": [
       {"name": "ts", "type": "DateTime"},
@@ -613,12 +638,12 @@ For `line` charts, group entries can also include `"axis": "right"` to plot a se
 Query:
 ```
 filter status::int >= 500
-| stats count() by bin(1h)
+| stats count() as count by bin(1h)
 ```
 
 URL:
 ```
-/projects/5/insights/query?query=filter+status%3A%3Aint+%3E%3D+500%0A%7C+stats+count%28%29+by+bin%281h%29&view=line&xField=bin(1h)&ts=2026-01-22T00:00:00/2026-01-29T00:00:00
+/projects/5/insights/query?query=filter+status%3A%3Aint+%3E%3D+500%0A%7C+stats+count%28%29+as+count+by+bin%281h%29&view=line&xField=bin(1h)&ts=2026-01-22T00:00:00/2026-01-29T00:00:00
 ```
 
 When surfacing findings, include these links so users can view results in the UI, adjust the query, or share with their team.
@@ -639,6 +664,8 @@ Dashboards are collections of widgets displayed on a project's Insights page. Us
 
 ## Creating a Dashboard
 
+**Before creating or updating a dashboard, test every widget query with `query_insights` first.** Dashboard creation will not validate queries, so broken queries will silently produce empty or erroring widgets. Run each query individually to confirm it returns the expected data, then use those validated queries in the widget configs.
+
 Call `create_dashboard` with:
 
 - `project_id` (required) — integer project ID.
@@ -653,7 +680,7 @@ Call `create_dashboard` with:
   "project_id": 12345,
   "title": "Production Overview",
   "default_ts": "P1D",
-  "widgets": "[{\"type\":\"insights_vis\",\"presentation\":{\"title\":\"Error Rate\"},\"grid\":{\"x\":0,\"y\":0,\"w\":6,\"h\":4},\"config\":{\"query\":\"filter event_type::str == \\\"notice\\\" | stats count() by bin(1h)\",\"vis\":{\"view\":\"line\"}}},{\"type\":\"errors\",\"presentation\":{\"title\":\"Recent Errors\"},\"grid\":{\"x\":6,\"y\":0,\"w\":6,\"h\":4},\"config\":{\"limit\":10,\"sort\":\"last_seen_desc\"}}]"
+  "widgets": "[{\"type\":\"insights_vis\",\"presentation\":{\"title\":\"Error Rate\"},\"grid\":{\"x\":0,\"y\":0,\"w\":6,\"h\":4},\"config\":{\"query\":\"filter event_type::str == \\\"notice\\\" | stats count() as count by bin(1h)\",\"vis\":{\"view\":\"line\"}}},{\"type\":\"errors\",\"presentation\":{\"title\":\"Recent Errors\"},\"grid\":{\"x\":6,\"y\":0,\"w\":6,\"h\":4},\"config\":{\"limit\":10,\"sort\":\"last_seen_desc\"}}]"
 }
 ```
 
@@ -695,7 +722,7 @@ Displays a BadgerQL query result as a chart or table.
   "type": "insights_vis",
   "presentation": {"title": "Errors Over Time"},
   "config": {
-    "query": "filter event_type::str == \"notice\" | stats count() by bin(1h)",
+    "query": "filter event_type::str == \"notice\" | stats count() as count by bin(1h)",
     "vis": {"view": "line"}
   }
 }
@@ -707,7 +734,7 @@ Displays a BadgerQL query result as a chart or table.
   "type": "insights_vis",
   "presentation": {"title": "Top Controllers"},
   "config": {
-    "query": "filter event_type::str == \"process_action.action_controller\" | stats count() by controller::str | sort count desc | limit 10",
+    "query": "filter event_type::str == \"process_action.action_controller\" | stats count() as count by controller::str | sort count desc | limit 10",
     "vis": {"view": "bar", "chart_config": {"categoryField": "controller", "valueField": "count"}}
   }
 }
@@ -719,7 +746,7 @@ Displays a BadgerQL query result as a chart or table.
   "type": "insights_vis",
   "presentation": {"title": "Total Requests"},
   "config": {
-    "query": "filter event_type::str == \"request.handled\" | stats count()",
+    "query": "filter event_type::str == \"request.handled\" | stats count() as count",
     "vis": {"view": "billboard"}
   }
 }
@@ -774,8 +801,218 @@ The dashboard uses a 12-column grid. Widget positions are set via `grid`:
 - `w` — width in columns (1–12)
 - `h` — height in row units
 
+**Widgets must not overlap.** A widget's `y` value must be >= the `y + h` of any widget above it in the same columns. Plan the layout on paper first — sketch out each row, tracking the next available `y` for each column before assigning positions. Overlapping or misaligned widgets will render incorrectly.
+
 Example two-column layout:
 ```
-Widget A: {x:0, y:0, w:6, h:4}    Widget B: {x:6, y:0, w:6, h:4}
-Widget C: {x:0, y:4, w:12, h:4}
+Row 0:  Widget A: {x:0, y:0, w:6, h:4}    Widget B: {x:6, y:0, w:6, h:4}
+Row 4:  Widget C: {x:0, y:4, w:12, h:4}
+Row 8:  Widget D: {x:0, y:8, w:6, h:3}    Widget E: {x:6, y:8, w:6, h:3}
+```
+
+Note: widgets in the same row that sit side-by-side should share the same `y` value. The next row starts at `y + h` of the tallest widget in the current row.
+
+## Presenting Dashboard Links
+
+After creating or updating a dashboard, present the user with a direct link so they can view it in the Honeybadger UI:
+
+```
+https://app.honeybadger.io/projects/{project_id}/insights/dashboards/{dashboard_id}
+```
+
+# Alarms
+
+Alarms monitor Insights queries and trigger notifications when conditions are met. Use the alarm tools to create, update, list, get, delete alarms, and view their trigger history.
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_alarms` | List all alarms for a project |
+| `get_alarm` | Get a single alarm by ID |
+| `create_alarm` | Create a new alarm |
+| `update_alarm` | Update an existing alarm |
+| `delete_alarm` | Delete an alarm |
+| `get_alarm_history` | Get trigger history for an alarm |
+
+## Creating an Alarm
+
+Call `create_alarm` with:
+
+- `project_id` (required) — integer project ID.
+- `name` (required) — alarm name string.
+- `query` (required) — BadgerQL query string. For count-based alarms (`alert_result_count`), this can be any query that returns rows (e.g., a `filter`); the system automatically wraps it to count matching results per evaluation period.
+- `evaluation_period` (required) — how often the alarm is evaluated (e.g., `5m`, `1h`, `1d`). Minimum `1m`.
+- `trigger_config` (required) — JSON string defining when to trigger the alarm (see below).
+- `description` (optional) — alarm description.
+- `stream_ids` (optional) — JSON array of stream IDs to query (defaults to `["default"]`).
+- `lookback_lag` (required) — delay before evaluating to allow data to arrive (e.g., `1m`, or `0s` for no lag).
+
+### Example
+
+```json
+{
+  "project_id": 12345,
+  "name": "High Error Rate",
+  "description": "Triggers when error count exceeds 100 in 5 minutes",
+  "query": "filter event_type::str == \"notice\"",
+  "evaluation_period": "5m",
+  "lookback_lag": "1m",
+  "trigger_config": "{\"type\": \"alert_result_count\", \"config\": {\"operator\": \"gt\", \"value\": 100}}"
+}
+```
+
+## Trigger Config
+
+The `trigger_config` defines when an alarm transitions to the triggered state.
+
+### Structure
+
+```json
+{
+  "type": "alert_result_count",
+  "config": {
+    "operator": "gt",
+    "value": 100
+  }
+}
+```
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `alert_result_count` | Triggers based on the count of events matching the query |
+
+### Config Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `operator` | string | Comparison operator (required) |
+| `value` | integer | Threshold value to compare against (required, >= 0) |
+
+### Operators
+
+| Operator | Description |
+|----------|-------------|
+| `gt` | Greater than |
+| `gte` | Greater than or equal |
+| `lt` | Less than |
+| `lte` | Less than or equal |
+| `eq` | Equal |
+| `neq` | Not equal |
+
+### Examples
+
+**Trigger when error count exceeds 50:**
+```json
+{"type": "alert_result_count", "config": {"operator": "gt", "value": 50}}
+```
+
+**Trigger when count drops below threshold:**
+```json
+{"type": "alert_result_count", "config": {"operator": "lt", "value": 10}}
+```
+
+**Trigger when exactly zero events (missing heartbeat):**
+```json
+{"type": "alert_result_count", "config": {"operator": "eq", "value": 0}}
+```
+
+**Trigger when any events exist:**
+```json
+{"type": "alert_result_count", "config": {"operator": "neq", "value": 0}}
+```
+
+## Alarm States
+
+| State | Description |
+|-------|-------------|
+| `ok` | Query result does not meet trigger condition |
+| `alarm` | Query result meets trigger condition (alarm is triggered) |
+
+Note: An alarm with a non-null `error` field indicates the query failed to execute. Check the `error` field for details.
+
+## Query Guidelines for Alarms
+
+The alarm system automatically wraps your query to count results per evaluation period. Your query should filter and/or aggregate events; the system handles the final counting.
+
+**Good queries:**
+```
+filter event_type::str == "notice"
+filter status::int >= 500
+filter event_type::str == "request.handled" and duration::int > 5000
+```
+
+**Queries with stats work too** (system counts the result rows):
+```
+filter event_type::str == "notice" | stats count() as count by fault_id::int
+```
+
+## Alarm History
+
+Use `get_alarm_history` to see past trigger events. Each trigger record includes:
+
+| Field | Description |
+|-------|-------------|
+| `id` | Trigger event ID |
+| `state` | State after evaluation (`ok`, `alarm`, `error`) |
+| `result` | Query result that caused this state |
+| `created_at` | When the evaluation occurred |
+
+## Updating an Alarm
+
+Call `update_alarm` with `project_id`, `alarm_id`, and the fields to update. All required fields (`name`, `query`, `evaluation_period`, `trigger_config`) must be provided even if unchanged.
+
+## Evaluation Timing
+
+- **evaluation_period** — How often the alarm checks (e.g., `5m`, `1h`, `1d`). Minimum `1m`, must be more granular than a week.
+- **lookback_lag** — Delay before evaluating to allow data to arrive (e.g., `1m`, or `0s` for no lag).
+
+The alarm evaluates at each period boundary, looking back over the `evaluation_period` duration (offset by `lookback_lag` if set).
+
+## Common Alarm Patterns
+
+**Error spike detection:**
+```
+name: "Error Spike"
+query: "filter event_type::str == \"notice\""
+evaluation_period: "5m"
+lookback_lag: "1m"
+trigger_config: {"type": "alert_result_count", "config": {"operator": "gt", "value": 100}}
+```
+
+**Slow requests:**
+```
+name: "Slow Requests"
+query: "filter event_type::str == \"request.handled\" and duration::int > 5000"
+evaluation_period: "5m"
+lookback_lag: "1m"
+trigger_config: {"type": "alert_result_count", "config": {"operator": "gt", "value": 10}}
+```
+
+**Missing heartbeat (no events in period):**
+```
+name: "Missing Heartbeat"
+query: "filter event_type::str == \"heartbeat\""
+evaluation_period: "10m"
+lookback_lag: "0m"
+trigger_config: {"type": "alert_result_count", "config": {"operator": "eq", "value": 0}}
+```
+
+**5xx errors:**
+```
+name: "Server Errors"
+query: "filter event_type::str == \"request.handled\" and status::int >= 500"
+evaluation_period: "5m"
+lookback_lag: "1m"
+trigger_config: {"type": "alert_result_count", "config": {"operator": "gt", "value": 0}}
+```
+
+## Presenting Alarm Links
+
+After creating or updating an alarm, present the user with a direct link so they can view it in the Honeybadger UI:
+
+```
+https://app.honeybadger.io/projects/{project_id}/insights/alarms/{alarm_id}
 ```
