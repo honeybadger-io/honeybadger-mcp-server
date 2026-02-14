@@ -180,6 +180,51 @@ func TestHandleListFaults_WithPage(t *testing.T) {
 	}
 }
 
+func TestHandleListFaults_WithTimestampOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		// API expects Unix timestamps: 2024-01-01T00:00:00Z = 1704067200, etc.
+		if query.Get("created_after") != "1704067200" {
+			t.Errorf("expected created_after=1704067200 (Unix timestamp), got %s", query.Get("created_after"))
+		}
+		if query.Get("occurred_after") != "1704153600" {
+			t.Errorf("expected occurred_after=1704153600 (Unix timestamp), got %s", query.Get("occurred_after"))
+		}
+		if query.Get("occurred_before") != "1704240000" {
+			t.Errorf("expected occurred_before=1704240000 (Unix timestamp), got %s", query.Get("occurred_before"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"results": []}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id":      123,
+				"created_after":   "2024-01-01T00:00:00Z",
+				"occurred_after":  "2024-01-02T00:00:00Z",
+				"occurred_before": "2024-01-03T00:00:00Z",
+			},
+		},
+	}
+
+	result, err := handleListFaults(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleListFaults() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+}
+
 func TestHandleListFaults_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

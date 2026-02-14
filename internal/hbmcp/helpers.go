@@ -8,7 +8,7 @@ import (
 // parseUnixTimestamp converts a timestamp string to Unix epoch (int64).
 // Accepts either RFC3339 format or Unix timestamp string.
 // Returns 0 if empty or invalid.
-// Use for API endpoints that expect Unix timestamps (faults, deployments, uptime).
+// Use for API endpoints that expect Unix timestamps (faults).
 func parseUnixTimestamp(ts string) int64 {
 	if ts == "" {
 		return 0
@@ -26,7 +26,7 @@ func parseUnixTimestamp(ts string) int64 {
 
 // parseTimestamp converts a timestamp string to *time.Time.
 // Returns nil if empty or invalid.
-// Use for API endpoints that expect ISO 8601 format (project reports).
+// Use for API endpoints that expect RFC3339 format (project reports).
 func parseTimestamp(ts string) *time.Time {
 	if ts == "" {
 		return nil
