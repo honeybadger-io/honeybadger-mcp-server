@@ -558,11 +558,12 @@ func TestHandleListFaultNotices(t *testing.T) {
 func TestHandleListFaultNotices_WithOptions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
-		if query.Get("created_after") != "2024-01-01T00:00:00Z" {
-			t.Errorf("expected created_after=2024-01-01T00:00:00Z, got %s", query.Get("created_after"))
+
+		if query.Get("created_after") != "1704067200" {
+			t.Errorf("expected created_after=1704067200 (Unix timestamp), got %s", query.Get("created_after"))
 		}
-		if query.Get("created_before") != "2024-01-02T00:00:00Z" {
-			t.Errorf("expected created_before=2024-01-02T00:00:00Z, got %s", query.Get("created_before"))
+		if query.Get("created_before") != "1704153600" {
+			t.Errorf("expected created_before=1704153600 (Unix timestamp), got %s", query.Get("created_before"))
 		}
 		if query.Get("limit") != "10" {
 			t.Errorf("expected limit=10, got %s", query.Get("limit"))
@@ -963,8 +964,9 @@ func TestHandleGetFaultCounts_WithOptions(t *testing.T) {
 		if query.Get("q") != "environment:production" {
 			t.Errorf("expected q=environment:production, got %s", query.Get("q"))
 		}
-		if query.Get("created_after") != "2024-01-01T00:00:00Z" {
-			t.Errorf("expected created_after=2024-01-01T00:00:00Z, got %s", query.Get("created_after"))
+
+		if query.Get("created_after") != "1704067200" {
+			t.Errorf("expected created_after=1704067200 (Unix timestamp), got %s", query.Get("created_after"))
 		}
 
 		w.Header().Set("Content-Type", "application/json")

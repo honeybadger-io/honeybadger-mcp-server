@@ -174,9 +174,9 @@ func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	// Build options struct
 	options := hbapi.FaultListOptions{
 		Q:              req.GetString("q", ""),
-		CreatedAfter:   parseTimestamp(req.GetString("created_after", "")),
-		OccurredAfter:  parseTimestamp(req.GetString("occurred_after", "")),
-		OccurredBefore: parseTimestamp(req.GetString("occurred_before", "")),
+		CreatedAfter:   parseUnixTimestamp(req.GetString("created_after", "")),
+		OccurredAfter:  parseUnixTimestamp(req.GetString("occurred_after", "")),
+		OccurredBefore: parseUnixTimestamp(req.GetString("occurred_before", "")),
 		Limit:          req.GetInt("limit", 0),
 		Order:          req.GetString("order", ""),
 		Page:           req.GetInt("page", 0),
@@ -234,8 +234,8 @@ func handleListFaultNotices(ctx context.Context, client *hbapi.Client, req mcp.C
 
 	// Build options struct
 	options := hbapi.FaultListNoticesOptions{
-		CreatedAfter:  parseTimestamp(req.GetString("created_after", "")),
-		CreatedBefore: parseTimestamp(req.GetString("created_before", "")),
+		CreatedAfter:  parseUnixTimestamp(req.GetString("created_after", "")),
+		CreatedBefore: parseUnixTimestamp(req.GetString("created_before", "")),
 		Limit:         req.GetInt("limit", 0),
 	}
 
@@ -292,9 +292,9 @@ func handleGetFaultCounts(ctx context.Context, client *hbapi.Client, req mcp.Cal
 	// Build options struct (reuse same filtering options as List)
 	options := hbapi.FaultListOptions{
 		Q:              req.GetString("q", ""),
-		CreatedAfter:   parseTimestamp(req.GetString("created_after", "")),
-		OccurredAfter:  parseTimestamp(req.GetString("occurred_after", "")),
-		OccurredBefore: parseTimestamp(req.GetString("occurred_before", "")),
+		CreatedAfter:   parseUnixTimestamp(req.GetString("created_after", "")),
+		OccurredAfter:  parseUnixTimestamp(req.GetString("occurred_after", "")),
+		OccurredBefore: parseUnixTimestamp(req.GetString("occurred_before", "")),
 	}
 
 	counts, err := client.Faults.GetCounts(ctx, projectID, options)
