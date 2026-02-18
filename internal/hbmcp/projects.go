@@ -234,7 +234,7 @@ type projectSummary struct {
 // projectSummaryResponse wraps summary results with pagination links,
 // preserving the same envelope shape as the upstream API response.
 type projectSummaryResponse struct {
-	Results []projectSummary    `json:"results"`
+	Results []projectSummary      `json:"results"`
 	Links   hbapi.PaginationLinks `json:"links"`
 }
 
