@@ -85,12 +85,19 @@ func TestHandleListProjects(t *testing.T) {
 		t.Errorf("expected second project name 'Project 2', got %s", response.Results[1].Name)
 	}
 
-	// Verify that heavy fields are not present in the response
-	if strings.Contains(resultText, "\"environments\"") {
-		t.Error("summary response should not contain environments field")
+	// Verify that heavy fields are not present in the response by inspecting JSON object keys
+	var raw struct {
+		Results []map[string]json.RawMessage `json:"results"`
 	}
-	if strings.Contains(resultText, "\"users\"") {
-		t.Error("summary response should not contain users field")
+	if err := json.Unmarshal([]byte(resultText), &raw); err != nil {
+		t.Fatalf("Response should be valid JSON for raw inspection: %v", err)
+	}
+	for i, proj := range raw.Results {
+		for _, excluded := range []string{"environments", "users", "sites", "teams", "owner"} {
+			if _, ok := proj[excluded]; ok {
+				t.Errorf("summary response project %d should not contain %s field", i, excluded)
+			}
+		}
 	}
 }
 
@@ -218,6 +225,10 @@ func TestHandleListProjects_ResponseShape(t *testing.T) {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
 
+	if result.IsError {
+		t.Fatalf("expected non-error result, got error: %s", getResultText(result))
+	}
+
 	resultText := getResultText(result)
 
 	// Parse into raw JSON to verify exact top-level shape
@@ -264,10 +275,19 @@ func TestHandleListProjects_ResponseShape(t *testing.T) {
 		t.Error("expected last_notice_at to be set")
 	}
 
-	// Verify heavy fields from the API are excluded
-	for _, excluded := range []string{"\"environments\"", "\"sites\"", "\"teams\"", "\"users\"", "\"owner\""} {
-		if strings.Contains(resultText, excluded) {
-			t.Errorf("summary response should not contain %s", excluded)
+	// Verify heavy fields from the API are excluded by checking JSON keys
+	var rawResults struct {
+		Results []map[string]json.RawMessage `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(resultText), &rawResults); err != nil {
+		t.Fatalf("failed to unmarshal resultText for excluded-field check: %v", err)
+	}
+	if len(rawResults.Results) == 0 {
+		t.Fatalf("expected at least 1 result in JSON response")
+	}
+	for _, excluded := range []string{"environments", "sites", "teams", "users", "owner"} {
+		if _, ok := rawResults.Results[0][excluded]; ok {
+			t.Errorf("summary response should not contain %s field", excluded)
 		}
 	}
 }
