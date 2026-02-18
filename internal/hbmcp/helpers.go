@@ -12,3 +12,14 @@ func parseTimestamp(ts string) *time.Time {
 	}
 	return nil
 }
+
+// parseTimestampValue converts a timestamp string to time.Time, returns zero value if empty or invalid
+func parseTimestampValue(ts string) time.Time {
+	if ts == "" {
+		return time.Time{}
+	}
+	if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
+		return parsed
+	}
+	return time.Time{}
+}
