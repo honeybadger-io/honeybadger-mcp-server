@@ -66,11 +66,11 @@ func TestHandleListProjects(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Verify the response can be unmarshaled as a projects list response
+	// Verify the response preserves the envelope shape with lightweight summaries
 	resultText := getResultText(result)
-	var response hbapi.ProjectsResponse
+	var response projectSummaryResponse
 	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Errorf("Response should be valid JSON projects list response: %v", err)
+		t.Fatalf("Response should be valid JSON project summary response: %v", err)
 	}
 
 	if len(response.Results) != 2 {
@@ -83,6 +83,14 @@ func TestHandleListProjects(t *testing.T) {
 
 	if response.Results[1].Name != "Project 2" {
 		t.Errorf("expected second project name 'Project 2', got %s", response.Results[1].Name)
+	}
+
+	// Verify that heavy fields are not present in the response
+	if strings.Contains(resultText, "\"environments\"") {
+		t.Error("summary response should not contain environments field")
+	}
+	if strings.Contains(resultText, "\"users\"") {
+		t.Error("summary response should not contain users field")
 	}
 }
 
@@ -160,11 +168,11 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 		t.Fatal("expected successful result, got error")
 	}
 
-	// Verify the response can be unmarshaled as a projects list response
+	// Verify the response preserves the envelope shape with lightweight summaries
 	resultText := getResultText(result)
-	var response hbapi.ProjectsResponse
+	var response projectSummaryResponse
 	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Errorf("Response should be valid JSON projects list response: %v", err)
+		t.Fatalf("Response should be valid JSON project summary response: %v", err)
 	}
 
 	if len(response.Results) != 1 {
@@ -177,6 +185,90 @@ func TestHandleListProjects_WithAccountID(t *testing.T) {
 
 	if response.Results[0].ID != 1 {
 		t.Errorf("expected project ID 1, got %d", response.Results[0].ID)
+	}
+}
+
+func TestHandleListProjects_ResponseShape(t *testing.T) {
+	mockResponse := `{
+		"results": [
+			{"id": 1, "name": "Project 1", "active": true, "created_at": "2024-01-01T00:00:00Z", "last_notice_at": "2024-06-15T10:30:00Z", "token": "secret123", "fault_count": 5, "unresolved_fault_count": 2, "environments": ["production", "staging"], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [{"id": "s1", "name": "Site 1", "url": "https://example.com", "active": true, "frequency": 5, "match_type": "success", "state": "up"}], "teams": [{"id": 1, "name": "Team 1"}], "users": [{"id": 1, "email": "user@example.com", "name": "User 1"}]}
+		],
+		"links": {"self": "/v2/projects", "next": "/v2/projects?page=2", "prev": ""}
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{},
+		},
+	}
+
+	result, err := handleListProjects(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleListProjects() error = %v", err)
+	}
+
+	resultText := getResultText(result)
+
+	// Parse into raw JSON to verify exact top-level shape
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(resultText), &raw); err != nil {
+		t.Fatalf("response should be a JSON object: %v", err)
+	}
+
+	// Must have "results" and "links" keys
+	if _, ok := raw["results"]; !ok {
+		t.Fatal("response must have 'results' key")
+	}
+	if _, ok := raw["links"]; !ok {
+		t.Fatal("response must have 'links' key")
+	}
+
+	// Verify pagination links are preserved
+	var response projectSummaryResponse
+	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if response.Links.Self != "/v2/projects" {
+		t.Errorf("expected links.self '/v2/projects', got %s", response.Links.Self)
+	}
+	if response.Links.Next != "/v2/projects?page=2" {
+		t.Errorf("expected links.next '/v2/projects?page=2', got %s", response.Links.Next)
+	}
+
+	// Verify summary fields are present and correct
+	if len(response.Results) != 1 {
+		t.Fatalf("expected 1 project, got %d", len(response.Results))
+	}
+	p := response.Results[0]
+	if p.ID != 1 {
+		t.Errorf("expected id 1, got %d", p.ID)
+	}
+	if p.FaultCount != 5 {
+		t.Errorf("expected fault_count 5, got %d", p.FaultCount)
+	}
+	if p.UnresolvedFaultCount != 2 {
+		t.Errorf("expected unresolved_fault_count 2, got %d", p.UnresolvedFaultCount)
+	}
+	if p.LastNoticeAt == nil {
+		t.Error("expected last_notice_at to be set")
+	}
+
+	// Verify heavy fields from the API are excluded
+	for _, excluded := range []string{"\"environments\"", "\"sites\"", "\"teams\"", "\"users\"", "\"owner\""} {
+		if strings.Contains(resultText, excluded) {
+			t.Errorf("summary response should not contain %s", excluded)
+		}
 	}
 }
 
