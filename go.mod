@@ -3,7 +3,7 @@ module github.com/honeybadger-io/honeybadger-mcp-server
 go 1.24
 
 require (
-	github.com/honeybadger-io/api-go v0.4.1-0.20260218211314-b4dfa5f13e9b
+	github.com/honeybadger-io/api-go v0.5.0
 	github.com/mark3labs/mcp-go v0.31.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
