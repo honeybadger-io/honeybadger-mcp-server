@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -15,7 +16,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	// list_projects tool
 	s.AddTool(
 		mcp.NewTool("list_projects",
-			mcp.WithDescription("List all Honeybadger projects"),
+			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details)"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("account_id",
@@ -216,6 +217,27 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 }
 
+// projectSummary is a lightweight representation of a project for list results.
+// It omits large nested arrays (sites, teams, users, environments) that can
+// cause the response to exceed MCP token limits. Use get_project for full details.
+type projectSummary struct {
+	ID                   int        `json:"id"`
+	Name                 string     `json:"name"`
+	Token                string     `json:"token"`
+	Active               bool       `json:"active"`
+	CreatedAt            time.Time  `json:"created_at"`
+	LastNoticeAt         *time.Time `json:"last_notice_at"`
+	FaultCount           int        `json:"fault_count"`
+	UnresolvedFaultCount int        `json:"unresolved_fault_count"`
+}
+
+// projectSummaryResponse wraps summary results with pagination links,
+// preserving the same envelope shape as the upstream API response.
+type projectSummaryResponse struct {
+	Results []projectSummary      `json:"results"`
+	Links   hbapi.PaginationLinks `json:"links"`
+}
+
 func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// Extract account_id parameter (optional)
 	var response *hbapi.ProjectsResponse
@@ -232,8 +254,26 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallT
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
 
-	// Return JSON response
-	jsonBytes, err := json.Marshal(response)
+	// Map to lightweight summaries to reduce token usage.
+	// Full project details are available via get_project.
+	summaries := make([]projectSummary, len(response.Results))
+	for i, p := range response.Results {
+		summaries[i] = projectSummary{
+			ID:                   p.ID,
+			Name:                 p.Name,
+			Token:                p.Token,
+			Active:               p.Active,
+			CreatedAt:            p.CreatedAt,
+			LastNoticeAt:         p.LastNoticeAt,
+			FaultCount:           p.FaultCount,
+			UnresolvedFaultCount: p.UnresolvedFaultCount,
+		}
+	}
+
+	jsonBytes, err := json.Marshal(projectSummaryResponse{
+		Results: summaries,
+		Links:   response.Links,
+	})
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
