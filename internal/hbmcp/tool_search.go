@@ -59,7 +59,7 @@ func registerSearchTool(s *server.MCPServer, catalog []toolInfo, readOnly bool) 
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			query := req.GetString("query", "")
+			query := strings.TrimSpace(req.GetString("query", ""))
 			if query == "" {
 				return mcp.NewToolResultError("query is required"), nil
 			}
