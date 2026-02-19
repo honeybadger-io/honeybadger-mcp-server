@@ -8,13 +8,12 @@ import (
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // RegisterProjectTools registers all project-related MCP tools
-func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
+func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 	// list_projects tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details)"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -29,7 +28,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_project tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_project",
 			mcp.WithDescription("Get a single Honeybadger project by ID"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -46,7 +45,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// create_project tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("create_project",
 			mcp.WithDescription("Create a new Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -88,7 +87,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// update_project tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("update_project",
 			mcp.WithDescription("Update an existing Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -129,7 +128,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// delete_project tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("delete_project",
 			mcp.WithDescription("Delete a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -146,7 +145,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_project_occurrence_counts tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_project_occurrence_counts",
 			mcp.WithDescription("Get occurrence counts for all projects or a specific project"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -169,7 +168,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_project_integrations tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_project_integrations",
 			mcp.WithDescription("Get a list of integrations (channels) for a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -186,7 +185,7 @@ func RegisterProjectTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_project_report tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_project_report",
 			mcp.WithDescription("Get report data for a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(true),

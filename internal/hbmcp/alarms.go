@@ -7,13 +7,12 @@ import (
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // RegisterAlarmTools registers all alarm-related MCP tools
-func RegisterAlarmTools(s *server.MCPServer, client *hbapi.Client) {
+func RegisterAlarmTools(r *toolRegistrar, client *hbapi.Client) {
 	// list_alarms tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_alarms",
 			mcp.WithDescription("List all Insights alarms for a Honeybadger project. Call get_insights_reference for alarm documentation."),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -30,7 +29,7 @@ func RegisterAlarmTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_alarm tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_alarm",
 			mcp.WithDescription("Get a single Insights alarm by ID. Call get_insights_reference for alarm documentation."),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -51,7 +50,7 @@ func RegisterAlarmTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// create_alarm tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("create_alarm",
 			mcp.WithDescription("Create a new Insights alarm for a Honeybadger project. IMPORTANT: Call get_insights_reference first for full alarm documentation, trigger_config schema, and query guidelines."),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -94,7 +93,7 @@ func RegisterAlarmTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// update_alarm tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("update_alarm",
 			mcp.WithDescription("Update an existing Insights alarm. IMPORTANT: Call get_insights_reference first for full alarm documentation, trigger_config schema, and query guidelines."),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -141,7 +140,7 @@ func RegisterAlarmTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// delete_alarm tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("delete_alarm",
 			mcp.WithDescription("Delete an Insights alarm. Call get_insights_reference for alarm documentation."),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -162,7 +161,7 @@ func RegisterAlarmTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_alarm_history tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_alarm_history",
 			mcp.WithDescription("Get the trigger history for an Insights alarm. Call get_insights_reference for alarm documentation."),
 			mcp.WithReadOnlyHintAnnotation(true),

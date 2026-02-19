@@ -77,20 +77,26 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 		WithBaseURL(cfg.APIURL).
 		WithAuthToken(cfg.AuthToken)
 
+	// Create tool registrar to track registered tools
+	r := newToolRegistrar(s)
+
 	// Register project tools
-	RegisterProjectTools(s, apiClient)
+	RegisterProjectTools(r, apiClient)
 
 	// Register fault tools
-	RegisterFaultTools(s, apiClient)
+	RegisterFaultTools(r, apiClient)
 
 	// Register insights tools
-	RegisterInsightsTools(s, apiClient)
+	RegisterInsightsTools(r, apiClient)
 
 	// Register dashboard tools
-	RegisterDashboardTools(s, apiClient)
+	RegisterDashboardTools(r, apiClient)
 
 	// Register alarm tools
-	RegisterAlarmTools(s, apiClient)
+	RegisterAlarmTools(r, apiClient)
+
+	// Register search_tools (not tracked in catalog itself)
+	registerSearchTool(s, r.catalog, cfg.ReadOnly)
 
 	return s
 }
