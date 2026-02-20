@@ -7,13 +7,12 @@ import (
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // RegisterDashboardTools registers all dashboard-related MCP tools
-func RegisterDashboardTools(s *server.MCPServer, client *hbapi.Client) {
+func RegisterDashboardTools(r *toolRegistrar, client *hbapi.Client) {
 	// list_dashboards tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_dashboards",
 			mcp.WithDescription("List all Insights dashboards for a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -30,7 +29,7 @@ func RegisterDashboardTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_dashboard tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_dashboard",
 			mcp.WithDescription("Get a single Insights dashboard by ID"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -51,7 +50,7 @@ func RegisterDashboardTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// create_dashboard tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("create_dashboard",
 			mcp.WithDescription("Create a new Insights dashboard for a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -79,7 +78,7 @@ func RegisterDashboardTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// update_dashboard tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("update_dashboard",
 			mcp.WithDescription("Update an existing Insights dashboard"),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -111,7 +110,7 @@ func RegisterDashboardTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// delete_dashboard tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("delete_dashboard",
 			mcp.WithDescription("Delete an Insights dashboard"),
 			mcp.WithReadOnlyHintAnnotation(false),

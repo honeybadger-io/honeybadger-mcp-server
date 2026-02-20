@@ -7,13 +7,12 @@ import (
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // RegisterFaultTools registers all fault-related MCP tools
-func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
+func RegisterFaultTools(r *toolRegistrar, client *hbapi.Client) {
 	// list_faults tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_faults",
 			mcp.WithDescription("Get a list of faults for a project with optional filtering and ordering"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -55,7 +54,7 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_fault tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_fault",
 			mcp.WithDescription("Get detailed information for a specific fault in a project"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -77,7 +76,7 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// list_fault_notices tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_fault_notices",
 			mcp.WithDescription("Get a list of notices (individual error events) for a specific fault"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -110,7 +109,7 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// list_fault_affected_users tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_fault_affected_users",
 			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -135,7 +134,7 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_fault_counts tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_fault_counts",
 			mcp.WithDescription("Get fault count statistics for a project with optional filtering"),
 			mcp.WithReadOnlyHintAnnotation(true),

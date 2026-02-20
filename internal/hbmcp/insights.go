@@ -8,16 +8,15 @@ import (
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 //go:embed docs/insights.md
 var insightsReference string
 
 // RegisterInsightsTools registers all insights-related MCP tools
-func RegisterInsightsTools(s *server.MCPServer, client *hbapi.Client) {
+func RegisterInsightsTools(r *toolRegistrar, client *hbapi.Client) {
 	// query_insights tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("query_insights",
 			mcp.WithDescription("Execute a BadgerQL query against Insights data. Before constructing a query, call the get_insights_reference tool if you are unfamiliar with Insights."),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -44,7 +43,7 @@ func RegisterInsightsTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_insights_reference tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_insights_reference",
 			mcp.WithDescription("Returns the Honeybadger Insights reference covering BadgerQL query syntax, available functions, common patterns, shareable URLs, and dashboard configuration. Call this before working with Insights tools."),
 			mcp.WithReadOnlyHintAnnotation(true),
