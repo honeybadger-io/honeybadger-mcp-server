@@ -11,7 +11,12 @@ import (
 )
 
 //go:embed docs/insights.md
-var insightsReference string
+var insightsMD string
+
+//go:embed docs/badgerql.md
+var badgerqlMD string
+
+var insightsReference = insightsMD + "\n\n---\n\n" + badgerqlMD
 
 // RegisterInsightsTools registers all insights-related MCP tools
 func RegisterInsightsTools(r *toolRegistrar, client *hbapi.Client) {
