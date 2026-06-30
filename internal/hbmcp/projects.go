@@ -11,7 +11,7 @@ import (
 )
 
 // RegisterProjectTools registers all project-related MCP tools
-func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
+func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_projects tool
 	r.AddTool(
 		mcp.NewTool("list_projects",
@@ -23,7 +23,7 @@ func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListProjects(ctx, client, req)
+			return handleListProjects(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -40,7 +40,7 @@ func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProject(ctx, client, req)
+			return handleGetProject(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -82,7 +82,7 @@ func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreateProject(ctx, client, req)
+			return handleCreateProject(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -123,7 +123,7 @@ func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateProject(ctx, client, req)
+			return handleUpdateProject(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -140,7 +140,7 @@ func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteProject(ctx, client, req)
+			return handleDeleteProject(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -163,7 +163,7 @@ func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectOccurrenceCounts(ctx, client, req)
+			return handleGetProjectOccurrenceCounts(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -180,7 +180,7 @@ func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectIntegrations(ctx, client, req)
+			return handleGetProjectIntegrations(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -211,7 +211,7 @@ func RegisterProjectTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectReport(ctx, client, req)
+			return handleGetProjectReport(ctx, clientFor(ctx), req)
 		},
 	)
 }

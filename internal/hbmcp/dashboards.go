@@ -10,7 +10,7 @@ import (
 )
 
 // RegisterDashboardTools registers all dashboard-related MCP tools
-func RegisterDashboardTools(r *toolRegistrar, client *hbapi.Client) {
+func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_dashboards tool
 	r.AddTool(
 		mcp.NewTool("list_dashboards",
@@ -24,7 +24,7 @@ func RegisterDashboardTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListDashboards(ctx, client, req)
+			return handleListDashboards(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -45,7 +45,7 @@ func RegisterDashboardTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetDashboard(ctx, client, req)
+			return handleGetDashboard(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -73,7 +73,7 @@ func RegisterDashboardTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreateDashboard(ctx, client, req)
+			return handleCreateDashboard(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -105,7 +105,7 @@ func RegisterDashboardTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateDashboard(ctx, client, req)
+			return handleUpdateDashboard(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -126,7 +126,7 @@ func RegisterDashboardTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteDashboard(ctx, client, req)
+			return handleDeleteDashboard(ctx, clientFor(ctx), req)
 		},
 	)
 }

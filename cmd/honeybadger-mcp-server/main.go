@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -57,16 +59,16 @@ func init() {
 	httpCmd.Flags().String("address", ":8080", "Address to listen on (e.g. :8080)")
 	httpCmd.Flags().String("endpoint-path", "/mcp", "HTTP path the MCP endpoint is served from")
 	httpCmd.Flags().Bool("stateless", true, "Run in stateless mode (recommended for horizontally scaled deployments)")
+	httpCmd.Flags().String("public-url", "", "Public origin of this MCP server (e.g. https://mcp.honeybadger.io). Required to advertise OAuth Protected Resource Metadata and serve the 401 discovery challenge")
+	httpCmd.Flags().String("auth-server", "", "OAuth authorization server origin (e.g. https://app.honeybadger.io). Required when --public-url is set")
 	_ = viper.BindPFlag("address", httpCmd.Flags().Lookup("address"))
 	_ = viper.BindPFlag("endpoint-path", httpCmd.Flags().Lookup("endpoint-path"))
+	_ = viper.BindPFlag("public-url", httpCmd.Flags().Lookup("public-url"))
+	_ = viper.BindPFlag("auth-server", httpCmd.Flags().Lookup("auth-server"))
 
 	rootCmd.AddCommand(stdioCmd, httpCmd)
 }
 
-// addCommonFlags registers the flags shared by every transport subcommand.
-// Viper bindings are NOT created here — they are bound to the active command's
-// flagset in loadConfigFromFlags so the unused command's empty default doesn't
-// shadow the active command's user-supplied value.
 func addCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().String("auth-token", "", "Honeybadger API token (required)")
 	cmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger API URL")
@@ -74,15 +76,14 @@ func addCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("read-only", true, "Run in read-only mode, excluding destructive tools")
 }
 
-// loadConfigFromFlags resolves the shared config from viper/flags. It binds
-// viper to the active command's flagset just-in-time so each subcommand gets
-// its own --auth-token / --api-url / --log-level wired up correctly.
-func loadConfigFromFlags(cmd *cobra.Command) (*config.Config, error) {
+// Bound to viper here (not in addCommonFlags) so the inactive subcommand's
+// empty default doesn't shadow the active subcommand's user-supplied value.
+func loadConfigFromFlags(cmd *cobra.Command, transportMode string) (*config.Config, error) {
 	_ = viper.BindPFlag("auth-token", cmd.Flags().Lookup("auth-token"))
 	_ = viper.BindPFlag("api-url", cmd.Flags().Lookup("api-url"))
 	_ = viper.BindPFlag("log-level", cmd.Flags().Lookup("log-level"))
 
-	// Resolve read-only manually: CLI flag wins, otherwise env/config/default.
+	// Resolve manually: CLI flag wins, otherwise env/config/default.
 	readOnly := viper.GetBool("read-only")
 	if cmd.Flags().Changed("read-only") {
 		readOnly, _ = cmd.Flags().GetBool("read-only")
@@ -92,6 +93,7 @@ func loadConfigFromFlags(cmd *cobra.Command) (*config.Config, error) {
 		viper.GetString("api-url"),
 		viper.GetString("log-level"),
 		readOnly,
+		transportMode,
 	)
 }
 
@@ -122,6 +124,8 @@ func initConfig() {
 	_ = viper.BindEnv("read-only", "HONEYBADGER_READ_ONLY")
 	_ = viper.BindEnv("address", "HONEYBADGER_MCP_ADDRESS")
 	_ = viper.BindEnv("endpoint-path", "HONEYBADGER_MCP_ENDPOINT_PATH")
+	_ = viper.BindEnv("public-url", "HONEYBADGER_MCP_PUBLIC_URL")
+	_ = viper.BindEnv("auth-server", "HONEYBADGER_MCP_AUTH_SERVER")
 
 	// Read config file if it exists
 	if err := viper.ReadInConfig(); err == nil {
@@ -130,7 +134,7 @@ func initConfig() {
 }
 
 func runStdio(cmd *cobra.Command, args []string) error {
-	cfg, err := loadConfigFromFlags(cmd)
+	cfg, err := loadConfigFromFlags(cmd, config.TransportStdio)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
@@ -155,14 +159,25 @@ func runStdio(cmd *cobra.Command, args []string) error {
 }
 
 func runHTTP(cmd *cobra.Command, args []string) error {
-	cfg, err := loadConfigFromFlags(cmd)
+	cfg, err := loadConfigFromFlags(cmd, config.TransportHTTP)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
 
 	address := viper.GetString("address")
-	endpointPath := viper.GetString("endpoint-path")
+	endpointPath := normalizeEndpointPath(viper.GetString("endpoint-path"))
 	stateless, _ := cmd.Flags().GetBool("stateless")
+
+	publicURL, err := normalizePublicURL(viper.GetString("public-url"))
+	if err != nil {
+		return fmt.Errorf("configuration error: %w", err)
+	}
+	authServer := strings.TrimSuffix(viper.GetString("auth-server"), "/")
+	// http mode is OAuth-only; --public-url + --auth-server are required so the
+	// 401 challenge can advertise PRM. Use stdio for non-OAuth single-tenant.
+	if publicURL == "" || authServer == "" {
+		return errors.New("configuration error: --public-url and --auth-server are required for http mode")
+	}
 
 	logger := logging.SetupLogger(cfg.LogLevel)
 	logger.Info("Starting Honeybadger MCP Server",
@@ -171,29 +186,50 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		"address", address,
 		"endpoint_path", endpointPath,
 		"stateless", stateless,
+		"public_url", publicURL,
+		"auth_server", authServer,
 		"log_level", cfg.LogLevel,
 		"api_url", cfg.APIURL,
 		"read_only", cfg.ReadOnly)
 
 	mcpServer := hbmcp.NewServer(cfg)
 
-	// WithStateLess/WithStateful are each a no-op when their argument is false,
-	// so we must dispatch on the flag to actually flip between the two managers.
+	// Both WithStateLess and WithStateful are no-ops when their arg is false.
 	sessionOpt := server.WithStateLess(true)
 	if !stateless {
 		sessionOpt = server.WithStateful(true)
 	}
-	httpServer := server.NewStreamableHTTPServer(mcpServer,
+
+	mcpHandler := server.NewStreamableHTTPServer(mcpServer,
 		server.WithEndpointPath(endpointPath),
 		sessionOpt,
 		server.WithStreamableHTTPLogger(logger),
+		server.WithHTTPContextFunc(func(ctx context.Context, r *http.Request) context.Context {
+			return hbmcp.WithAuthToken(ctx, bearerFromRequest(r))
+		}),
 	)
 
-	// Run Start() in a goroutine so we can shut down cleanly on signal.
+	rootHandler := http.NewServeMux()
+	resource := publicURL + endpointPath
+	prmAbsURL := publicURL + wellKnownPRMPath
+	rootHandler.Handle(wellKnownPRMPath, prmHandler(resource, []string{authServer}))
+	rootHandler.Handle(endpointPath, challengeMiddleware(prmAbsURL, mcpHandler))
+	logger.Info("OAuth discovery enabled", "resource", resource, "prm_url", prmAbsURL)
+
+	httpServer := &http.Server{
+		Addr:    address,
+		Handler: rootHandler,
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
 		logger.Info("Server ready, listening on http", "address", address, "path", endpointPath)
-		errCh <- httpServer.Start(address)
+		err := httpServer.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		} else {
+			errCh <- nil
+		}
 	}()
 
 	sigCh := make(chan os.Signal, 1)

@@ -10,7 +10,7 @@ import (
 )
 
 // RegisterFaultTools registers all fault-related MCP tools
-func RegisterFaultTools(r *toolRegistrar, client *hbapi.Client) {
+func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_faults tool
 	r.AddTool(
 		mcp.NewTool("list_faults",
@@ -49,7 +49,7 @@ func RegisterFaultTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListFaults(ctx, client, req)
+			return handleListFaults(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -71,7 +71,7 @@ func RegisterFaultTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetFault(ctx, client, req)
+			return handleGetFault(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -104,7 +104,7 @@ func RegisterFaultTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListFaultNotices(ctx, client, req)
+			return handleListFaultNotices(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -129,7 +129,7 @@ func RegisterFaultTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListFaultAffectedUsers(ctx, client, req)
+			return handleListFaultAffectedUsers(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -158,7 +158,7 @@ func RegisterFaultTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetFaultCounts(ctx, client, req)
+			return handleGetFaultCounts(ctx, clientFor(ctx), req)
 		},
 	)
 }

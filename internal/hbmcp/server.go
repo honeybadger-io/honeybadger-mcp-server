@@ -2,6 +2,8 @@ package hbmcp
 
 import (
 	"context"
+	"net/http"
+	"time"
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
@@ -10,7 +12,11 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// filterReadOnlyTools filters tools to only include those marked as read-only
+// Matches api-go's NewClient default; preserved explicitly because WithHTTPClient overrides it.
+const apiClientTimeout = 30 * time.Second
+
+type ClientFactory func(ctx context.Context) *hbapi.Client
+
 func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
 	var readOnlyTools []mcp.Tool
 	for _, tool := range tools {
@@ -21,49 +27,29 @@ func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
 	return readOnlyTools
 }
 
-// NewServer creates a new MCP server instance with configured tools
 func NewServer(cfg *config.Config) *server.MCPServer {
-	// Setup logger with configured level
 	logger := logging.SetupLogger(cfg.LogLevel)
 
-	// Create lifecycle hooks for logging and error handling
 	hooks := &server.Hooks{}
-
-	// Log client session lifecycle
 	hooks.AddOnRegisterSession(func(ctx context.Context, session server.ClientSession) {
-		logger.Info("Client session registered",
-			"session_id", session.SessionID())
+		logger.Info("Client session registered", "session_id", session.SessionID())
 	})
-
 	hooks.AddOnUnregisterSession(func(ctx context.Context, session server.ClientSession) {
-		logger.Info("Client session unregistered",
-			"session_id", session.SessionID())
+		logger.Info("Client session unregistered", "session_id", session.SessionID())
 	})
-
-	// Log and handle errors
 	hooks.AddOnError(func(ctx context.Context, id any, method mcp.MCPMethod, message any, err error) {
-		logger.Error("Error in request",
-			"method", method,
-			"request_id", id,
-			"error", err)
+		logger.Error("Error in request", "method", method, "request_id", id, "error", err)
 	})
-
-	// Optional: Log all incoming requests (can be verbose)
 	hooks.AddBeforeAny(func(ctx context.Context, id any, method mcp.MCPMethod, message any) {
-		logger.Debug("Processing request",
-			"method", method,
-			"request_id", id)
+		logger.Debug("Processing request", "method", method, "request_id", id)
 	})
 
-	// Create new MCP server with enhanced configuration
 	serverOptions := []server.ServerOption{
 		server.WithToolCapabilities(true),
 		server.WithLogging(),
 		server.WithRecovery(),
 		server.WithHooks(hooks),
 	}
-
-	// Add read-only filter if needed
 	if cfg.ReadOnly {
 		serverOptions = append(serverOptions, server.WithToolFilter(func(ctx context.Context, tools []mcp.Tool) []mcp.Tool {
 			return filterReadOnlyTools(tools)
@@ -72,31 +58,36 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 
 	s := server.NewMCPServer("honeybadger-mcp-server", "1.0.0", serverOptions...)
 
-	// Create API client
-	apiClient := hbapi.NewClient().
-		WithBaseURL(cfg.APIURL).
-		WithAuthToken(cfg.AuthToken)
-
-	// Create tool registrar to track registered tools
+	clientFor := newClientFactory(cfg)
 	r := newToolRegistrar(s)
-
-	// Register project tools
-	RegisterProjectTools(r, apiClient)
-
-	// Register fault tools
-	RegisterFaultTools(r, apiClient)
-
-	// Register insights tools
-	RegisterInsightsTools(r, apiClient)
-
-	// Register dashboard tools
-	RegisterDashboardTools(r, apiClient)
-
-	// Register alarm tools
-	RegisterAlarmTools(r, apiClient)
-
-	// Register search_tools (not tracked in catalog itself)
+	RegisterProjectTools(r, clientFor)
+	RegisterFaultTools(r, clientFor)
+	RegisterInsightsTools(r, clientFor)
+	RegisterDashboardTools(r, clientFor)
+	RegisterAlarmTools(r, clientFor)
 	registerSearchTool(s, r.catalog, cfg.ReadOnly)
 
 	return s
+}
+
+func newClientFactory(cfg *config.Config) ClientFactory {
+	if cfg.TransportMode == config.TransportHTTP {
+		sharedTransport := http.DefaultTransport
+		// No fallback to cfg.AuthToken on missing ctx token — the 401 challenge
+		// middleware must catch bearer-less requests, and silently using a
+		// startup PAT would mask a middleware regression.
+		return func(ctx context.Context) *hbapi.Client {
+			return hbapi.NewClient().
+				WithBaseURL(cfg.APIURL).
+				WithHTTPClient(&http.Client{
+					Timeout:   apiClientTimeout,
+					Transport: &bearerTransport{token: AuthTokenFromContext(ctx), base: sharedTransport},
+				})
+		}
+	}
+	return func(ctx context.Context) *hbapi.Client {
+		return hbapi.NewClient().
+			WithBaseURL(cfg.APIURL).
+			WithAuthToken(cfg.AuthToken)
+	}
 }

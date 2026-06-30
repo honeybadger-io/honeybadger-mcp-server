@@ -341,7 +341,7 @@ func TestInsightsToolIntegration(t *testing.T) {
 func TestServerEdgeCases(t *testing.T) {
 	t.Run("ServerWithoutToken", func(t *testing.T) {
 		// Try to start server without token by overriding the command
-		cmd := exec.Command("go", "run", "../cmd/honeybadger-mcp-server/main.go", "stdio")
+		cmd := exec.Command("go", "run", "../cmd/honeybadger-mcp-server", "stdio")
 
 		// Clear only the auth token from environment while preserving other vars
 		env := os.Environ()

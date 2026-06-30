@@ -14,7 +14,7 @@ import (
 var insightsReference string
 
 // RegisterInsightsTools registers all insights-related MCP tools
-func RegisterInsightsTools(r *toolRegistrar, client *hbapi.Client) {
+func RegisterInsightsTools(r *toolRegistrar, clientFor ClientFactory) {
 	// query_insights tool
 	r.AddTool(
 		mcp.NewTool("query_insights",
@@ -38,7 +38,7 @@ func RegisterInsightsTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleQueryInsights(ctx, client, req)
+			return handleQueryInsights(ctx, clientFor(ctx), req)
 		},
 	)
 

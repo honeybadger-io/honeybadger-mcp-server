@@ -92,7 +92,7 @@ func TestLoad(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := Load(tt.authToken, tt.apiURL, tt.logLevel, tt.readOnly)
+			cfg, err := Load(tt.authToken, tt.apiURL, tt.logLevel, tt.readOnly, TransportStdio)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
 			}
