@@ -178,6 +178,9 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	if publicURL == "" || authServer == "" {
 		return errors.New("configuration error: --public-url and --auth-server are required for http mode")
 	}
+	if endpointPath == "/healthz" {
+		return errors.New("configuration error: --endpoint-path collides with the reserved /healthz handler")
+	}
 
 	logger := logging.SetupLogger(cfg.LogLevel)
 	logger.Info("Starting Honeybadger MCP Server",
@@ -214,6 +217,9 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	prmAbsURL := publicURL + wellKnownPRMPath
 	rootHandler.Handle(wellKnownPRMPath, prmHandler(resource, []string{authServer}))
 	rootHandler.Handle(endpointPath, challengeMiddleware(prmAbsURL, mcpHandler))
+	rootHandler.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 	logger.Info("OAuth discovery enabled", "resource", resource, "prm_url", prmAbsURL)
 
 	httpServer := &http.Server{
