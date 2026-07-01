@@ -1,6 +1,6 @@
 module github.com/honeybadger-io/honeybadger-mcp-server
 
-go 1.25.5
+go 1.25
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0

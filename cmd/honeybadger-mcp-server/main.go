@@ -59,6 +59,8 @@ func init() {
 
 	addCommonFlags(stdioCmd)
 	addCommonFlags(httpCmd)
+	// stdio-only: http mode gates on token scope instead.
+	stdioCmd.Flags().Bool("read-only", true, "Run in read-only mode, excluding destructive tools")
 
 	// HTTP-specific flags (bound to viper here since only httpCmd defines them)
 	httpCmd.Flags().String("address", ":8080", "Address to listen on (e.g. :8080)")
@@ -78,7 +80,6 @@ func addCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().String("auth-token", "", "Honeybadger API token (required)")
 	cmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger API URL")
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
-	cmd.Flags().Bool("read-only", true, "Run in read-only mode, excluding destructive tools")
 }
 
 // Bound to viper here (not in addCommonFlags) so the inactive subcommand's

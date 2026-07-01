@@ -98,7 +98,7 @@ func VerifyJWKSReachable(ctx context.Context, jwksURI string) error {
 			Kty string `json:"kty"`
 		} `json:"keys"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&jwks); err != nil {
 		return fmt.Errorf("decode JWKS: %w", err)
 	}
 	if len(jwks.Keys) == 0 {
