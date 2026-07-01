@@ -17,6 +17,16 @@ const apiClientTimeout = 30 * time.Second
 
 type ClientFactory func(ctx context.Context) *hbapi.Client
 
+// In http mode the token's scope is authoritative; in stdio there's no token,
+// so the startup --read-only flag decides. Missing claims fails closed.
+func EffectiveReadOnly(ctx context.Context, cfg *config.Config) bool {
+	if cfg.TransportMode == config.TransportHTTP {
+		claims := ClaimsFromContext(ctx)
+		return claims == nil || !claims.HasScope("write")
+	}
+	return cfg.ReadOnly
+}
+
 func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
 	var readOnlyTools []mcp.Tool
 	for _, tool := range tools {
@@ -50,11 +60,12 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 		server.WithRecovery(),
 		server.WithHooks(hooks),
 	}
-	if cfg.ReadOnly {
-		serverOptions = append(serverOptions, server.WithToolFilter(func(ctx context.Context, tools []mcp.Tool) []mcp.Tool {
+	serverOptions = append(serverOptions, server.WithToolFilter(func(ctx context.Context, tools []mcp.Tool) []mcp.Tool {
+		if EffectiveReadOnly(ctx, cfg) {
 			return filterReadOnlyTools(tools)
-		}))
-	}
+		}
+		return tools
+	}))
 
 	s := server.NewMCPServer("honeybadger-mcp-server", "1.0.0", serverOptions...)
 
@@ -65,23 +76,21 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 	RegisterInsightsTools(r, clientFor)
 	RegisterDashboardTools(r, clientFor)
 	RegisterAlarmTools(r, clientFor)
-	registerSearchTool(s, r.catalog, cfg.ReadOnly)
+	registerSearchTool(s, r.catalog, cfg)
 
 	return s
 }
 
 func newClientFactory(cfg *config.Config) ClientFactory {
 	if cfg.TransportMode == config.TransportHTTP {
-		sharedTransport := http.DefaultTransport
-		// No fallback to cfg.AuthToken on missing ctx token — the 401 challenge
-		// middleware must catch bearer-less requests, and silently using a
-		// startup PAT would mask a middleware regression.
+		// No fallback to cfg.AuthToken — the 401 middleware must catch
+		// bearer-less requests; a fallback would mask that regression.
 		return func(ctx context.Context) *hbapi.Client {
 			return hbapi.NewClient().
 				WithBaseURL(cfg.APIURL).
 				WithHTTPClient(&http.Client{
 					Timeout:   apiClientTimeout,
-					Transport: &bearerTransport{token: AuthTokenFromContext(ctx), base: sharedTransport},
+					Transport: &bearerTransport{token: AuthTokenFromContext(ctx), base: http.DefaultTransport},
 				})
 		}
 	}

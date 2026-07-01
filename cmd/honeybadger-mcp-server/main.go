@@ -11,8 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/MicahParks/keyfunc/v3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbmcp"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/httptransport"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/logging"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
@@ -165,10 +167,10 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	}
 
 	address := viper.GetString("address")
-	endpointPath := normalizeEndpointPath(viper.GetString("endpoint-path"))
+	endpointPath := httptransport.NormalizeEndpointPath(viper.GetString("endpoint-path"))
 	stateless, _ := cmd.Flags().GetBool("stateless")
 
-	publicURL, err := normalizePublicURL(viper.GetString("public-url"))
+	publicURL, err := httptransport.NormalizePublicURL(viper.GetString("public-url"))
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
@@ -207,19 +209,29 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		server.WithEndpointPath(endpointPath),
 		sessionOpt,
 		server.WithStreamableHTTPLogger(logger),
-		server.WithHTTPContextFunc(func(ctx context.Context, r *http.Request) context.Context {
-			return hbmcp.WithAuthToken(ctx, bearerFromRequest(r))
-		}),
 	)
+
+	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	md, err := httptransport.DiscoverAS(bootCtx, authServer)
+	if err != nil {
+		return err
+	}
+	if err := httptransport.VerifyJWKSReachable(bootCtx, md.JWKSURI); err != nil {
+		return err
+	}
+	jwks, err := keyfunc.NewDefault([]string{md.JWKSURI})
+	if err != nil {
+		return err
+	}
+	logger.Info("AS discovery complete", "issuer", md.Issuer, "jwks_uri", md.JWKSURI)
 
 	rootHandler := http.NewServeMux()
 	resource := publicURL + endpointPath
-	prmAbsURL := publicURL + wellKnownPRMPath
-	rootHandler.Handle(wellKnownPRMPath, prmHandler(resource, []string{authServer}))
-	rootHandler.Handle(endpointPath, challengeMiddleware(prmAbsURL, mcpHandler))
-	rootHandler.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	prmAbsURL := publicURL + httptransport.WellKnownPRMPath
+	rootHandler.Handle(httptransport.WellKnownPRMPath, httptransport.PRMHandler(resource, []string{authServer}))
+	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, mcpHandler))
+	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
 	logger.Info("OAuth discovery enabled", "resource", resource, "prm_url", prmAbsURL)
 
 	httpServer := &http.Server{
@@ -249,10 +261,18 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		}
 	case sig := <-sigCh:
 		logger.Info("Shutdown signal received", "signal", sig.String())
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		// Close mcp-go sessions first so any long-lived Streamable-HTTP
+		// listen connections drop, then let net/http drain the rest.
+		if err := mcpHandler.Shutdown(shutdownCtx); err != nil {
+			logger.Error("MCP shutdown error", "error", err)
+		}
+		// Graceful drain; if a client keep-alive holds a connection past
+		// the deadline, force-close so we don't hang on shutdown.
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			logger.Error("Shutdown error", "error", err)
+			logger.Warn("HTTP graceful shutdown timed out, forcing close", "error", err)
+			_ = httpServer.Close()
 		}
 	}
 

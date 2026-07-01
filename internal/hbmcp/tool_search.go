@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -47,7 +48,7 @@ func searchCatalog(catalog []toolInfo, query string) []toolInfo {
 	return results
 }
 
-func registerSearchTool(s *server.MCPServer, catalog []toolInfo, readOnly bool) {
+func registerSearchTool(s *server.MCPServer, catalog []toolInfo, cfg *config.Config) {
 	s.AddTool(
 		mcp.NewTool("search_tools",
 			mcp.WithDescription("Search available Honeybadger tools by name or description. Use this to discover tools before calling them."),
@@ -65,7 +66,7 @@ func registerSearchTool(s *server.MCPServer, catalog []toolInfo, readOnly bool) 
 			}
 
 			searchable := catalog
-			if readOnly {
+			if EffectiveReadOnly(ctx, cfg) {
 				searchable = filterReadOnlyCatalog(catalog)
 			}
 
