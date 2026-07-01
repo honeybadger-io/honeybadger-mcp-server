@@ -228,8 +228,12 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 
 	rootHandler := http.NewServeMux()
 	resource := publicURL + endpointPath
-	prmAbsURL := publicURL + httptransport.WellKnownPRMPath
-	rootHandler.Handle(httptransport.WellKnownPRMPath, httptransport.PRMHandler(resource, []string{authServer}))
+	// Path-qualified per RFC 9728: PRM URL = /.well-known/oauth-protected-resource + resource path.
+	prmPath := httptransport.WellKnownPRMPath + endpointPath
+	prmAbsURL := publicURL + prmPath
+	handler := httptransport.PRMHandler(resource, []string{authServer})
+	rootHandler.Handle(prmPath, handler)
+	rootHandler.Handle(httptransport.WellKnownPRMPath, handler) // legacy origin-level path for clients that don't derive
 	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, mcpHandler))
 	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
 	logger.Info("OAuth discovery enabled", "resource", resource, "prm_url", prmAbsURL)
