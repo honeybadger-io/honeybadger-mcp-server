@@ -84,7 +84,7 @@ func registerSearchTool(s *server.MCPServer, catalog []toolInfo, cfg *config.Con
 				if m.ReadOnly {
 					readOnlyStr = "yes"
 				}
-				sb.WriteString(fmt.Sprintf("Name: %s\nDescription: %s\nRead-only: %s", m.Name, m.Description, readOnlyStr))
+				fmt.Fprintf(&sb, "Name: %s\nDescription: %s\nRead-only: %s", m.Name, m.Description, readOnlyStr)
 			}
 			return mcp.NewToolResultText(sb.String()), nil
 		},

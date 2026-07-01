@@ -63,7 +63,7 @@ func DiscoverAS(ctx context.Context, authServer string) (*ASMetadata, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch AS metadata: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return nil, fmt.Errorf("AS metadata returned %d: %s", resp.StatusCode, string(body))
@@ -89,7 +89,7 @@ func VerifyJWKSReachable(ctx context.Context, jwksURI string) error {
 	if err != nil {
 		return fmt.Errorf("fetch JWKS: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("JWKS returned %d", resp.StatusCode)
 	}
