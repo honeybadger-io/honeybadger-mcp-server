@@ -15,7 +15,7 @@ func TestNewServer(t *testing.T) {
 		LogLevel:  "info",
 	}
 
-	server := NewServer(cfg)
+	server := NewServer(cfg, "test")
 	if server == nil {
 		t.Fatal("NewServer returned nil")
 	}
@@ -33,7 +33,7 @@ func TestNewServer_ReadOnlyMode(t *testing.T) {
 		ReadOnly:  true,
 	}
 
-	server := NewServer(cfg)
+	server := NewServer(cfg, "test")
 	if server == nil {
 		t.Fatal("NewServer returned nil")
 	}
@@ -47,7 +47,7 @@ func TestNewServer_NonReadOnlyMode(t *testing.T) {
 		ReadOnly:  false,
 	}
 
-	server := NewServer(cfg)
+	server := NewServer(cfg, "test")
 	if server == nil {
 		t.Fatal("NewServer returned nil")
 	}

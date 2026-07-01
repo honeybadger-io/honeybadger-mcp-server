@@ -32,7 +32,7 @@ func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
 	return readOnlyTools
 }
 
-func NewServer(cfg *config.Config) *server.MCPServer {
+func NewServer(cfg *config.Config, version string) *server.MCPServer {
 	logger := logging.SetupLogger(cfg.LogLevel)
 
 	hooks := &server.Hooks{}
@@ -62,7 +62,7 @@ func NewServer(cfg *config.Config) *server.MCPServer {
 		return tools
 	}))
 
-	s := server.NewMCPServer("honeybadger-mcp-server", "1.0.0", serverOptions...)
+	s := server.NewMCPServer("honeybadger-mcp-server", version, serverOptions...)
 
 	clientFor := newClientFactory(cfg)
 	r := newToolRegistrar(s)

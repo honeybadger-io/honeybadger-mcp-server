@@ -21,6 +21,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Set via -ldflags "-X main.version=..." at Docker build time.
+var version = "dev"
+
 var (
 	cfgFile string
 	rootCmd = &cobra.Command{
@@ -143,13 +146,13 @@ func runStdio(cmd *cobra.Command, args []string) error {
 
 	logger := logging.SetupLogger(cfg.LogLevel)
 	logger.Info("Starting Honeybadger MCP Server",
-		"version", "1.0.0",
+		"version", version,
 		"transport", "stdio",
 		"log_level", cfg.LogLevel,
 		"api_url", cfg.APIURL,
 		"read_only", cfg.ReadOnly)
 
-	mcpServer := hbmcp.NewServer(cfg)
+	mcpServer := hbmcp.NewServer(cfg, version)
 
 	logger.Info("Server ready, listening on stdio")
 	if err := server.ServeStdio(mcpServer); err != nil {
@@ -186,7 +189,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 
 	logger := logging.SetupLogger(cfg.LogLevel)
 	logger.Info("Starting Honeybadger MCP Server",
-		"version", "1.0.0",
+		"version", version,
 		"transport", "streamable-http",
 		"address", address,
 		"endpoint_path", endpointPath,
@@ -197,7 +200,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		"api_url", cfg.APIURL,
 		"read_only", cfg.ReadOnly)
 
-	mcpServer := hbmcp.NewServer(cfg)
+	mcpServer := hbmcp.NewServer(cfg, version)
 
 	// Both WithStateLess and WithStateful are no-ops when their arg is false.
 	sessionOpt := server.WithStateLess(true)
