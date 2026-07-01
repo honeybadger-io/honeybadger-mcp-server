@@ -170,6 +170,18 @@ And then configure your MCP client to run the server directly:
 
 To enable write operations, explicitly set `HONEYBADGER_READ_ONLY=false`. **Use with caution** as this allows destructive operations like deleting projects.
 
+### EU region
+
+The server defaults to Honeybadger's US API (`https://app.honeybadger.io`). If your account is in the [EU region](https://docs.honeybadger.io/resources/data-residency/), set `HONEYBADGER_API_URL` to `https://eu-app.honeybadger.io` and use a personal auth token from your [EU user settings](https://eu-app.honeybadger.io/users/edit#authentication). A US token won't authenticate against the EU region, and vice versa.
+
+For example, with Claude Code:
+
+```bash
+claude mcp add honeybadger-eu -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="your_eu_token" -e HONEYBADGER_API_URL="https://eu-app.honeybadger.io" ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
+```
+
+To use both regions at once, run two servers with distinct names (for example `honeybadger-us` and `honeybadger-eu`), each with its own token and API URL.
+
 ### Command Line Options
 
 When running the server via the CLI you can configure the server with command-line flags:
