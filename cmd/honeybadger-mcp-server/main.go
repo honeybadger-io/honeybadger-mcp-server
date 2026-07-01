@@ -62,11 +62,11 @@ func init() {
 	httpCmd.Flags().String("endpoint-path", "/mcp", "HTTP path the MCP endpoint is served from")
 	httpCmd.Flags().Bool("stateless", true, "Run in stateless mode (recommended for horizontally scaled deployments)")
 	httpCmd.Flags().String("public-url", "", "Public origin of this MCP server (e.g. https://mcp.honeybadger.io). Required to advertise OAuth Protected Resource Metadata and serve the 401 discovery challenge")
-	httpCmd.Flags().String("auth-server", "", "OAuth authorization server origin (e.g. https://app.honeybadger.io). Required when --public-url is set")
+	httpCmd.Flags().String("authorization-server", "", "OAuth authorization server origin (e.g. https://app.honeybadger.io). Required when --public-url is set")
 	_ = viper.BindPFlag("address", httpCmd.Flags().Lookup("address"))
 	_ = viper.BindPFlag("endpoint-path", httpCmd.Flags().Lookup("endpoint-path"))
 	_ = viper.BindPFlag("public-url", httpCmd.Flags().Lookup("public-url"))
-	_ = viper.BindPFlag("auth-server", httpCmd.Flags().Lookup("auth-server"))
+	_ = viper.BindPFlag("authorization-server", httpCmd.Flags().Lookup("authorization-server"))
 
 	rootCmd.AddCommand(stdioCmd, httpCmd)
 }
@@ -124,10 +124,10 @@ func initConfig() {
 	_ = viper.BindEnv("api-url", "HONEYBADGER_API_URL")
 	_ = viper.BindEnv("log-level", "LOG_LEVEL")
 	_ = viper.BindEnv("read-only", "HONEYBADGER_READ_ONLY")
-	_ = viper.BindEnv("address", "HONEYBADGER_MCP_ADDRESS")
-	_ = viper.BindEnv("endpoint-path", "HONEYBADGER_MCP_ENDPOINT_PATH")
-	_ = viper.BindEnv("public-url", "HONEYBADGER_MCP_PUBLIC_URL")
-	_ = viper.BindEnv("auth-server", "HONEYBADGER_MCP_AUTH_SERVER")
+	_ = viper.BindEnv("address", "MCP_ADDRESS")
+	_ = viper.BindEnv("endpoint-path", "MCP_ENDPOINT_PATH")
+	_ = viper.BindEnv("public-url", "MCP_PUBLIC_URL")
+	_ = viper.BindEnv("authorization-server", "MCP_AUTHORIZATION_SERVER_URL")
 
 	// Read config file if it exists
 	if err := viper.ReadInConfig(); err == nil {
@@ -174,11 +174,11 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
-	authServer := strings.TrimSuffix(viper.GetString("auth-server"), "/")
-	// http mode is OAuth-only; --public-url + --auth-server are required so the
+	authServer := strings.TrimSuffix(viper.GetString("authorization-server"), "/")
+	// http mode is OAuth-only; --public-url + --authorization-server are required so the
 	// 401 challenge can advertise PRM. Use stdio for non-OAuth single-tenant.
 	if publicURL == "" || authServer == "" {
-		return errors.New("configuration error: --public-url and --auth-server are required for http mode")
+		return errors.New("configuration error: --public-url and --authorization-server are required for http mode")
 	}
 	if endpointPath == "/healthz" {
 		return errors.New("configuration error: --endpoint-path collides with the reserved /healthz handler")
@@ -192,7 +192,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		"endpoint_path", endpointPath,
 		"stateless", stateless,
 		"public_url", publicURL,
-		"auth_server", authServer,
+		"authorization_server", authServer,
 		"log_level", cfg.LogLevel,
 		"api_url", cfg.APIURL,
 		"read_only", cfg.ReadOnly)
