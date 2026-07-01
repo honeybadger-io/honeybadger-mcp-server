@@ -170,7 +170,7 @@ And then configure your MCP client to run the server directly:
 
 To enable write operations, explicitly set `HONEYBADGER_READ_ONLY=false`. **Use with caution** as this allows destructive operations like deleting projects.
 
-### EU region
+### EU Region
 
 The server defaults to Honeybadger's US API (`https://app.honeybadger.io`). If your account is in the [EU region](https://docs.honeybadger.io/resources/data-residency/), set `HONEYBADGER_API_URL` to `https://eu-app.honeybadger.io` and use a personal auth token from your [EU user settings](https://eu-app.honeybadger.io/users/edit#authentication). A US token won't authenticate against the EU region, and vice versa.
 
