@@ -245,6 +245,10 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	httpServer := &http.Server{
 		Addr:    address,
 		Handler: rootHandler,
+		// No ReadTimeout/WriteTimeout: Streamable HTTP holds long-lived SSE
+		// streams. Header reads are bounded so slow-header connections can't
+		// pin goroutines when the server is exposed without an L7 proxy.
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	errCh := make(chan error, 1)
