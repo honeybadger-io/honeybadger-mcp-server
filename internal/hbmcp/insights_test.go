@@ -209,6 +209,56 @@ func TestHandleQueryInsights_MissingQuery(t *testing.T) {
 	}
 }
 
+func TestHandleQueryInsights_InlineError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"results": [],
+			"meta": {
+				"query": "stats count()",
+				"fields": [],
+				"schema": [],
+				"rows": 0,
+				"total_rows": 0,
+				"start_at": "2024-01-01T00:00:00Z",
+				"end_at": "2024-01-01T03:00:00Z"
+			},
+			"error": {
+				"message": "query timed out"
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	client := hbapi.NewClient().
+		WithBaseURL(server.URL).
+		WithAuthToken("test-token")
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Arguments: map[string]interface{}{
+				"project_id": 123,
+				"query":      "stats count()",
+			},
+		},
+	}
+
+	result, err := handleQueryInsights(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("handleQueryInsights() error = %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected error result for inline error")
+	}
+
+	resultText := getResultText(result)
+	if !strings.Contains(resultText, "query timed out") {
+		t.Error("Error message should contain 'query timed out'")
+	}
+}
+
 func TestHandleQueryInsights_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -276,6 +326,31 @@ func TestHandleQueryInsights_InvalidQuery(t *testing.T) {
 	resultText := getResultText(result)
 	if !strings.Contains(resultText, "Failed to query insights") {
 		t.Error("Error message should contain 'Failed to query insights'")
+	}
+}
+
+func TestHandleGetInsightsReference(t *testing.T) {
+	req := mcp.CallToolRequest{}
+
+	result, err := handleGetInsightsReference(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handleGetInsightsReference() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatal("expected successful result, got error")
+	}
+
+	resultText := getResultText(result)
+	if resultText == "" {
+		t.Fatal("expected non-empty reference text")
+	}
+
+	expectedMarkers := []string{"Insights", "BadgerQL", "fields", "filter", "stats", "query_insights"}
+	for _, marker := range expectedMarkers {
+		if !strings.Contains(resultText, marker) {
+			t.Errorf("reference text should contain %q", marker)
+		}
 	}
 }
 

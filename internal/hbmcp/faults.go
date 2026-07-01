@@ -7,13 +7,12 @@ import (
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // RegisterFaultTools registers all fault-related MCP tools
-func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
+func RegisterFaultTools(r *toolRegistrar, client *hbapi.Client) {
 	// list_faults tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_faults",
 			mcp.WithDescription("Get a list of faults for a project with optional filtering and ordering"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -55,7 +54,7 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_fault tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_fault",
 			mcp.WithDescription("Get detailed information for a specific fault in a project"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -77,7 +76,7 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// list_fault_notices tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_fault_notices",
 			mcp.WithDescription("Get a list of notices (individual error events) for a specific fault"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -110,7 +109,7 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// list_fault_affected_users tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("list_fault_affected_users",
 			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -135,7 +134,7 @@ func RegisterFaultTools(s *server.MCPServer, client *hbapi.Client) {
 	)
 
 	// get_fault_counts tool
-	s.AddTool(
+	r.AddTool(
 		mcp.NewTool("get_fault_counts",
 			mcp.WithDescription("Get fault count statistics for a project with optional filtering"),
 			mcp.WithReadOnlyHintAnnotation(true),
@@ -174,9 +173,9 @@ func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	// Build options struct
 	options := hbapi.FaultListOptions{
 		Q:              req.GetString("q", ""),
-		CreatedAfter:   parseTimestamp(req.GetString("created_after", "")),
-		OccurredAfter:  parseTimestamp(req.GetString("occurred_after", "")),
-		OccurredBefore: parseTimestamp(req.GetString("occurred_before", "")),
+		CreatedAfter:   parseTimestampValue(req.GetString("created_after", "")),
+		OccurredAfter:  parseTimestampValue(req.GetString("occurred_after", "")),
+		OccurredBefore: parseTimestampValue(req.GetString("occurred_before", "")),
 		Limit:          req.GetInt("limit", 0),
 		Order:          req.GetString("order", ""),
 		Page:           req.GetInt("page", 0),
@@ -234,8 +233,8 @@ func handleListFaultNotices(ctx context.Context, client *hbapi.Client, req mcp.C
 
 	// Build options struct
 	options := hbapi.FaultListNoticesOptions{
-		CreatedAfter:  parseTimestamp(req.GetString("created_after", "")),
-		CreatedBefore: parseTimestamp(req.GetString("created_before", "")),
+		CreatedAfter:  parseTimestampValue(req.GetString("created_after", "")),
+		CreatedBefore: parseTimestampValue(req.GetString("created_before", "")),
 		Limit:         req.GetInt("limit", 0),
 	}
 
@@ -292,9 +291,9 @@ func handleGetFaultCounts(ctx context.Context, client *hbapi.Client, req mcp.Cal
 	// Build options struct (reuse same filtering options as List)
 	options := hbapi.FaultListOptions{
 		Q:              req.GetString("q", ""),
-		CreatedAfter:   parseTimestamp(req.GetString("created_after", "")),
-		OccurredAfter:  parseTimestamp(req.GetString("occurred_after", "")),
-		OccurredBefore: parseTimestamp(req.GetString("occurred_before", "")),
+		CreatedAfter:   parseTimestampValue(req.GetString("created_after", "")),
+		OccurredAfter:  parseTimestampValue(req.GetString("occurred_after", "")),
+		OccurredBefore: parseTimestampValue(req.GetString("occurred_before", "")),
 	}
 
 	counts, err := client.Faults.GetCounts(ctx, projectID, options)
