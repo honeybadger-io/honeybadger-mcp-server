@@ -2,8 +2,6 @@ package hbmcp
 
 import (
 	"context"
-	"net/http"
-	"time"
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
@@ -11,9 +9,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
-
-// Matches api-go's NewClient default; preserved explicitly because WithHTTPClient overrides it.
-const apiClientTimeout = 30 * time.Second
 
 type ClientFactory func(ctx context.Context) *hbapi.Client
 
@@ -88,10 +83,7 @@ func newClientFactory(cfg *config.Config) ClientFactory {
 		return func(ctx context.Context) *hbapi.Client {
 			return hbapi.NewClient().
 				WithBaseURL(cfg.APIURL).
-				WithHTTPClient(&http.Client{
-					Timeout:   apiClientTimeout,
-					Transport: &bearerTransport{token: AuthTokenFromContext(ctx), base: http.DefaultTransport},
-				})
+				WithBearerToken(AuthTokenFromContext(ctx))
 		}
 	}
 	return func(ctx context.Context) *hbapi.Client {
