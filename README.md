@@ -289,6 +289,78 @@ read-only: true
   - `ts` : Time range - shortcuts like 'today', 'week', or ISO 8601 duration (e.g., 'PT3H'). Defaults to PT3H (string, optional)
   - `timezone` : IANA timezone identifier (e.g., 'America/New_York') for timestamp interpretation (string, optional)
 
+- **get_insights_reference** - Returns the Honeybadger Insights reference covering BadgerQL query syntax, available functions, common patterns, shareable URLs, and dashboard configuration. Call this before working with Insights, alarm, or dashboard tools. (no parameters)
+
+### Dashboards
+
+- **list_dashboards** - List all Insights dashboards for a project
+  - `project_id` : The ID of the project to list dashboards for (number, required)
+
+- **get_dashboard** - Get a single Insights dashboard by ID
+  - `project_id` : The ID of the project the dashboard belongs to (number, required)
+  - `dashboard_id` : The ID of the dashboard to retrieve (string, required)
+
+- **create_dashboard** - Create a new Insights dashboard _(requires `read-only=false`)_
+  - `project_id` : The ID of the project to create the dashboard in (number, required)
+  - `title` : The title of the dashboard (string, required)
+  - `widgets` : JSON array of widget objects. Call `get_insights_reference` for the full widget schema and examples. Each widget needs a `type` (`insights_vis`, `alarms`, `errors`, `deployments`, `checkins`, `uptime`) and optionally `grid` ({x,y,w,h}), `presentation` ({title, subtitle}), and `config` (type-specific settings) (string, required)
+  - `default_ts` : Default time range for the dashboard. ISO 8601 duration (e.g., P1D, PT3H) or keyword (today, yesterday, week, month) (string, optional)
+
+- **update_dashboard** - Update an existing Insights dashboard _(requires `read-only=false`)_
+  - `project_id` : The ID of the project the dashboard belongs to (number, required)
+  - `dashboard_id` : The ID of the dashboard to update (string, required)
+  - `title` : The title of the dashboard (string, required)
+  - `widgets` : JSON array of widget objects (see `create_dashboard`) (string, required)
+  - `default_ts` : Default time range for the dashboard (string, optional)
+
+- **delete_dashboard** - Delete an Insights dashboard _(requires `read-only=false`)_
+  - `project_id` : The ID of the project the dashboard belongs to (number, required)
+  - `dashboard_id` : The ID of the dashboard to delete (string, required)
+
+### Alarms
+
+- **list_alarms** - List all Insights alarms for a project
+  - `project_id` : The ID of the project to list alarms for (number, required)
+
+- **get_alarm** - Get a single Insights alarm by ID
+  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `alarm_id` : The ID of the alarm to retrieve (string, required)
+
+- **create_alarm** - Create a new Insights alarm _(requires `read-only=false`)_. Call `get_insights_reference` first for the full alarm documentation, `trigger_config` schema, and query guidelines.
+  - `project_id` : The ID of the project to create the alarm in (number, required)
+  - `name` : The name of the alarm (string, required)
+  - `query` : BadgerQL query for the alarm. The alarm system wraps the query to count results automatically (string, required)
+  - `evaluation_period` : How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m (string, required)
+  - `trigger_config` : JSON object defining when to trigger the alarm, e.g. `{"type": "alert_result_count", "config": {"operator": "gt", "value": 10}}` (string, required)
+  - `lookback_lag` : Delay before evaluating to allow data to arrive (e.g., 1m, or 0s for no lag) (string, required)
+  - `description` : Optional description of the alarm (string, optional)
+  - `stream_ids` : Optional JSON array of stream IDs to query (defaults to `["default"]`) (string, optional)
+
+- **update_alarm** - Update an existing Insights alarm _(requires `read-only=false`)_. Call `get_insights_reference` first for the full alarm documentation.
+  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `alarm_id` : The ID of the alarm to update (string, required)
+  - `name` : The name of the alarm (string, required)
+  - `query` : BadgerQL query for the alarm (string, required)
+  - `evaluation_period` : How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m (string, required)
+  - `trigger_config` : JSON object defining when to trigger the alarm (string, required)
+  - `lookback_lag` : Delay before evaluating to allow data to arrive (e.g., 1m, 0s for no lag) (string, required)
+  - `description` : Optional description of the alarm (string, optional)
+  - `stream_ids` : Optional JSON array of stream IDs to query (string, optional)
+
+- **delete_alarm** - Delete an Insights alarm _(requires `read-only=false`)_
+  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `alarm_id` : The ID of the alarm to delete (string, required)
+
+- **get_alarm_history** - Get the trigger history for an Insights alarm
+  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `alarm_id` : The ID of the alarm to get history for (string, required)
+  - `page` : Page number for pagination (default: 0) (number, optional)
+
+### Tool Search
+
+- **search_tools** - Search available Honeybadger tools by name or description. Use this to discover tools before calling them. In read-only mode, only read-only tools are returned.
+  - `query` : Search query to match against tool names and descriptions (string, required)
+
 ## Development
 
 ### Local Development Setup
