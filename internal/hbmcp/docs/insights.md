@@ -669,7 +669,7 @@ Dashboards are collections of widgets displayed on a project's Insights page. Us
 Call `create_dashboard` with:
 
 - `project_id` (required) — integer project ID.
-- `title` (required) — dashboard title string.
+- `title` (required) — dashboard title string (max 255 characters).
 - `widgets` (required) — JSON string containing an array of widget objects.
 - `default_ts` (optional) — default time range. ISO 8601 duration (e.g., `P1D`, `PT3H`) or keyword (`today`, `yesterday`, `week`, `month`).
 
@@ -691,6 +691,7 @@ Each widget object has:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `type` | yes | Widget type (see below) |
+| `id` | no | Stable widget identifier. Omit when creating; the server assigns one. Preserve existing `id`s when updating so widget state/history is retained |
 | `grid` | no | Layout position: `{x, y, w, h}` (integers, grid units) |
 | `presentation` | no | Display options: `{title, subtitle}` |
 | `config` | no | Type-specific configuration |
