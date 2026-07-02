@@ -232,18 +232,37 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		server.WithStreamableHTTPLogger(logger),
 	)
 
-	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Lifetime context for background work: request contexts and the JWKS
+	// refresh goroutine derive from it; canceled when runHTTP returns and
+	// at shutdown so long-lived SSE streams end gracefully.
+	baseCtx, cancelBase := context.WithCancel(context.Background())
+	defer cancelBase()
+
+	bootCtx, cancel := context.WithTimeout(baseCtx, 10*time.Second)
 	defer cancel()
 	md, err := httptransport.DiscoverAS(bootCtx, authServer)
 	if err != nil {
 		return err
 	}
-	if err := httptransport.VerifyJWKSReachable(bootCtx, md.JWKSURI); err != nil {
-		return err
-	}
-	jwks, err := keyfunc.NewDefault([]string{md.JWKSURI})
+	// NoErrorReturnFirstHTTPReq=false makes the initial JWKS fetch
+	// fail-fast; keyfunc otherwise lazy-loads and swallows the failure
+	// until the first request needs a key.
+	failFast := false
+	jwks, err := keyfunc.NewDefaultOverrideCtx(baseCtx, []string{md.JWKSURI}, keyfunc.Override{
+		NoErrorReturnFirstHTTPReq: &failFast,
+		HTTPTimeout:               5 * time.Second,
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("fetch JWKS: %w", err)
+	}
+	// Unsupported keys are silently dropped during the fetch; an empty set
+	// would otherwise surface only as per-request validation failures.
+	keys, err := jwks.Storage().KeyReadAll(bootCtx)
+	if err != nil {
+		return fmt.Errorf("read JWKS: %w", err)
+	}
+	if len(keys) == 0 {
+		return errors.New("JWKS has no usable keys")
 	}
 	logger.Info("AS discovery complete", "issuer", md.Issuer, "jwks_uri", md.JWKSURI)
 
@@ -258,12 +277,6 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, mcpHandler))
 	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
 	logger.Info("OAuth discovery enabled", "resource", resource, "prm_url", prmAbsURL)
-
-	// Request contexts derive from baseCtx; canceling it at shutdown ends
-	// long-lived SSE streams gracefully, which net/http's Shutdown alone
-	// never does (it waits for active requests until the deadline).
-	baseCtx, cancelBase := context.WithCancel(context.Background())
-	defer cancelBase()
 
 	httpServer := &http.Server{
 		Addr:        address,
