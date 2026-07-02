@@ -33,6 +33,9 @@ var (
 		Long: `Honeybadger MCP Server provides a machine-readable interface to the
 Honeybadger API using the MCP protocol. It's designed for use with LLM agents
 and supports STDIO and Streamable HTTP transports.`,
+		// main() prints the error Execute returns; without this cobra
+		// prints its own copy first.
+		SilenceErrors: true,
 	}
 
 	stdioCmd = &cobra.Command{
@@ -143,6 +146,10 @@ func initConfig() {
 }
 
 func runStdio(cmd *cobra.Command, args []string) error {
+	// Flags parsed fine if we got here; a runtime error doesn't warrant
+	// the usage dump (flag-parse errors still get it).
+	cmd.SilenceUsage = true
+
 	cfg, err := loadConfigFromFlags(cmd, config.TransportStdio)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
@@ -172,6 +179,10 @@ func runStdio(cmd *cobra.Command, args []string) error {
 }
 
 func runHTTP(cmd *cobra.Command, args []string) error {
+	// Flags parsed fine if we got here; a runtime error doesn't warrant
+	// the usage dump (flag-parse errors still get it).
+	cmd.SilenceUsage = true
+
 	cfg, err := loadConfigFromFlags(cmd, config.TransportHTTP)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
