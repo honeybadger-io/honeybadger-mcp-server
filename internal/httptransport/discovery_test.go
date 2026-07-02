@@ -63,6 +63,61 @@ func TestNormalizeEndpointPath(t *testing.T) {
 	}
 }
 
+func TestASMetadataURL(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{"origin only", "https://app.honeybadger.io", "https://app.honeybadger.io/.well-known/oauth-authorization-server", false},
+		{"trailing slash", "https://app.honeybadger.io/", "https://app.honeybadger.io/.well-known/oauth-authorization-server", false},
+		{"path inserted per RFC 8414", "https://app.honeybadger.io/oauth", "https://app.honeybadger.io/.well-known/oauth-authorization-server/oauth", false},
+		{"path with trailing slash", "https://app.honeybadger.io/oauth/", "https://app.honeybadger.io/.well-known/oauth-authorization-server/oauth", false},
+		{"missing scheme", "app.honeybadger.io", "", true},
+		{"missing host", "https://", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := asMetadataURL(c.in)
+			if c.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got %q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != c.want {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestDiscoverAS_PathIssuer(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/oauth-authorization-server/oauth" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"issuer":   "https://issuer.example/oauth",
+			"jwks_uri": "https://issuer.example/.well-known/jwks.json",
+		})
+	}))
+	defer srv.Close()
+
+	md, err := DiscoverAS(context.Background(), srv.URL+"/oauth")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if md.Issuer != "https://issuer.example/oauth" {
+		t.Errorf("unexpected metadata: %+v", md)
+	}
+}
+
 func TestDiscoverAS_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/oauth-authorization-server" {
