@@ -70,6 +70,7 @@ func init() {
 	httpCmd.Flags().String("authorization-server", "", "OAuth authorization server origin (e.g. https://app.honeybadger.io). Required when --public-url is set")
 	_ = viper.BindPFlag("address", httpCmd.Flags().Lookup("address"))
 	_ = viper.BindPFlag("endpoint-path", httpCmd.Flags().Lookup("endpoint-path"))
+	_ = viper.BindPFlag("stateless", httpCmd.Flags().Lookup("stateless"))
 	_ = viper.BindPFlag("public-url", httpCmd.Flags().Lookup("public-url"))
 	_ = viper.BindPFlag("authorization-server", httpCmd.Flags().Lookup("authorization-server"))
 
@@ -130,6 +131,7 @@ func initConfig() {
 	_ = viper.BindEnv("read-only", "HONEYBADGER_READ_ONLY")
 	_ = viper.BindEnv("address", "MCP_ADDRESS")
 	_ = viper.BindEnv("endpoint-path", "MCP_ENDPOINT_PATH")
+	_ = viper.BindEnv("stateless", "MCP_STATELESS")
 	_ = viper.BindEnv("public-url", "MCP_PUBLIC_URL")
 	_ = viper.BindEnv("authorization-server", "MCP_AUTHORIZATION_SERVER_URL")
 
@@ -180,7 +182,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 
 	address := viper.GetString("address")
 	endpointPath := httptransport.NormalizeEndpointPath(viper.GetString("endpoint-path"))
-	stateless, _ := cmd.Flags().GetBool("stateless")
+	stateless := viper.GetBool("stateless")
 
 	publicURL, err := httptransport.NormalizePublicURL(viper.GetString("public-url"))
 	if err != nil {
