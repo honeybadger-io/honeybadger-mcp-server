@@ -194,8 +194,11 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	if publicURL == "" || authServer == "" {
 		return errors.New("configuration error: --public-url and --authorization-server are required for http mode")
 	}
-	if endpointPath == "/healthz" {
-		return errors.New("configuration error: --endpoint-path collides with the reserved /healthz handler")
+	// /healthz and /.well-known/* are reserved (health checks and PRM); a
+	// collision would otherwise panic the mux with a duplicate-pattern error
+	// at registration time instead of a clean configuration error.
+	if endpointPath == "/healthz" || endpointPath == "/.well-known" || strings.HasPrefix(endpointPath, "/.well-known/") {
+		return fmt.Errorf("configuration error: --endpoint-path %q collides with a reserved path (/healthz, /.well-known/...)", endpointPath)
 	}
 
 	logger := logging.SetupLogger(cfg.LogLevel)

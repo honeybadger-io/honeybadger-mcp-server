@@ -40,6 +40,31 @@ func TestRunHTTPRejectsConfigFileReadOnly(t *testing.T) {
 	}
 }
 
+func TestRunHTTPRejectsReservedEndpointPaths(t *testing.T) {
+	for _, path := range []string{
+		"/healthz",
+		"/.well-known",
+		"/.well-known/oauth-protected-resource",
+		"/.well-known/anything",
+	} {
+		t.Run(path, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			viper.Set("endpoint-path", path)
+			viper.Set("public-url", "https://mcp.example.com")
+			viper.Set("authorization-server", "https://as.example.com")
+
+			err := runHTTP(httpCmd, nil)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "reserved path") {
+				t.Errorf("expected reserved-path rejection, got: %v", err)
+			}
+		})
+	}
+}
+
 func TestRunHTTPAllowsDefaultReadOnly(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
