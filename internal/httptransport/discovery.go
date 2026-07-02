@@ -53,8 +53,26 @@ type ASMetadata struct {
 	JWKSURI string `json:"jwks_uri"`
 }
 
+// RFC 8414 §3: the well-known segment is inserted between the host and any
+// issuer path component (https://as.example/foo resolves to
+// https://as.example/.well-known/oauth-authorization-server/foo), matching
+// the URL compliant clients derive from the PRM's authorization_servers.
+func asMetadataURL(authServer string) (string, error) {
+	u, err := url.Parse(authServer)
+	if err != nil {
+		return "", fmt.Errorf("parse authorization-server: %w", err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("authorization-server must include scheme and host, got %q", authServer)
+	}
+	return u.Scheme + "://" + u.Host + "/.well-known/oauth-authorization-server" + strings.TrimSuffix(u.Path, "/"), nil
+}
+
 func DiscoverAS(ctx context.Context, authServer string) (*ASMetadata, error) {
-	u := strings.TrimSuffix(authServer, "/") + "/.well-known/oauth-authorization-server"
+	u, err := asMetadataURL(authServer)
+	if err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
