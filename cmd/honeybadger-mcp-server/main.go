@@ -158,8 +158,12 @@ func runStdio(cmd *cobra.Command, args []string) error {
 	mcpServer := hbmcp.NewServer(cfg, version)
 
 	logger.Info("Server ready, listening on stdio")
-	if err := server.ServeStdio(mcpServer); err != nil {
+	// ServeStdio returns nil on client EOF and context.Canceled on
+	// SIGINT/SIGTERM — both clean shutdowns. Anything else must reach the
+	// caller so the process exits non-zero instead of masking the failure.
+	if err := server.ServeStdio(mcpServer); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("Server error", "error", err)
+		return err
 	}
 
 	logger.Info("Server stopped")
