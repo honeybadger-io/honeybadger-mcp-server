@@ -22,6 +22,12 @@ func (c *Claims) HasScope(scope string) bool {
 	return false
 }
 
+// No audience validation: the authorization server issues audience-less
+// tokens (no aud/resource claim, no RFC 8707 support), and their only
+// consumers are the Honeybadger API and this server, which relays each
+// token to that same API — so there is no second resource for a token to
+// be confused with. Revisit if the AS ever mints tokens for other
+// resources or signs other token types with the same key.
 func ParseAccessToken(raw string, keyfunc jwt.Keyfunc, expectedIssuer string) (*Claims, error) {
 	if !strings.HasPrefix(raw, tokenPrefix) {
 		return nil, errors.New("token missing hbo_ prefix")
