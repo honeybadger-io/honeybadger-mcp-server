@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -258,9 +259,16 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
 	logger.Info("OAuth discovery enabled", "resource", resource, "prm_url", prmAbsURL)
 
+	// Request contexts derive from baseCtx; canceling it at shutdown ends
+	// long-lived SSE streams gracefully, which net/http's Shutdown alone
+	// never does (it waits for active requests until the deadline).
+	baseCtx, cancelBase := context.WithCancel(context.Background())
+	defer cancelBase()
+
 	httpServer := &http.Server{
-		Addr:    address,
-		Handler: rootHandler,
+		Addr:        address,
+		Handler:     rootHandler,
+		BaseContext: func(net.Listener) context.Context { return baseCtx },
 		// No ReadTimeout/WriteTimeout: Streamable HTTP holds long-lived SSE
 		// streams. Header reads are bounded so slow-header connections can't
 		// pin goroutines when the server is exposed without an L7 proxy.
@@ -291,11 +299,14 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		logger.Info("Shutdown signal received", "signal", sig.String())
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		// Close mcp-go sessions first so any long-lived Streamable-HTTP
-		// listen connections drop, then let net/http drain the rest.
+		// Mounted as an http.Handler, mcp-go's Shutdown never touches live
+		// connections — it only stops the stateful-session sweeper.
 		if err := mcpHandler.Shutdown(shutdownCtx); err != nil {
 			logger.Error("MCP shutdown error", "error", err)
 		}
+		// End streaming request contexts so Shutdown's drain returns
+		// promptly instead of timing out and TCP-resetting live streams.
+		cancelBase()
 		// Graceful drain; if a client keep-alive holds a connection past
 		// the deadline, force-close so we don't hang on shutdown.
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
