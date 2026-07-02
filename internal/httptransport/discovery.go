@@ -95,38 +95,3 @@ func DiscoverAS(ctx context.Context, authServer string) (*ASMetadata, error) {
 	}
 	return &md, nil
 }
-
-// Force a JWKS fetch at startup — keyfunc.NewDefault otherwise lazy-loads
-// and swallows the initial fetch/parse failure until the first request.
-func VerifyJWKSReachable(ctx context.Context, jwksURI string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURI, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
-	if err != nil {
-		return fmt.Errorf("fetch JWKS: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("JWKS returned %d", resp.StatusCode)
-	}
-	var jwks struct {
-		Keys []struct {
-			Kty string `json:"kty"`
-		} `json:"keys"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&jwks); err != nil {
-		return fmt.Errorf("decode JWKS: %w", err)
-	}
-	if len(jwks.Keys) == 0 {
-		return errors.New("JWKS has no keys")
-	}
-	// kty is required per RFC 7517 §4.1; catches malformed keys keyfunc silently drops.
-	for i, k := range jwks.Keys {
-		if k.Kty == "" {
-			return fmt.Errorf("JWKS key %d missing required kty", i)
-		}
-	}
-	return nil
-}
