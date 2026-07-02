@@ -170,6 +170,14 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("configuration error: %w", err)
 	}
 
+	// Token scope is the only write-access control in http mode; reject an
+	// explicit read-only setting rather than let it be silently ignored.
+	// Sources are checked directly because viper.IsSet also reports the
+	// SetDefault value, which must not trip this.
+	if os.Getenv("HONEYBADGER_READ_ONLY") != "" || viper.InConfig("read-only") {
+		return errors.New("configuration error: read-only (HONEYBADGER_READ_ONLY) is not supported in http mode; write access is granted per-token by OAuth scope")
+	}
+
 	address := viper.GetString("address")
 	endpointPath := httptransport.NormalizeEndpointPath(viper.GetString("endpoint-path"))
 	stateless, _ := cmd.Flags().GetBool("stateless")
@@ -198,8 +206,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		"public_url", publicURL,
 		"authorization_server", authServer,
 		"log_level", cfg.LogLevel,
-		"api_url", cfg.APIURL,
-		"read_only", cfg.ReadOnly)
+		"api_url", cfg.APIURL)
 
 	mcpServer := hbmcp.NewServer(cfg, version)
 
