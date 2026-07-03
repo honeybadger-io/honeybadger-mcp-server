@@ -10,7 +10,7 @@ import (
 )
 
 // RegisterAlarmTools registers all alarm-related MCP tools
-func RegisterAlarmTools(r *toolRegistrar, client *hbapi.Client) {
+func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_alarms tool
 	r.AddTool(
 		mcp.NewTool("list_alarms",
@@ -24,7 +24,7 @@ func RegisterAlarmTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListAlarms(ctx, client, req)
+			return handleListAlarms(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -45,7 +45,7 @@ func RegisterAlarmTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetAlarm(ctx, client, req)
+			return handleGetAlarm(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -88,7 +88,7 @@ func RegisterAlarmTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreateAlarm(ctx, client, req)
+			return handleCreateAlarm(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -135,7 +135,7 @@ func RegisterAlarmTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateAlarm(ctx, client, req)
+			return handleUpdateAlarm(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -156,7 +156,7 @@ func RegisterAlarmTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteAlarm(ctx, client, req)
+			return handleDeleteAlarm(ctx, clientFor(ctx), req)
 		},
 	)
 
@@ -180,7 +180,7 @@ func RegisterAlarmTools(r *toolRegistrar, client *hbapi.Client) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetAlarmHistory(ctx, client, req)
+			return handleGetAlarmHistory(ctx, clientFor(ctx), req)
 		},
 	)
 }

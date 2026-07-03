@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -201,7 +202,7 @@ func TestRegisterSearchTool(t *testing.T) {
 	}
 
 	s := server.NewMCPServer("test", "1.0.0")
-	registerSearchTool(s, catalog, false)
+	registerSearchTool(s, catalog, &config.Config{ReadOnly: false, TransportMode: config.TransportStdio})
 
 	// Verify search_tools is registered by calling it through HandleMessage
 	callMsg := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_tools","arguments":{"query":"list"}}}`
@@ -227,7 +228,7 @@ func TestRegisterSearchTool_NoMatches(t *testing.T) {
 	}
 
 	s := server.NewMCPServer("test", "1.0.0")
-	registerSearchTool(s, catalog, false)
+	registerSearchTool(s, catalog, &config.Config{ReadOnly: false, TransportMode: config.TransportStdio})
 
 	callMsg := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_tools","arguments":{"query":"nonexistent"}}}`
 	resp := s.HandleMessage(context.Background(), []byte(callMsg))
@@ -251,7 +252,7 @@ func TestRegisterSearchTool_ReadOnlyMode(t *testing.T) {
 	}
 
 	s := server.NewMCPServer("test", "1.0.0")
-	registerSearchTool(s, catalog, true)
+	registerSearchTool(s, catalog, &config.Config{ReadOnly: true, TransportMode: config.TransportStdio})
 
 	// Search for "project" - should only return read-only tools
 	callMsg := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_tools","arguments":{"query":"project"}}}`

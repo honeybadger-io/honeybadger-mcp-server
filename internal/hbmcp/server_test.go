@@ -1,6 +1,7 @@
 package hbmcp
 
 import (
+	"context"
 	"testing"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
@@ -14,7 +15,7 @@ func TestNewServer(t *testing.T) {
 		LogLevel:  "info",
 	}
 
-	server := NewServer(cfg)
+	server := NewServer(cfg, "test")
 	if server == nil {
 		t.Fatal("NewServer returned nil")
 	}
@@ -32,7 +33,7 @@ func TestNewServer_ReadOnlyMode(t *testing.T) {
 		ReadOnly:  true,
 	}
 
-	server := NewServer(cfg)
+	server := NewServer(cfg, "test")
 	if server == nil {
 		t.Fatal("NewServer returned nil")
 	}
@@ -46,9 +47,72 @@ func TestNewServer_NonReadOnlyMode(t *testing.T) {
 		ReadOnly:  false,
 	}
 
-	server := NewServer(cfg)
+	server := NewServer(cfg, "test")
 	if server == nil {
 		t.Fatal("NewServer returned nil")
+	}
+}
+
+func TestEffectiveReadOnly(t *testing.T) {
+	withClaims := func(scopes ...string) context.Context {
+		return WithClaims(context.Background(), &Claims{Scopes: scopes})
+	}
+
+	cases := []struct {
+		name string
+		ctx  context.Context
+		cfg  *config.Config
+		want bool
+	}{
+		{
+			name: "stdio + read-only flag → read-only",
+			ctx:  context.Background(),
+			cfg:  &config.Config{TransportMode: config.TransportStdio, ReadOnly: true},
+			want: true,
+		},
+		{
+			name: "stdio + no read-only flag → not read-only (PAT trusts the operator)",
+			ctx:  context.Background(),
+			cfg:  &config.Config{TransportMode: config.TransportStdio, ReadOnly: false},
+			want: false,
+		},
+		{
+			name: "http + read-only startup flag ignored (scope is authoritative)",
+			ctx:  withClaims("read", "write"),
+			cfg:  &config.Config{TransportMode: config.TransportHTTP, ReadOnly: true},
+			want: false,
+		},
+		{
+			name: "http + write scope → not read-only",
+			ctx:  withClaims("read", "write"),
+			cfg:  &config.Config{TransportMode: config.TransportHTTP, ReadOnly: false},
+			want: false,
+		},
+		{
+			name: "http + read-only scope → read-only",
+			ctx:  withClaims("read"),
+			cfg:  &config.Config{TransportMode: config.TransportHTTP, ReadOnly: false},
+			want: true,
+		},
+		{
+			name: "http + no scopes → read-only",
+			ctx:  withClaims(),
+			cfg:  &config.Config{TransportMode: config.TransportHTTP, ReadOnly: false},
+			want: true,
+		},
+		{
+			name: "http + missing claims (middleware bypass) → fail closed to read-only",
+			ctx:  context.Background(),
+			cfg:  &config.Config{TransportMode: config.TransportHTTP, ReadOnly: false},
+			want: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := EffectiveReadOnly(c.ctx, c.cfg); got != c.want {
+				t.Errorf("EffectiveReadOnly = %v, want %v", got, c.want)
+			}
+		})
 	}
 }
 
