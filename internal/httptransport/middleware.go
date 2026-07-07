@@ -11,18 +11,19 @@ import (
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbmcp"
 )
 
-func PRMHandler(resource string, authServers []string) http.Handler {
+func PRMHandler(resource string, authServers, scopes []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"resource":              resource,
 			"authorization_servers": authServers,
+			"scopes_supported":      scopes,
 		})
 	})
 }
 
 // Expired tokens get an error_description so MCP clients trigger their refresh-on-401 path.
-func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer string, next http.Handler) http.Handler {
+func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer, expectedAudience string, next http.Handler) http.Handler {
 	bootstrap := fmt.Sprintf(`Bearer resource_metadata="%s"`, prmURL)
 	invalidToken := fmt.Sprintf(`Bearer error="invalid_token", resource_metadata="%s"`, prmURL)
 	expiredToken := fmt.Sprintf(`Bearer error="invalid_token", error_description="The access token expired", resource_metadata="%s"`, prmURL)
@@ -34,7 +35,7 @@ func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer string,
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		claims, err := hbmcp.ParseAccessToken(raw, keyfn, expectedIssuer)
+		claims, err := hbmcp.ParseAccessToken(raw, keyfn, expectedIssuer, expectedAudience)
 		if err != nil {
 			challenge := invalidToken
 			if errors.Is(err, jwt.ErrTokenExpired) {

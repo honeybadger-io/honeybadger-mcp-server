@@ -72,6 +72,8 @@ func init() {
 	httpCmd.Flags().Bool("stateless", true, "Run in stateless mode (recommended for horizontally scaled deployments)")
 	httpCmd.Flags().String("public-url", "", "Public origin of this MCP server (e.g. https://mcp.honeybadger.io). Required to advertise OAuth Protected Resource Metadata and serve the 401 discovery challenge")
 	httpCmd.Flags().String("authorization-server", "", "OAuth authorization server origin (e.g. https://app.honeybadger.io). Required when --public-url is set")
+	httpCmd.Flags().String("resource-url", "", "OAuth resource identifier advertised in PRM and required as the token aud claim. Must match the authorization server's configured resource URL (default: public-url + endpoint-path)")
+	_ = viper.BindPFlag("resource-url", httpCmd.Flags().Lookup("resource-url"))
 	_ = viper.BindPFlag("address", httpCmd.Flags().Lookup("address"))
 	_ = viper.BindPFlag("endpoint-path", httpCmd.Flags().Lookup("endpoint-path"))
 	_ = viper.BindPFlag("stateless", httpCmd.Flags().Lookup("stateless"))
@@ -138,6 +140,7 @@ func initConfig() {
 	_ = viper.BindEnv("stateless", "MCP_STATELESS")
 	_ = viper.BindEnv("public-url", "MCP_PUBLIC_URL")
 	_ = viper.BindEnv("authorization-server", "MCP_AUTHORIZATION_SERVER_URL")
+	_ = viper.BindEnv("resource-url", "MCP_RESOURCE_URL")
 
 	// Read config file if it exists
 	if err := viper.ReadInConfig(); err == nil {
@@ -216,6 +219,17 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	if endpointPath == "/healthz" || endpointPath == "/.well-known" || strings.HasPrefix(endpointPath, "/.well-known/") {
 		return fmt.Errorf("configuration error: --endpoint-path %q collides with a reserved path (/healthz, /.well-known/...)", endpointPath)
 	}
+	// The identifier the AS binds tokens to (aud) and hosts send as resource=.
+	// Must match the AS's configured resource URL exactly, so an explicit
+	// value is used verbatim — validated, never rewritten.
+	resource := viper.GetString("resource-url")
+	if resource == "" {
+		resource = strings.TrimSuffix(publicURL+endpointPath, "/")
+	}
+	resourceURL, err := httptransport.ValidateResourceURL(resource)
+	if err != nil {
+		return fmt.Errorf("configuration error: %w", err)
+	}
 
 	logger := logging.SetupLogger(cfg.LogLevel)
 	logger.Info("Starting Honeybadger MCP Server",
@@ -225,6 +239,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		"endpoint_path", endpointPath,
 		"stateless", stateless,
 		"public_url", publicURL,
+		"resource", resource,
 		"authorization_server", authServer,
 		"log_level", cfg.LogLevel,
 		"api_url", cfg.APIURL)
@@ -278,14 +293,17 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	logger.Info("AS discovery complete", "issuer", md.Issuer, "jwks_uri", md.JWKSURI)
 
 	rootHandler := http.NewServeMux()
-	resource := publicURL + endpointPath
 	// Path-qualified per RFC 9728: PRM URL = /.well-known/oauth-protected-resource + resource path.
-	prmPath := httptransport.WellKnownPRMPath + endpointPath
+	prmPath := httptransport.WellKnownPRMPath + resourceURL.Path
 	prmAbsURL := publicURL + prmPath
-	handler := httptransport.PRMHandler(resource, []string{authServer})
-	rootHandler.Handle(prmPath, handler)
-	rootHandler.Handle(httptransport.WellKnownPRMPath, handler) // legacy origin-level path for clients that don't derive
-	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, mcpHandler))
+	handler := httptransport.PRMHandler(resource, []string{authServer}, []string{"read", "write"})
+	// Origin-level path is the RFC 9728 location for a path-less resource and
+	// doubles as the legacy fallback for clients that don't derive the path.
+	if prmPath != httptransport.WellKnownPRMPath {
+		rootHandler.Handle(prmPath, handler)
+	}
+	rootHandler.Handle(httptransport.WellKnownPRMPath, handler)
+	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, resource, mcpHandler))
 	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
 	logger.Info("OAuth discovery enabled", "resource", resource, "prm_url", prmAbsURL)
 

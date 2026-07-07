@@ -41,7 +41,7 @@ func TestParseAccessToken_Success(t *testing.T) {
 	key, kf := testKey(t)
 	raw := signedToken(t, key, baseClaims())
 
-	got, err := ParseAccessToken(raw, kf, "http://localhost:3001")
+	got, err := ParseAccessToken(raw, kf, "http://localhost:3001", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestParseAccessToken_Success(t *testing.T) {
 func TestParseAccessToken_MissingPrefix(t *testing.T) {
 	key, kf := testKey(t)
 	signed, _ := jwt.NewWithClaims(jwt.SigningMethodRS256, baseClaims()).SignedString(key)
-	if _, err := ParseAccessToken(signed, kf, ""); err == nil {
+	if _, err := ParseAccessToken(signed, kf, "", ""); err == nil {
 		t.Fatal("expected error for missing prefix")
 	}
 }
@@ -67,7 +67,7 @@ func TestParseAccessToken_Expired(t *testing.T) {
 	c["exp"] = time.Now().Add(-time.Minute).Unix()
 	raw := signedToken(t, key, c)
 
-	_, err := ParseAccessToken(raw, kf, "")
+	_, err := ParseAccessToken(raw, kf, "", "")
 	if err == nil {
 		t.Fatal("expected expired error")
 	}
@@ -79,7 +79,7 @@ func TestParseAccessToken_Expired(t *testing.T) {
 func TestParseAccessToken_IssuerMismatch(t *testing.T) {
 	key, kf := testKey(t)
 	raw := signedToken(t, key, baseClaims())
-	if _, err := ParseAccessToken(raw, kf, "https://other.issuer"); err == nil {
+	if _, err := ParseAccessToken(raw, kf, "https://other.issuer", ""); err == nil {
 		t.Fatal("expected issuer mismatch")
 	}
 }
@@ -88,7 +88,7 @@ func TestParseAccessToken_BadSignature(t *testing.T) {
 	signer, _ := testKey(t)
 	_, verifierKF := testKey(t)
 	raw := signedToken(t, signer, baseClaims())
-	if _, err := ParseAccessToken(raw, verifierKF, ""); err == nil {
+	if _, err := ParseAccessToken(raw, verifierKF, "", ""); err == nil {
 		t.Fatal("expected signature error")
 	}
 }
@@ -98,7 +98,7 @@ func TestParseAccessToken_NoExp(t *testing.T) {
 	c := baseClaims()
 	delete(c, "exp")
 	raw := signedToken(t, key, c)
-	if _, err := ParseAccessToken(raw, kf, ""); err == nil {
+	if _, err := ParseAccessToken(raw, kf, "", ""); err == nil {
 		t.Fatal("expected error for missing exp")
 	}
 }
@@ -109,8 +109,43 @@ func TestParseAccessToken_WrongAlgorithm(t *testing.T) {
 	raw := tokenPrefix + signed
 
 	_, kf := testKey(t)
-	if _, err := ParseAccessToken(raw, kf, ""); err == nil {
+	if _, err := ParseAccessToken(raw, kf, "", ""); err == nil {
 		t.Fatal("expected rejection of HS256 token")
+	}
+}
+
+func TestParseAccessToken_AudienceMatch(t *testing.T) {
+	key, kf := testKey(t)
+	c := baseClaims()
+	c["aud"] = "https://mcp.honeybadger.io"
+	raw := signedToken(t, key, c)
+
+	if _, err := ParseAccessToken(raw, kf, "", "https://mcp.honeybadger.io"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseAccessToken_AudienceMismatch(t *testing.T) {
+	key, kf := testKey(t)
+	c := baseClaims()
+	c["aud"] = "https://other.resource"
+	raw := signedToken(t, key, c)
+
+	_, err := ParseAccessToken(raw, kf, "", "https://mcp.honeybadger.io")
+	if err == nil {
+		t.Fatal("expected audience mismatch")
+	}
+	if !errors.Is(err, jwt.ErrTokenInvalidAudience) {
+		t.Errorf("error %v does not wrap jwt.ErrTokenInvalidAudience", err)
+	}
+}
+
+func TestParseAccessToken_MissingAudienceRejected(t *testing.T) {
+	key, kf := testKey(t)
+	raw := signedToken(t, key, baseClaims()) // no aud claim
+
+	if _, err := ParseAccessToken(raw, kf, "", "https://mcp.honeybadger.io"); err == nil {
+		t.Fatal("expected error for missing aud when an audience is expected")
 	}
 }
 
@@ -120,7 +155,7 @@ func TestParseAccessToken_EmptyScope(t *testing.T) {
 	c["scope"] = ""
 	raw := signedToken(t, key, c)
 
-	got, err := ParseAccessToken(raw, kf, "")
+	got, err := ParseAccessToken(raw, kf, "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

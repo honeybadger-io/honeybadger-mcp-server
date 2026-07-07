@@ -40,11 +40,12 @@ func validClaims() jwt.MapClaims {
 		"exp":        now + 60,
 		"scope":      "read write",
 		"account_id": float64(42),
+		"aud":        "https://host/mcp",
 	}
 }
 
 func TestPRMHandler(t *testing.T) {
-	h := PRMHandler("https://host/mcp", []string{"https://auth.example"})
+	h := PRMHandler("https://host/mcp", []string{"https://auth.example"}, []string{"read", "write"})
 
 	t.Run("GET returns metadata", func(t *testing.T) {
 		req := httptest.NewRequest("GET", WellKnownPRMPath, nil)
@@ -60,6 +61,7 @@ func TestPRMHandler(t *testing.T) {
 		var got struct {
 			Resource             string   `json:"resource"`
 			AuthorizationServers []string `json:"authorization_servers"`
+			ScopesSupported      []string `json:"scopes_supported"`
 		}
 		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 			t.Fatalf("body unmarshal: %v", err)
@@ -69,6 +71,9 @@ func TestPRMHandler(t *testing.T) {
 		}
 		if len(got.AuthorizationServers) != 1 || got.AuthorizationServers[0] != "https://auth.example" {
 			t.Errorf("authorization_servers = %v", got.AuthorizationServers)
+		}
+		if len(got.ScopesSupported) != 2 || got.ScopesSupported[0] != "read" || got.ScopesSupported[1] != "write" {
+			t.Errorf("scopes_supported = %v", got.ScopesSupported)
 		}
 	})
 
@@ -83,10 +88,13 @@ func TestValidateMiddleware(t *testing.T) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	})
-	mw := ValidateMiddleware(prmURL, kf, "https://issuer.example", next)
+	mw := ValidateMiddleware(prmURL, kf, "https://issuer.example", "https://host/mcp", next)
 
 	expiredClaims := validClaims()
 	expiredClaims["exp"] = time.Now().Add(-time.Minute).Unix()
+
+	wrongAudClaims := validClaims()
+	wrongAudClaims["aud"] = "https://other.resource"
 
 	cases := []struct {
 		name            string
@@ -114,6 +122,12 @@ func TestValidateMiddleware(t *testing.T) {
 			header:         "Bearer " + signHBO(t, key, expiredClaims),
 			wantStatus:     http.StatusUnauthorized,
 			wantAuthSubstr: `error_description="The access token expired"`,
+		},
+		{
+			name:           "wrong audience → invalid_token",
+			header:         "Bearer " + signHBO(t, key, wrongAudClaims),
+			wantStatus:     http.StatusUnauthorized,
+			wantAuthSubstr: `error="invalid_token"`,
 		},
 		{
 			name:           "valid → passes through",

@@ -8,6 +8,41 @@ import (
 	"testing"
 )
 
+func TestValidateResourceURL(t *testing.T) {
+	cases := []struct {
+		name     string
+		in       string
+		wantPath string
+		wantErr  bool
+	}{
+		{"origin only", "https://mcp.honeybadger.io", "", false},
+		{"path allowed", "https://mcp.honeybadger.io/mcp", "/mcp", false},
+		{"trailing slash preserved", "https://mcp.honeybadger.io/mcp/", "/mcp/", false},
+		{"query allowed (AS canonical form is authoritative)", "https://mcp.honeybadger.io/mcp?x=1", "/mcp", false},
+		{"fragment rejected", "https://mcp.honeybadger.io/mcp#frag", "", true},
+		{"missing scheme", "mcp.honeybadger.io", "", true},
+		{"missing host", "https://", "", true},
+		{"empty rejected", "", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			u, err := ValidateResourceURL(c.in)
+			if c.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got %v", u)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if u.Path != c.wantPath {
+				t.Errorf("Path = %q, want %q", u.Path, c.wantPath)
+			}
+		})
+	}
+}
+
 func TestNormalizePublicURL(t *testing.T) {
 	cases := []struct {
 		name    string
