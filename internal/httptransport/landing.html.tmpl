@@ -272,15 +272,19 @@
   for (const btn of document.querySelectorAll(".codeblock .copy")) {
     btn.addEventListener("click", async () => {
       const code = btn.parentElement.querySelector("code");
+      if (!code) return;
       try {
         await navigator.clipboard.writeText(code.textContent);
         btn.textContent = "Copied!";
-        setTimeout(() => { btn.textContent = "Copy"; }, 1500);
       } catch (e) {
-        btn.textContent = "Press ⌘C";
-        window.getSelection().selectAllChildren(code);
-        setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+        // Clipboard API unavailable (e.g. non-HTTPS origin): select the
+        // text and prompt a manual copy instead.
+        const selection = window.getSelection();
+        if (selection) selection.selectAllChildren(code);
+        const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+        btn.textContent = mac ? "Press ⌘C" : "Press Ctrl+C";
       }
+      setTimeout(() => { btn.textContent = "Copy"; }, 1600);
     });
   }
 </script>
