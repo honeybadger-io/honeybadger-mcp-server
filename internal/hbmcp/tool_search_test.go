@@ -94,7 +94,7 @@ func TestToolRegistrar_MultipleTools(t *testing.T) {
 }
 
 func TestSearchCatalog(t *testing.T) {
-	catalog := []toolInfo{
+	catalog := []ToolInfo{
 		{Name: "list_projects", Description: "List all Honeybadger projects", ReadOnly: true},
 		{Name: "get_project", Description: "Get a single Honeybadger project by ID", ReadOnly: true},
 		{Name: "create_project", Description: "Create a new Honeybadger project", ReadOnly: false},
@@ -168,7 +168,7 @@ func TestSearchCatalog(t *testing.T) {
 }
 
 func TestSearchCatalog_PreservesReadOnlyInfo(t *testing.T) {
-	catalog := []toolInfo{
+	catalog := []ToolInfo{
 		{Name: "list_projects", Description: "List all projects", ReadOnly: true},
 		{Name: "create_project", Description: "Create a new project", ReadOnly: false},
 	}
@@ -196,7 +196,7 @@ func TestSearchCatalog_EmptyCatalog(t *testing.T) {
 }
 
 func TestRegisterSearchTool(t *testing.T) {
-	catalog := []toolInfo{
+	catalog := []ToolInfo{
 		{Name: "list_projects", Description: "List all Honeybadger projects", ReadOnly: true},
 		{Name: "create_project", Description: "Create a new Honeybadger project", ReadOnly: false},
 	}
@@ -223,7 +223,7 @@ func TestRegisterSearchTool(t *testing.T) {
 }
 
 func TestRegisterSearchTool_NoMatches(t *testing.T) {
-	catalog := []toolInfo{
+	catalog := []ToolInfo{
 		{Name: "list_projects", Description: "List all Honeybadger projects", ReadOnly: true},
 	}
 
@@ -245,7 +245,7 @@ func TestRegisterSearchTool_NoMatches(t *testing.T) {
 }
 
 func TestRegisterSearchTool_ReadOnlyMode(t *testing.T) {
-	catalog := []toolInfo{
+	catalog := []ToolInfo{
 		{Name: "list_projects", Description: "List all Honeybadger projects", ReadOnly: true},
 		{Name: "create_project", Description: "Create a new Honeybadger project", ReadOnly: false},
 		{Name: "delete_project", Description: "Delete a Honeybadger project", ReadOnly: false},
@@ -276,7 +276,7 @@ func TestRegisterSearchTool_ReadOnlyMode(t *testing.T) {
 }
 
 func TestFilterReadOnlyCatalog(t *testing.T) {
-	catalog := []toolInfo{
+	catalog := []ToolInfo{
 		{Name: "list_projects", Description: "List all projects", ReadOnly: true},
 		{Name: "create_project", Description: "Create a project", ReadOnly: false},
 		{Name: "get_project", Description: "Get a project", ReadOnly: true},

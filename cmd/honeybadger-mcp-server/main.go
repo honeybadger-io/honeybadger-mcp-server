@@ -210,11 +210,12 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	if publicURL == "" || authServer == "" {
 		return errors.New("configuration error: --public-url and --authorization-server are required for http mode")
 	}
-	// /healthz and /.well-known/* are reserved (health checks and PRM); a
-	// collision would otherwise panic the mux with a duplicate-pattern error
-	// at registration time instead of a clean configuration error.
-	if endpointPath == "/healthz" || endpointPath == "/.well-known" || strings.HasPrefix(endpointPath, "/.well-known/") {
-		return fmt.Errorf("configuration error: --endpoint-path %q collides with a reserved path (/healthz, /.well-known/...)", endpointPath)
+	// /, /healthz, and /.well-known/* are reserved (landing page, health
+	// checks, and PRM); a collision would otherwise panic the mux with a
+	// duplicate-pattern error at registration time instead of a clean
+	// configuration error.
+	if endpointPath == "/" || endpointPath == "/healthz" || endpointPath == "/.well-known" || strings.HasPrefix(endpointPath, "/.well-known/") {
+		return fmt.Errorf("configuration error: --endpoint-path %q collides with a reserved path (/, /healthz, /.well-known/...)", endpointPath)
 	}
 
 	logger := logging.SetupLogger(cfg.LogLevel)
@@ -229,7 +230,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		"log_level", cfg.LogLevel,
 		"api_url", cfg.APIURL)
 
-	mcpServer := hbmcp.NewServer(cfg, version)
+	mcpServer, toolCatalog := hbmcp.NewServerWithCatalog(cfg, version)
 
 	// Both WithStateLess and WithStateful are no-ops when their arg is false.
 	sessionOpt := server.WithStateLess(true)
@@ -287,6 +288,15 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	rootHandler.Handle(httptransport.WellKnownPRMPath, handler) // legacy origin-level path for clients that don't derive
 	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, mcpHandler))
 	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
+	landing, err := httptransport.NewLandingHandler(httptransport.LandingData{
+		MCPURL:  resource,
+		Version: version,
+		Tools:   toolCatalog,
+	})
+	if err != nil {
+		return fmt.Errorf("render landing page: %w", err)
+	}
+	rootHandler.Handle("/", landing)
 	logger.Info("OAuth discovery enabled", "resource", resource, "prm_url", prmAbsURL)
 
 	httpServer := &http.Server{

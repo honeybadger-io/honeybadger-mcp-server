@@ -53,6 +53,49 @@ func TestNewServer_NonReadOnlyMode(t *testing.T) {
 	}
 }
 
+func TestNewServerWithCatalog(t *testing.T) {
+	cfg := &config.Config{
+		AuthToken: "test-token",
+		APIURL:    "https://api.honeybadger.io/v2",
+		LogLevel:  "info",
+	}
+
+	server, catalog := NewServerWithCatalog(cfg, "test")
+	if server == nil {
+		t.Fatal("NewServerWithCatalog returned nil server")
+	}
+	if len(catalog) == 0 {
+		t.Fatal("NewServerWithCatalog returned empty catalog")
+	}
+
+	byName := make(map[string]ToolInfo, len(catalog))
+	for _, tool := range catalog {
+		if tool.Description == "" {
+			t.Errorf("tool %q has empty description", tool.Name)
+		}
+		byName[tool.Name] = tool
+	}
+
+	cases := []struct {
+		name     string
+		readOnly bool
+	}{
+		{"list_projects", true},
+		{"create_project", false},
+		{"search_tools", true},
+	}
+	for _, c := range cases {
+		tool, ok := byName[c.name]
+		if !ok {
+			t.Errorf("catalog missing tool %q", c.name)
+			continue
+		}
+		if tool.ReadOnly != c.readOnly {
+			t.Errorf("tool %q ReadOnly = %v, want %v", c.name, tool.ReadOnly, c.readOnly)
+		}
+	}
+}
+
 func TestEffectiveReadOnly(t *testing.T) {
 	withClaims := func(scopes ...string) context.Context {
 		return WithClaims(context.Background(), &Claims{Scopes: scopes})
