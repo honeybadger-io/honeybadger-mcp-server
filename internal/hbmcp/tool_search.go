@@ -10,7 +10,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-type toolInfo struct {
+type ToolInfo struct {
 	Name        string
 	Description string
 	ReadOnly    bool
@@ -18,7 +18,7 @@ type toolInfo struct {
 
 type toolRegistrar struct {
 	server  *server.MCPServer
-	catalog []toolInfo
+	catalog []ToolInfo
 }
 
 func newToolRegistrar(s *server.MCPServer) *toolRegistrar {
@@ -29,16 +29,16 @@ func newToolRegistrar(s *server.MCPServer) *toolRegistrar {
 
 func (r *toolRegistrar) AddTool(tool mcp.Tool, handler server.ToolHandlerFunc) {
 	r.server.AddTool(tool, handler)
-	r.catalog = append(r.catalog, toolInfo{
+	r.catalog = append(r.catalog, ToolInfo{
 		Name:        tool.Name,
 		Description: tool.Description,
 		ReadOnly:    tool.Annotations.ReadOnlyHint != nil && *tool.Annotations.ReadOnlyHint,
 	})
 }
 
-func searchCatalog(catalog []toolInfo, query string) []toolInfo {
+func searchCatalog(catalog []ToolInfo, query string) []ToolInfo {
 	q := strings.ToLower(query)
-	var results []toolInfo
+	var results []ToolInfo
 	for _, t := range catalog {
 		if strings.Contains(strings.ToLower(t.Name), q) ||
 			strings.Contains(strings.ToLower(t.Description), q) {
@@ -48,10 +48,16 @@ func searchCatalog(catalog []toolInfo, query string) []toolInfo {
 	return results
 }
 
-func registerSearchTool(s *server.MCPServer, catalog []toolInfo, cfg *config.Config) {
+var searchToolInfo = ToolInfo{
+	Name:        "search_tools",
+	Description: "Search available Honeybadger tools by name or description. Use this to discover tools before calling them.",
+	ReadOnly:    true,
+}
+
+func registerSearchTool(s *server.MCPServer, catalog []ToolInfo, cfg *config.Config) {
 	s.AddTool(
-		mcp.NewTool("search_tools",
-			mcp.WithDescription("Search available Honeybadger tools by name or description. Use this to discover tools before calling them."),
+		mcp.NewTool(searchToolInfo.Name,
+			mcp.WithDescription(searchToolInfo.Description),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("query",
@@ -91,8 +97,8 @@ func registerSearchTool(s *server.MCPServer, catalog []toolInfo, cfg *config.Con
 	)
 }
 
-func filterReadOnlyCatalog(catalog []toolInfo) []toolInfo {
-	var filtered []toolInfo
+func filterReadOnlyCatalog(catalog []ToolInfo) []ToolInfo {
+	var filtered []ToolInfo
 	for _, t := range catalog {
 		if t.ReadOnly {
 			filtered = append(filtered, t)

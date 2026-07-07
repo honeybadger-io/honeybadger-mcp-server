@@ -33,6 +33,14 @@ func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
 }
 
 func NewServer(cfg *config.Config, version string) *server.MCPServer {
+	s, _ := NewServerWithCatalog(cfg, version)
+	return s
+}
+
+// NewServerWithCatalog also returns the full tool catalog (including
+// search_tools) so callers like the HTTP landing page can list the
+// server's tools without an MCP session.
+func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer, []ToolInfo) {
 	logger := logging.SetupLogger(cfg.LogLevel)
 
 	hooks := &server.Hooks{}
@@ -73,7 +81,7 @@ func NewServer(cfg *config.Config, version string) *server.MCPServer {
 	RegisterAlarmTools(r, clientFor)
 	registerSearchTool(s, r.catalog, cfg)
 
-	return s
+	return s, append(r.catalog, searchToolInfo)
 }
 
 func newClientFactory(cfg *config.Config) ClientFactory {
