@@ -34,6 +34,25 @@ func NormalizePublicURL(raw string) (string, error) {
 	return u.Scheme + "://" + u.Host, nil
 }
 
+// ValidateResourceURL checks a resource identifier per RFC 8707 §2: an
+// absolute URI with no fragment. The string is never rewritten — the AS
+// mints aud from its own canonical form of the same configured value, so
+// any transformation here risks a silent aud mismatch. The parsed URL is
+// returned for the RFC 9728 PRM path derivation.
+func ValidateResourceURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse resource-url: %w", err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("resource-url must include scheme and host, got %q", raw)
+	}
+	if u.Fragment != "" {
+		return nil, fmt.Errorf("resource-url must not include a fragment, got %q", raw)
+	}
+	return u, nil
+}
+
 // Leading slash: ServeMux panics without one. Trailing slash: PRM drift.
 func NormalizeEndpointPath(p string) string {
 	if p == "" {
