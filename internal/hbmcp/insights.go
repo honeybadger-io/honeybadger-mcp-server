@@ -2,7 +2,6 @@ package hbmcp
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 
@@ -10,15 +9,12 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-//go:embed docs/insights.md
-var insightsReference string
-
 // RegisterInsightsTools registers all insights-related MCP tools
 func RegisterInsightsTools(r *toolRegistrar, clientFor ClientFactory) {
 	// query_insights tool
 	r.AddTool(
 		mcp.NewTool("query_insights",
-			mcp.WithDescription("Execute a BadgerQL query against Insights data. Before constructing a query, call the get_insights_reference tool if you are unfamiliar with Insights."),
+			mcp.WithDescription("Execute a BadgerQL query against Insights data. Requires reference topic: badgerql (fetch via get_reference; skip topics still visible in your context). To visualize or share results, also fetch the charts topic."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -42,17 +38,6 @@ func RegisterInsightsTools(r *toolRegistrar, clientFor ClientFactory) {
 		},
 	)
 
-	// get_insights_reference tool
-	r.AddTool(
-		mcp.NewTool("get_insights_reference",
-			mcp.WithDescription("Returns the Honeybadger Insights reference covering BadgerQL query syntax, available functions, common patterns, shareable URLs, and dashboard configuration. Call this before working with Insights tools."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetInsightsReference(ctx, req)
-		},
-	)
 }
 
 func handleQueryInsights(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -89,8 +74,4 @@ func handleQueryInsights(ctx context.Context, client *hbapi.Client, req mcp.Call
 	}
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
-}
-
-func handleGetInsightsReference(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return mcp.NewToolResultText(insightsReference), nil
 }

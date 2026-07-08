@@ -329,31 +329,6 @@ func TestHandleQueryInsights_InvalidQuery(t *testing.T) {
 	}
 }
 
-func TestHandleGetInsightsReference(t *testing.T) {
-	req := mcp.CallToolRequest{}
-
-	result, err := handleGetInsightsReference(context.Background(), req)
-	if err != nil {
-		t.Fatalf("handleGetInsightsReference() error = %v", err)
-	}
-
-	if result.IsError {
-		t.Fatal("expected successful result, got error")
-	}
-
-	resultText := getResultText(result)
-	if resultText == "" {
-		t.Fatal("expected non-empty reference text")
-	}
-
-	expectedMarkers := []string{"Insights", "BadgerQL", "fields", "filter", "stats", "query_insights"}
-	for _, marker := range expectedMarkers {
-		if !strings.Contains(resultText, marker) {
-			t.Errorf("reference text should contain %q", marker)
-		}
-	}
-}
-
 func TestHandleQueryInsights_ProjectNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

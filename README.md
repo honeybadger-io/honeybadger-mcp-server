@@ -212,6 +212,11 @@ read-only: true
 
 ## Tools
 
+### Reference
+
+- **get_reference** - Returns Honeybadger reference documentation for LLMs, organized into non-overlapping topics: `badgerql` (query language), `charts` (view types, `chart_config`, shareable URLs), `dashboards` (widget schema, grid layout), and `alarms` (`trigger_config` schema, states, patterns). Tool descriptions declare which topics they require.
+  - `topics` : Reference topics to fetch, e.g. `["badgerql", "charts"]`. Use `["all"]` for everything; omit for an index of topics (array of strings, optional)
+
 ### Projects
 
 - **list_projects** - List all Honeybadger projects
@@ -301,8 +306,6 @@ read-only: true
   - `ts` : Time range - shortcuts like 'today', 'week', or ISO 8601 duration (e.g., 'PT3H'). Defaults to PT3H (string, optional)
   - `timezone` : IANA timezone identifier (e.g., 'America/New_York') for timestamp interpretation (string, optional)
 
-- **get_insights_reference** - Returns the Honeybadger Insights reference covering BadgerQL query syntax, available functions, common patterns, shareable URLs, and dashboard configuration. Call this before working with Insights, alarm, or dashboard tools. (no parameters)
-
 ### Dashboards
 
 - **list_dashboards** - List all Insights dashboards for a project
@@ -315,7 +318,7 @@ read-only: true
 - **create_dashboard** - Create a new Insights dashboard _(requires `read-only=false`)_
   - `project_id` : The ID of the project to create the dashboard in (number, required)
   - `title` : The title of the dashboard (string, required)
-  - `widgets` : JSON array of widget objects. Call `get_insights_reference` for the full widget schema and examples. Each widget needs a `type` (`insights_vis`, `alarms`, `errors`, `deployments`, `checkins`, `uptime`) and optionally `grid` ({x,y,w,h}), `presentation` ({title, subtitle}), and `config` (type-specific settings) (string, required)
+  - `widgets` : JSON array of widget objects. The `dashboards` reference topic has the full widget schema and examples. Each widget needs a `type` (`insights_vis`, `alarms`, `errors`, `deployments`, `checkins`, `uptime`) and optionally `grid` ({x,y,w,h}), `presentation` ({title, subtitle}), and `config` (type-specific settings) (string, required)
   - `default_ts` : Default time range for the dashboard. ISO 8601 duration (e.g., P1D, PT3H) or keyword (today, yesterday, week, month) (string, optional)
 
 - **update_dashboard** - Update an existing Insights dashboard _(requires `read-only=false`)_
@@ -338,7 +341,7 @@ read-only: true
   - `project_id` : The ID of the project the alarm belongs to (number, required)
   - `alarm_id` : The ID of the alarm to retrieve (string, required)
 
-- **create_alarm** - Create a new Insights alarm _(requires `read-only=false`)_. Call `get_insights_reference` first for the full alarm documentation, `trigger_config` schema, and query guidelines.
+- **create_alarm** - Create a new Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms` and `badgerql` first (via `get_reference`) for the `trigger_config` schema and query guidelines.
   - `project_id` : The ID of the project to create the alarm in (number, required)
   - `name` : The name of the alarm (string, required)
   - `query` : BadgerQL query for the alarm. The alarm system wraps the query to count results automatically (string, required)
@@ -348,7 +351,7 @@ read-only: true
   - `description` : Optional description of the alarm (string, optional)
   - `stream_ids` : Optional JSON array of stream IDs to query (defaults to `["default"]`) (string, optional)
 
-- **update_alarm** - Update an existing Insights alarm _(requires `read-only=false`)_. Call `get_insights_reference` first for the full alarm documentation.
+- **update_alarm** - Update an existing Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms` and `badgerql` first (via `get_reference`).
   - `project_id` : The ID of the project the alarm belongs to (number, required)
   - `alarm_id` : The ID of the alarm to update (string, required)
   - `name` : The name of the alarm (string, required)

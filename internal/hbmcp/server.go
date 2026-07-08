@@ -59,6 +59,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 
 	serverOptions := []server.ServerOption{
 		server.WithToolCapabilities(true),
+		server.WithInstructions(ServerInstructions()),
 		server.WithLogging(),
 		server.WithRecovery(),
 		server.WithHooks(hooks),
@@ -74,6 +75,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 
 	clientFor := newClientFactory(cfg)
 	r := newToolRegistrar(s)
+	RegisterReferenceTools(r)
 	RegisterProjectTools(r, clientFor)
 	RegisterFaultTools(r, clientFor)
 	RegisterInsightsTools(r, clientFor)
