@@ -66,11 +66,14 @@ jobs:
         # The sha tag is computed from the same expression as the checkout
         # ref above — the event context sha points at the branch tip on
         # workflow_run, which may not be the commit being built.
+        # {{version}} stays listed before {{raw}}: the first entry decides
+        # the action's `version` output, which feeds the VERSION build-arg
+        # and must be the bare semver, not the v-prefixed tag name.
         tags: |
           type=ref,event=branch
           type=ref,event=pr
-          type=semver,pattern={{raw}}
           type=semver,pattern={{version}}
+          type=semver,pattern={{raw}}
           type=semver,pattern={{major}}.{{minor}}
           type=raw,value=${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           type=raw,value=latest,enable={{is_default_branch}}
