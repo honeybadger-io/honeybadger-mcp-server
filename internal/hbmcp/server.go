@@ -75,7 +75,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 
 	clientFor := newClientFactory(cfg)
 	r := newToolRegistrar(s)
-	RegisterReferenceTools(r)
+	RegisterReferenceTools(r, newReferenceFetcher(cfg.InstructionsURL, logger))
 	RegisterProjectTools(r, clientFor)
 	RegisterFaultTools(r, clientFor)
 	RegisterInsightsTools(r, clientFor)
