@@ -86,6 +86,7 @@ func init() {
 func addCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().String("auth-token", "", "Honeybadger API token (required)")
 	cmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger API URL")
+	cmd.Flags().String("instructions-url", config.DefaultInstructionsURL, "Base URL the LLM reference topics are fetched from")
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
 }
 
@@ -94,6 +95,7 @@ func addCommonFlags(cmd *cobra.Command) {
 func loadConfigFromFlags(cmd *cobra.Command, transportMode string) (*config.Config, error) {
 	_ = viper.BindPFlag("auth-token", cmd.Flags().Lookup("auth-token"))
 	_ = viper.BindPFlag("api-url", cmd.Flags().Lookup("api-url"))
+	_ = viper.BindPFlag("instructions-url", cmd.Flags().Lookup("instructions-url"))
 	_ = viper.BindPFlag("log-level", cmd.Flags().Lookup("log-level"))
 
 	// Resolve manually: CLI flag wins, otherwise env/config/default.
@@ -104,6 +106,7 @@ func loadConfigFromFlags(cmd *cobra.Command, transportMode string) (*config.Conf
 	return config.Load(
 		viper.GetString("auth-token"),
 		viper.GetString("api-url"),
+		viper.GetString("instructions-url"),
 		viper.GetString("log-level"),
 		readOnly,
 		transportMode,
@@ -133,6 +136,7 @@ func initConfig() {
 	// Bind specific environment variables
 	_ = viper.BindEnv("auth-token", "HONEYBADGER_PERSONAL_AUTH_TOKEN")
 	_ = viper.BindEnv("api-url", "HONEYBADGER_API_URL")
+	_ = viper.BindEnv("instructions-url", "HONEYBADGER_INSTRUCTIONS_URL")
 	_ = viper.BindEnv("log-level", "LOG_LEVEL")
 	_ = viper.BindEnv("read-only", "HONEYBADGER_READ_ONLY")
 	_ = viper.BindEnv("address", "MCP_ADDRESS")
