@@ -165,6 +165,7 @@ And then configure your MCP client to run the server directly:
 | `HONEYBADGER_READ_ONLY`           | no       | true                       | Run in read-only mode, excluding write operations like `delete_project` |
 | `LOG_LEVEL`                       | no       | info                       | Log verbosity (debug, info, warn, error)                                |
 | `HONEYBADGER_API_URL`             | no       | https://app.honeybadger.io | Override the base URL for Honeybadger's API                             |
+| `HONEYBADGER_INSTRUCTIONS_URL`    | no       | https://docs.honeybadger.io/resources/llms/instructions | Override the base URL the LLM reference topics are fetched from |
 
 **Important**: The server runs in **read-only mode by default** for security. This means only read operations (like `list_projects`, `get_project`, `list_faults`) are available. Write operations such as `create_project`, `update_project`, and `delete_project` are excluded to prevent accidental modifications.
 
@@ -214,7 +215,7 @@ read-only: true
 
 ### Reference
 
-- **get_reference** - Returns Honeybadger reference documentation for LLMs, organized into non-overlapping topics: `badgerql` (query language), `charts` (view types, `chart_config`, shareable URLs), `dashboards` (widget schema, grid layout), and `alarms` (`trigger_config` schema, states, patterns). Tool descriptions declare which topics they require.
+- **get_reference** - Returns Honeybadger reference documentation for LLMs, organized into non-overlapping topics: `badgerql` (query language), `queries` (Insights query fundamentals), `charts` (visualization views, `chart_config`), `dashboards` (widget schema, grid layout), `alarms` (`trigger_config` schema, states, patterns), and `errors` (fault/notice model, error search syntax). Topics are fetched from the [docs site](https://docs.honeybadger.io/resources/llms/instructions/) and cached in memory. Tool descriptions declare which topics they require.
   - `topics` : Reference topics to fetch, e.g. `["badgerql", "charts"]`. Use `["all"]` for everything; omit for an index of topics (array of strings, optional)
 
 ### Projects
@@ -265,7 +266,7 @@ read-only: true
 
 ### Faults
 
-- **list_faults** - Get a list of faults for a project with optional filtering and ordering
+- **list_faults** - Get a list of faults for a project with optional filtering and ordering. Fetch the `errors` reference topic (via `get_reference`) for the fault/notice model and the `q` search syntax.
   - `project_id` : The ID of the project to get faults for (number, required)
   - `q` : Search string to filter faults (string, optional)
   - `created_after` : Filter faults created after this timestamp (string, optional)
@@ -279,7 +280,7 @@ read-only: true
   - `project_id` : The ID of the project containing the fault (number, required)
   - `fault_id` : The ID of the fault to retrieve (number, required)
 
-- **get_fault_counts** - Get fault count statistics for a project with optional filtering
+- **get_fault_counts** - Get fault count statistics for a project with optional filtering. Fetch the `errors` reference topic (via `get_reference`) for the `q` search syntax.
   - `project_id` : The ID of the project to get fault counts for (number, required)
   - `q` : Search string to filter faults (string, optional)
   - `created_after` : Filter faults created after this timestamp (string, optional)
@@ -341,7 +342,7 @@ read-only: true
   - `project_id` : The ID of the project the alarm belongs to (number, required)
   - `alarm_id` : The ID of the alarm to retrieve (string, required)
 
-- **create_alarm** - Create a new Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms` and `badgerql` first (via `get_reference`) for the `trigger_config` schema and query guidelines.
+- **create_alarm** - Create a new Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms`, `queries`, and `badgerql` first (via `get_reference`) for the `trigger_config` schema and query guidelines.
   - `project_id` : The ID of the project to create the alarm in (number, required)
   - `name` : The name of the alarm (string, required)
   - `query` : BadgerQL query for the alarm. The alarm system wraps the query to count results automatically (string, required)
@@ -351,7 +352,7 @@ read-only: true
   - `description` : Optional description of the alarm (string, optional)
   - `stream_ids` : Optional JSON array of stream IDs to query (defaults to `["default"]`) (string, optional)
 
-- **update_alarm** - Update an existing Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms` and `badgerql` first (via `get_reference`).
+- **update_alarm** - Update an existing Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms`, `queries`, and `badgerql` first (via `get_reference`).
   - `project_id` : The ID of the project the alarm belongs to (number, required)
   - `alarm_id` : The ID of the alarm to update (string, required)
   - `name` : The name of the alarm (string, required)
