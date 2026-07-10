@@ -52,7 +52,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	// create_dashboard tool
 	r.AddTool(
 		mcp.NewTool("create_dashboard",
-			mcp.WithDescription("Create a new Insights dashboard for a Honeybadger project. IMPORTANT: Requires reference topics: dashboards, charts, badgerql — fetch via get_reference first (skip topics still visible in your context). Verify each widget's query returns the expected results via query_insights before creating the dashboard."),
+			mcp.WithDescription("Create a new Insights dashboard for a Honeybadger project. IMPORTANT: Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference first (skip topics still visible in your context). Verify each widget's query returns the expected results via query_insights before creating the dashboard."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",
@@ -80,7 +80,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	// update_dashboard tool
 	r.AddTool(
 		mcp.NewTool("update_dashboard",
-			mcp.WithDescription("Update an existing Insights dashboard. IMPORTANT: Requires reference topics: dashboards, charts, badgerql — fetch via get_reference first (skip topics still visible in your context)."),
+			mcp.WithDescription("Update an existing Insights dashboard. IMPORTANT: Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference first (skip topics still visible in your context)."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",

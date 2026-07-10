@@ -52,7 +52,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// create_alarm tool
 	r.AddTool(
 		mcp.NewTool("create_alarm",
-			mcp.WithDescription("Create a new Insights alarm for a Honeybadger project. IMPORTANT: Requires reference topics: alarms, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. Verify the query returns the expected results via query_insights before creating the alarm."),
+			mcp.WithDescription("Create a new Insights alarm for a Honeybadger project. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. Verify the query returns the expected results via query_insights before creating the alarm."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",
@@ -95,7 +95,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// update_alarm tool
 	r.AddTool(
 		mcp.NewTool("update_alarm",
-			mcp.WithDescription("Update an existing Insights alarm. IMPORTANT: Requires reference topics: alarms, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines."),
+			mcp.WithDescription("Update an existing Insights alarm. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",

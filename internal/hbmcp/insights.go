@@ -14,7 +14,7 @@ func RegisterInsightsTools(r *toolRegistrar, clientFor ClientFactory) {
 	// query_insights tool
 	r.AddTool(
 		mcp.NewTool("query_insights",
-			mcp.WithDescription("Execute a BadgerQL query against Insights data. Requires reference topic: badgerql (fetch via get_reference; skip topics still visible in your context). To visualize or share results, also fetch the charts topic."),
+			mcp.WithDescription("Execute a BadgerQL query against Insights data. Requires reference topics: queries, badgerql (fetch via get_reference; skip topics still visible in your context). To visualize or share results, also fetch the charts topic."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
