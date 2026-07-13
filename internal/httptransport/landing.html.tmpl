@@ -112,7 +112,9 @@
   code { font-family: var(--mono); }
   .codeblock { position: relative; }
   .codeblock button.copy {
-    position: absolute; top: 0.55rem; right: 0.55rem;
+    /* Vertically centers the button in a single-line block (~3.5rem tall);
+       multi-line blocks keep it comfortably top-anchored. */
+    position: absolute; top: 1rem; right: 0.55rem;
     background: #333333; color: #d4d4d4;
     border: 1px solid rgba(255,255,255,0.15); border-radius: 0.4rem;
     font: 600 0.72rem var(--sans); padding: 0.28rem 0.6rem; cursor: pointer;
@@ -167,7 +169,7 @@
     <nav class="site-nav">
       <a href="https://docs.honeybadger.io/resources/llms/">Docs</a>
       <a href="https://github.com/honeybadger-io/honeybadger-mcp-server">GitHub</a>
-      <a href="https://app.honeybadger.io">Sign in</a>
+      <a href="{{.AppURL}}">Sign in</a>
     </nav>
   </div>
 </header>
@@ -189,7 +191,7 @@
       Streamable HTTP with OAuth &mdash; your client opens a browser window to
       sign in to Honeybadger. No API keys to copy around.
     </p>
-    <div class="card endpoint">
+    <div class="endpoint">
       <div class="codeblock">
         <pre><code>{{.MCPURL}}</code></pre>
         <button class="copy" type="button">Copy</button>

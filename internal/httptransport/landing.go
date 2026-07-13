@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbmcp"
 )
@@ -14,9 +15,22 @@ import (
 var landingTemplate string
 
 type LandingData struct {
-	MCPURL  string
+	MCPURL string
+	// Region-specific app origin for the sign-in link (the authorization
+	// server: app.honeybadger.io in US, eu-app.honeybadger.io in EU).
+	AppURL  string
 	Version string
 	Tools   []hbmcp.ToolInfo
+}
+
+// Tool descriptions are written for LLM consumption — after the first
+// sentence they carry agent guidance ("IMPORTANT: call X first…") that
+// reads as noise to people. Show only the human-meaningful summary.
+func firstSentence(s string) string {
+	if i := strings.Index(s, ". "); i >= 0 {
+		return s[:i+1]
+	}
+	return s
 }
 
 // NewLandingHandler serves a static informational page at "/" describing the
@@ -27,6 +41,12 @@ func NewLandingHandler(data LandingData) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	tools := make([]hbmcp.ToolInfo, len(data.Tools))
+	for i, t := range data.Tools {
+		t.Description = firstSentence(t.Description)
+		tools[i] = t
+	}
+	data.Tools = tools
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return nil, err

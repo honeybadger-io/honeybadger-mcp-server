@@ -308,6 +308,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
 	landing, err := httptransport.NewLandingHandler(httptransport.LandingData{
 		MCPURL:  resource,
+		AppURL:  authServer,
 		Version: version,
 		Tools:   toolCatalog,
 	})
@@ -372,6 +373,9 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
+	// The build may inject either 1.0.0 or the raw v1.0.0 tag name;
+	// normalize so displays that prepend "v" don't render "vv1.0.0".
+	version = strings.TrimPrefix(version, "v")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

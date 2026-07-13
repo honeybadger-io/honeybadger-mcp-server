@@ -1,0 +1,21 @@
+# Local-development image that builds against a local api-go checkout
+# instead of the go.mod release. Never used for production builds — the
+# release pipeline uses Dockerfile.
+#
+# Usage (the apigo build context is required):
+#   docker buildx build -f Dockerfile.local --build-context apigo=../api-go \
+#     -t honeybadger-mcp-server:local --load .
+FROM golang:1.25.5-alpine AS build
+WORKDIR /build
+COPY . .
+COPY --from=apigo / /apigo
+ARG VERSION=dev-local
+RUN go mod edit -replace github.com/honeybadger-io/api-go=/apigo && \
+    CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /bin/honeybadger-mcp-server ./cmd/honeybadger-mcp-server
+
+FROM alpine:3
+WORKDIR /server
+EXPOSE 8080
+COPY --from=build /bin/honeybadger-mcp-server .
+ENTRYPOINT ["/server/honeybadger-mcp-server"]
+CMD ["stdio"]

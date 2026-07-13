@@ -12,11 +12,13 @@ import (
 func testLandingHandler(t *testing.T) http.Handler {
 	t.Helper()
 	h, err := NewLandingHandler(LandingData{
-		MCPURL:  "https://mcp.honeybadger.io/mcp",
+		MCPURL:  "https://eu-mcp.honeybadger.io/mcp",
+		AppURL:  "https://eu-app.honeybadger.io",
 		Version: "1.2.3",
 		Tools: []hbmcp.ToolInfo{
 			{Name: "list_projects", Description: "List all projects", ReadOnly: true},
 			{Name: "create_project", Description: "Create a new project", ReadOnly: false},
+			{Name: "create_alarm", Description: "Create a new Insights alarm. IMPORTANT: Call get_insights_reference first for full alarm documentation.", ReadOnly: false},
 		},
 	})
 	if err != nil {
@@ -41,7 +43,8 @@ func TestLandingHandler_ServesRootHTML(t *testing.T) {
 
 	body := rec.Body.String()
 	for _, want := range []string{
-		"https://mcp.honeybadger.io/mcp",
+		"https://eu-mcp.honeybadger.io/mcp",
+		`href="https://eu-app.honeybadger.io"`,
 		"list_projects",
 		"List all projects",
 		"create_project",
@@ -50,6 +53,14 @@ func TestLandingHandler_ServesRootHTML(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("body missing %q", want)
 		}
+	}
+
+	// Agent-facing guidance after the first sentence must not reach the page.
+	if !strings.Contains(body, "Create a new Insights alarm.") {
+		t.Error("body missing first sentence of create_alarm description")
+	}
+	if strings.Contains(body, "IMPORTANT") {
+		t.Error("body leaks agent guidance past the first sentence")
 	}
 }
 
