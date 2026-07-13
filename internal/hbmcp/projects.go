@@ -51,8 +51,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("account_id",
-				mcp.Required(),
-				mcp.Description("The account ID to associate the project with"),
+				mcp.Description("The account ID to associate the project with. If omitted, the project is created in the first account your auth token has access to."),
 				mcp.MinLength(1),
 			),
 			mcp.WithString("name",
@@ -301,10 +300,9 @@ func handleGetProject(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 }
 
 func handleCreateProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	// Optional: the API associates the project with the token's first
+	// accessible account when account_id is absent.
 	accountID := req.GetString("account_id", "")
-	if accountID == "" {
-		return mcp.NewToolResultError("account_id is required"), nil
-	}
 
 	// Build project request using typed getters
 	projectReq := hbapi.ProjectRequest{

@@ -221,7 +221,7 @@ read-only: true
   - `id` : The ID of the project to retrieve (number, required)
 
 - **create_project** - Create a new Honeybadger project _(requires `read-only=false`)_
-  - `account_id` : The account ID to associate the project with (string, required)
+  - `account_id` : The account ID to associate the project with. If omitted, the project is created in the first account your auth token has access to (string, optional)
   - `name` : The name of the new project (string, required)
   - `resolve_errors_on_deploy` : Whether all unresolved faults should be marked as resolved when a deploy is recorded (boolean, optional)
   - `disable_public_links` : Whether to allow fault details to be publicly shareable via a button on the fault detail page (boolean, optional)
