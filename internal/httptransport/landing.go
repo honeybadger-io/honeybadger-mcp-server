@@ -15,7 +15,7 @@ import (
 var landingTemplate string
 
 type LandingData struct {
-	MCPURL  string
+	MCPURL string
 	// Region-specific app origin for the sign-in link (the authorization
 	// server: app.honeybadger.io in US, eu-app.honeybadger.io in EU).
 	AppURL  string

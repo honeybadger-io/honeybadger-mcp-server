@@ -5,7 +5,7 @@ APIGO_DIR ?= ../api-go
 .PHONY: build test docker docker-local
 
 build:
-	go build ./...
+	go build -o honeybadger-mcp-server ./cmd/honeybadger-mcp-server
 
 test:
 	go test ./...
