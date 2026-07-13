@@ -512,9 +512,21 @@ func TestHandleCreateProject_ValidationError(t *testing.T) {
 	}
 }
 
-func TestHandleCreateProject_MissingAccountID(t *testing.T) {
+func TestHandleCreateProject_WithoutAccountID(t *testing.T) {
+	mockResponse := `{"id": 456, "name": "Test Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret789", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("account_id") {
+			t.Errorf("expected no account_id query param, got raw query %q", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(mockResponse))
+	}))
+	defer server.Close()
+
 	client := hbapi.NewClient().
-		WithBaseURL("https://api.example.com").
+		WithBaseURL(server.URL).
 		WithAuthToken("test-token")
 
 	req := mcp.CallToolRequest{
@@ -530,12 +542,16 @@ func TestHandleCreateProject_MissingAccountID(t *testing.T) {
 		t.Fatalf("handleCreateProject() error = %v", err)
 	}
 
-	if !result.IsError {
-		t.Fatal("expected error result for missing account_id")
+	if result.IsError {
+		t.Fatalf("expected success without account_id, got error: %s", getResultText(result))
 	}
 
-	if !strings.Contains(getResultText(result), "account_id is required") {
-		t.Error("Error message should indicate missing account_id parameter")
+	var project hbapi.Project
+	if err := json.Unmarshal([]byte(getResultText(result)), &project); err != nil {
+		t.Errorf("Response should be valid JSON project: %v", err)
+	}
+	if project.ID != 456 {
+		t.Errorf("expected project ID 456, got %d", project.ID)
 	}
 }
 
