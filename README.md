@@ -370,7 +370,7 @@ read-only: true
 
 ### Check-Ins
 
-- **list_check_ins** - List all check-ins (cron/scheduled task monitoring) for a project
+- **list_check_ins** - List check-ins (cron/scheduled task monitoring) for a project. Returns the first 25 check-ins; pagination is not currently supported
   - `project_id` : The ID of the project to list check-ins for (number, required)
 
 - **get_check_in** - Get a single check-in by ID
@@ -387,7 +387,7 @@ read-only: true
   - `cron_schedule` : Cron expression defining when the check-in is expected to report, e.g. `0 5 * * *`. Required for cron schedules (string, optional)
   - `cron_timezone` : Timezone for the cron schedule (defaults to UTC) (string, optional)
 
-- **update_check_in** - Update an existing check-in; only the provided fields are changed. The schedule type cannot be changed after creation _(requires `read-only=false`)_
+- **update_check_in** - Update an existing check-in; only the provided fields are changed, and fields cannot be cleared once set. The schedule type cannot be changed after creation _(requires `read-only=false`)_
   - `project_id` : The ID of the project the check-in belongs to (number, required)
   - `check_in_id` : The ID of the check-in to update (string, required)
   - `name` : The name of the check-in (string, optional)

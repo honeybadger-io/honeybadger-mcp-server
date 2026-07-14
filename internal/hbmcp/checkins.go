@@ -14,7 +14,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_check_ins tool
 	r.AddTool(
 		mcp.NewTool("list_check_ins",
-			mcp.WithDescription("List all check-ins (cron/scheduled task monitoring) for a Honeybadger project"),
+			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns the first 25 check-ins; pagination is not currently supported."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
