@@ -181,7 +181,40 @@ func RegisterReferenceTools(r *toolRegistrar, fetcher *referenceFetcher) {
 			return handleGetReference(ctx, fetcher, req)
 		},
 	)
+
+	// Deprecated alias: get_reference was previously named get_insights_reference.
+	// Registered hidden so it stays reachable for clients whose cached tool list
+	// still has the old name, without advertising it to fresh clients via
+	// search_tools or the landing page. It deliberately returns no reference
+	// content: its only job is to report that the tool list is stale and must be
+	// refreshed. The alias is retained for all v1.x releases; earliest removal is
+	// v2.0.
+	r.AddHiddenTool(
+		mcp.NewTool("get_insights_reference",
+			mcp.WithDescription("Deprecated and non-functional: renamed to get_reference. Returns no content; calling it only reports that the client's tool list is out of date. Use get_reference instead."),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
+		),
+		handleDeprecatedInsightsReference,
+	)
 }
+
+// handleDeprecatedInsightsReference is the handler for the old
+// get_insights_reference name. It returns no reference content — reaching it at
+// all means the caller's tool list is stale — so it reports that as an error
+// result carrying instructions to refresh and switch to get_reference.
+func handleDeprecatedInsightsReference(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return mcp.NewToolResultError(deprecatedReferenceNotice), nil
+}
+
+// deprecatedReferenceNotice is the entire payload returned for the old
+// get_insights_reference name. It must be self-contained: it reaches clients
+// whose cached tool list is stale (the description they see is stale too), so it
+// carries the full instruction to refresh.
+const deprecatedReferenceNotice = "`get_insights_reference` has been renamed to `get_reference` and no longer returns content. " +
+	"Reaching this tool means the MCP client's cached tool list is out of date, so other tool names, descriptions, and " +
+	"input schemas may be stale too. Tell the user to reconnect the Honeybadger MCP server (for example, run `/mcp` and " +
+	"reconnect, or restart the client) to refresh tool definitions, then call `get_reference` for reference content."
 
 func handleGetReference(ctx context.Context, f *referenceFetcher, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	idx, err := f.index(ctx)
