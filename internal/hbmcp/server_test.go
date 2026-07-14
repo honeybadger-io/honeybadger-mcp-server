@@ -2,11 +2,70 @@ package hbmcp
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+// TestAllToolsHaveTitleAndAnnotations enforces the tool-authoring contract for
+// the Anthropic Connectors Directory: every tool exposed over tools/list must
+// carry a human-readable title annotation plus explicit readOnlyHint and
+// destructiveHint annotations. This is a guard against forgetting
+// mcp.WithTitleAnnotation (or either hint) on a new tool — a missing title is
+// an automatic directory-review rejection.
+func TestAllToolsHaveTitleAndAnnotations(t *testing.T) {
+	cfg := &config.Config{
+		AuthToken:     "test-token",
+		APIURL:        "https://api.honeybadger.io/v2",
+		LogLevel:      "info",
+		ReadOnly:      false, // non-read-only so write tools are listed too
+		TransportMode: config.TransportStdio,
+	}
+
+	s := NewServer(cfg, "test")
+
+	listMsg := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`
+	resp := s.HandleMessage(context.Background(), []byte(listMsg))
+
+	respBytes, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("failed to marshal tools/list response: %v", err)
+	}
+
+	var parsed struct {
+		Result struct {
+			Tools []struct {
+				Name        string `json:"name"`
+				Annotations struct {
+					Title           string `json:"title"`
+					ReadOnlyHint    *bool  `json:"readOnlyHint"`
+					DestructiveHint *bool  `json:"destructiveHint"`
+				} `json:"annotations"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(respBytes, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal tools/list response: %v", err)
+	}
+
+	if len(parsed.Result.Tools) == 0 {
+		t.Fatal("tools/list returned no tools")
+	}
+
+	for _, tool := range parsed.Result.Tools {
+		if tool.Annotations.Title == "" {
+			t.Errorf("tool %q is missing a title annotation (add mcp.WithTitleAnnotation)", tool.Name)
+		}
+		if tool.Annotations.ReadOnlyHint == nil {
+			t.Errorf("tool %q is missing a readOnlyHint annotation", tool.Name)
+		}
+		if tool.Annotations.DestructiveHint == nil {
+			t.Errorf("tool %q is missing a destructiveHint annotation", tool.Name)
+		}
+	}
+}
 
 func TestNewServer(t *testing.T) {
 	cfg := &config.Config{

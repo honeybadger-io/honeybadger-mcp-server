@@ -67,6 +67,7 @@ var searchToolInfo = ToolInfo{
 func registerSearchTool(s *server.MCPServer, catalog []ToolInfo, cfg *config.Config) {
 	s.AddTool(
 		mcp.NewTool(searchToolInfo.Name,
+			mcp.WithTitleAnnotation("Search Tools"),
 			mcp.WithDescription(searchToolInfo.Description),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
