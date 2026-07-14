@@ -14,7 +14,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_faults tool
 	r.AddTool(
 		mcp.NewTool("list_faults",
-			mcp.WithDescription("Get a list of faults for a project with optional filtering and ordering"),
+			mcp.WithDescription("Get a list of faults for a project with optional filtering and ordering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the fault/notice model and the q search syntax."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -23,7 +23,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 				mcp.Min(1),
 			),
 			mcp.WithString("q",
-				mcp.Description("Search string to filter faults"),
+				mcp.Description("Search string to filter faults (see the errors reference topic for the search query syntax)"),
 			),
 			mcp.WithString("created_after",
 				mcp.Description("Filter faults created after this timestamp"),
@@ -136,7 +136,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_fault_counts tool
 	r.AddTool(
 		mcp.NewTool("get_fault_counts",
-			mcp.WithDescription("Get fault count statistics for a project with optional filtering"),
+			mcp.WithDescription("Get fault count statistics for a project with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -145,7 +145,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 				mcp.Min(1),
 			),
 			mcp.WithString("q",
-				mcp.Description("Search string to filter faults"),
+				mcp.Description("Search string to filter faults (see the errors reference topic for the search query syntax)"),
 			),
 			mcp.WithString("created_after",
 				mcp.Description("Filter faults created after this timestamp"),

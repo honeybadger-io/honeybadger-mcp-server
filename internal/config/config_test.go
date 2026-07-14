@@ -92,7 +92,7 @@ func TestLoad(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := Load(tt.authToken, tt.apiURL, tt.logLevel, tt.readOnly, TransportStdio)
+			cfg, err := Load(tt.authToken, tt.apiURL, "", tt.logLevel, tt.readOnly, TransportStdio)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -100,6 +100,9 @@ func TestLoad(t *testing.T) {
 			if !tt.wantErr && cfg != nil {
 				if cfg.AuthToken != tt.authToken {
 					t.Errorf("Load() AuthToken = %v, want %v", cfg.AuthToken, tt.authToken)
+				}
+				if cfg.InstructionsURL != DefaultInstructionsURL {
+					t.Errorf("Load() InstructionsURL = %v, want default %v", cfg.InstructionsURL, DefaultInstructionsURL)
 				}
 				if cfg.APIURL != tt.apiURL {
 					t.Errorf("Load() APIURL = %v, want %v", cfg.APIURL, tt.apiURL)
