@@ -10,12 +10,17 @@ const (
 	TransportHTTP  = "http"
 )
 
+// DefaultInstructionsURL is where the docs site publishes the LLM
+// instruction sets (index.json plus one .txt per set).
+const DefaultInstructionsURL = "https://docs.honeybadger.io/resources/llms/instructions"
+
 type Config struct {
-	AuthToken     string
-	APIURL        string
-	LogLevel      string
-	ReadOnly      bool
-	TransportMode string
+	AuthToken       string
+	APIURL          string
+	InstructionsURL string
+	LogLevel        string
+	ReadOnly        bool
+	TransportMode   string
 }
 
 func (c *Config) Validate() error {
@@ -29,13 +34,17 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func Load(authToken, apiURL, logLevel string, readOnly bool, transportMode string) (*Config, error) {
+func Load(authToken, apiURL, instructionsURL, logLevel string, readOnly bool, transportMode string) (*Config, error) {
+	if instructionsURL == "" {
+		instructionsURL = DefaultInstructionsURL
+	}
 	cfg := &Config{
-		AuthToken:     authToken,
-		APIURL:        apiURL,
-		LogLevel:      logLevel,
-		ReadOnly:      readOnly,
-		TransportMode: transportMode,
+		AuthToken:       authToken,
+		APIURL:          apiURL,
+		InstructionsURL: instructionsURL,
+		LogLevel:        logLevel,
+		ReadOnly:        readOnly,
+		TransportMode:   transportMode,
 	}
 
 	if err := cfg.Validate(); err != nil {
