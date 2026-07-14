@@ -280,6 +280,14 @@ read-only: true
   - `project_id` : The ID of the project containing the fault (number, required)
   - `fault_id` : The ID of the fault to retrieve (number, required)
 
+- **update_fault** - Update a fault's resolved, ignored, assignee, or resolve-on-deploy state. Only the provided fields are changed.
+  - `project_id` : The ID of the project containing the fault (number, required)
+  - `fault_id` : The ID of the fault to update (number, required)
+  - `resolved` : Whether the fault is resolved (boolean, optional)
+  - `ignored` : Whether the fault is ignored (boolean, optional)
+  - `assignee_id` : Positive integer to assign that user; null to remove the current assignee; omit to leave unchanged (number or null, optional)
+  - `resolve_on_deploy` : Mark the fault to be resolved automatically on next deploy (boolean, optional)
+
 - **get_fault_counts** - Get fault count statistics for a project with optional filtering. Fetch the `errors` reference topic (via `get_reference`) for the `q` search syntax.
   - `project_id` : The ID of the project to get fault counts for (number, required)
   - `q` : Search string to filter faults (string, optional)

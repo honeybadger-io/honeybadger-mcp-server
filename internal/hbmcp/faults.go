@@ -77,6 +77,43 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 		},
 	)
 
+	// update_fault tool
+	r.AddTool(
+		mcp.NewTool("update_fault",
+			mcp.WithTitleAnnotation("Update Fault"),
+			mcp.WithDescription("Update a fault's resolved, ignored, assignee, or resolve-on-deploy state. Only the provided fields are changed. Setting resolved or ignored to true in the same request takes precedence over resolve_on_deploy."),
+			mcp.WithReadOnlyHintAnnotation(false),
+			mcp.WithDestructiveHintAnnotation(true),
+			mcp.WithNumber("project_id",
+				mcp.Required(),
+				mcp.Description("The ID of the project containing the fault"),
+				mcp.Min(1),
+			),
+			mcp.WithNumber("fault_id",
+				mcp.Required(),
+				mcp.Description("The ID of the fault to update"),
+				mcp.Min(1),
+			),
+			mcp.WithBoolean("resolved",
+				mcp.Description("Whether the fault is resolved"),
+			),
+			mcp.WithBoolean("ignored",
+				mcp.Description("Whether the fault is ignored"),
+			),
+			mcp.WithInteger("assignee_id",
+				mcp.Description("Positive integer to assign that user; null to remove the current assignee; omit to leave unchanged"),
+				mcp.Min(1),
+				nullable,
+			),
+			mcp.WithBoolean("resolve_on_deploy",
+				mcp.Description("Mark the fault to be resolved automatically on next deploy"),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleUpdateFault(ctx, clientFor(ctx), req)
+		},
+	)
+
 	// list_fault_notices tool
 	r.AddTool(
 		mcp.NewTool("list_fault_notices",
@@ -218,6 +255,81 @@ func handleGetFault(ctx context.Context, client *hbapi.Client, req mcp.CallToolR
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(fault)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+func handleUpdateFault(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
+	projectID, ok := requireID(args, "project_id")
+	if !ok {
+		return mcp.NewToolResultError("project_id must be a positive integer"), nil
+	}
+
+	faultID, ok := requireID(args, "fault_id")
+	if !ok {
+		return mcp.NewToolResultError("fault_id must be a positive integer"), nil
+	}
+
+	// Only include fields that were explicitly provided, so unset fields are
+	// omitted from the request instead of being reset. Values are validated
+	// against the raw arguments because the typed getters silently coerce
+	// invalid input (e.g. null to false, 1.5 to 1).
+	params := hbapi.FaultUpdateParams{}
+
+	for _, f := range []struct {
+		name  string
+		field **bool
+	}{
+		{"resolved", &params.Resolved},
+		{"ignored", &params.Ignored},
+		{"resolve_on_deploy", &params.ResolveOnDeploy},
+	} {
+		raw, ok := args[f.name]
+		if !ok {
+			continue
+		}
+		val, ok := raw.(bool)
+		if !ok {
+			return mcp.NewToolResultError(fmt.Sprintf("%s must be a boolean", f.name)), nil
+		}
+		*f.field = &val
+	}
+
+	if raw, ok := args["assignee_id"]; ok {
+		switch v := raw.(type) {
+		case nil:
+			params.AssigneeID = hbapi.Null[int]() // explicit null unassigns the fault
+		case float64:
+			if v != float64(int(v)) || v < 1 {
+				return mcp.NewToolResultError("assignee_id must be a positive integer or null"), nil
+			}
+			params.AssigneeID = hbapi.Value(int(v))
+		case int: // arguments constructed in Go rather than decoded from JSON
+			if v < 1 {
+				return mcp.NewToolResultError("assignee_id must be a positive integer or null"), nil
+			}
+			params.AssigneeID = hbapi.Value(v)
+		default:
+			return mcp.NewToolResultError("assignee_id must be a positive integer or null"), nil
+		}
+	}
+
+	if params.Resolved == nil && params.Ignored == nil && params.AssigneeID == nil && params.ResolveOnDeploy == nil {
+		return mcp.NewToolResultError("at least one of resolved, ignored, assignee_id, or resolve_on_deploy is required"), nil
+	}
+
+	result, err := client.Faults.Update(ctx, projectID, faultID, params)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to update fault: %v", err)), nil
+	}
+
+	// Return JSON response
+	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
