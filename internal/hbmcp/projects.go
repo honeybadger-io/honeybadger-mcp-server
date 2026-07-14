@@ -15,6 +15,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_projects tool
 	r.AddTool(
 		mcp.NewTool("list_projects",
+			mcp.WithTitleAnnotation("List Projects"),
 			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details)"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -30,6 +31,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_project tool
 	r.AddTool(
 		mcp.NewTool("get_project",
+			mcp.WithTitleAnnotation("Get Project"),
 			mcp.WithDescription("Get a single Honeybadger project by ID"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -47,6 +49,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// create_project tool
 	r.AddTool(
 		mcp.NewTool("create_project",
+			mcp.WithTitleAnnotation("Create Project"),
 			mcp.WithDescription("Create a new Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -88,6 +91,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// update_project tool
 	r.AddTool(
 		mcp.NewTool("update_project",
+			mcp.WithTitleAnnotation("Update Project"),
 			mcp.WithDescription("Update an existing Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -129,6 +133,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// delete_project tool
 	r.AddTool(
 		mcp.NewTool("delete_project",
+			mcp.WithTitleAnnotation("Delete Project"),
 			mcp.WithDescription("Delete a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -146,6 +151,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_project_occurrence_counts tool
 	r.AddTool(
 		mcp.NewTool("get_project_occurrence_counts",
+			mcp.WithTitleAnnotation("Get Project Occurrence Counts"),
 			mcp.WithDescription("Get occurrence counts for all projects or a specific project"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -169,6 +175,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_project_integrations tool
 	r.AddTool(
 		mcp.NewTool("get_project_integrations",
+			mcp.WithTitleAnnotation("Get Project Integrations"),
 			mcp.WithDescription("Get a list of integrations (channels) for a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -186,6 +193,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_project_report tool
 	r.AddTool(
 		mcp.NewTool("get_project_report",
+			mcp.WithTitleAnnotation("Get Project Report"),
 			mcp.WithDescription("Get report data for a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),

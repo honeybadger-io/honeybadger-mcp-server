@@ -14,6 +14,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_faults tool
 	r.AddTool(
 		mcp.NewTool("list_faults",
+			mcp.WithTitleAnnotation("List Faults"),
 			mcp.WithDescription("Get a list of faults for a project with optional filtering and ordering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the fault/notice model and the q search syntax."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -56,6 +57,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_fault tool
 	r.AddTool(
 		mcp.NewTool("get_fault",
+			mcp.WithTitleAnnotation("Get Fault"),
 			mcp.WithDescription("Get detailed information for a specific fault in a project"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -78,6 +80,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_fault_notices tool
 	r.AddTool(
 		mcp.NewTool("list_fault_notices",
+			mcp.WithTitleAnnotation("List Fault Notices"),
 			mcp.WithDescription("Get a list of notices (individual error events) for a specific fault"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -111,6 +114,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_fault_affected_users tool
 	r.AddTool(
 		mcp.NewTool("list_fault_affected_users",
+			mcp.WithTitleAnnotation("List Fault Affected Users"),
 			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -136,6 +140,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_fault_counts tool
 	r.AddTool(
 		mcp.NewTool("get_fault_counts",
+			mcp.WithTitleAnnotation("Get Fault Counts"),
 			mcp.WithDescription("Get fault count statistics for a project with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),

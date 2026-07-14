@@ -14,6 +14,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_check_ins tool
 	r.AddTool(
 		mcp.NewTool("list_check_ins",
+			mcp.WithTitleAnnotation("List Check-Ins"),
 			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns the first 25 check-ins; pagination is not currently supported."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -31,6 +32,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_check_in tool
 	r.AddTool(
 		mcp.NewTool("get_check_in",
+			mcp.WithTitleAnnotation("Get Check-In"),
 			mcp.WithDescription("Get a single check-in by ID"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -52,6 +54,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	// create_check_in tool
 	r.AddTool(
 		mcp.NewTool("create_check_in",
+			mcp.WithTitleAnnotation("Create Check-In"),
 			mcp.WithDescription("Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -93,6 +96,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	// update_check_in tool
 	r.AddTool(
 		mcp.NewTool("update_check_in",
+			mcp.WithTitleAnnotation("Update Check-In"),
 			mcp.WithDescription("Update an existing check-in. Only the provided fields are changed; fields cannot be cleared once set. The schedule type cannot be changed after creation."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -132,6 +136,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	// delete_check_in tool
 	r.AddTool(
 		mcp.NewTool("delete_check_in",
+			mcp.WithTitleAnnotation("Delete Check-In"),
 			mcp.WithDescription("Delete a check-in. This also deletes the check-in's reporting history."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),

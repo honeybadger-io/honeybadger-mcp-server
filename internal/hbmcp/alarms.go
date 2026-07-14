@@ -14,6 +14,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_alarms tool
 	r.AddTool(
 		mcp.NewTool("list_alarms",
+			mcp.WithTitleAnnotation("List Alarms"),
 			mcp.WithDescription("List all Insights alarms for a Honeybadger project. To interpret alarm configuration, fetch reference topic: alarms (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -31,6 +32,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_alarm tool
 	r.AddTool(
 		mcp.NewTool("get_alarm",
+			mcp.WithTitleAnnotation("Get Alarm"),
 			mcp.WithDescription("Get a single Insights alarm by ID. To interpret alarm configuration, fetch reference topic: alarms (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -52,6 +54,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// create_alarm tool
 	r.AddTool(
 		mcp.NewTool("create_alarm",
+			mcp.WithTitleAnnotation("Create Alarm"),
 			mcp.WithDescription("Create a new Insights alarm for a Honeybadger project. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. Verify the query returns the expected results via query_insights before creating the alarm."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -95,6 +98,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// update_alarm tool
 	r.AddTool(
 		mcp.NewTool("update_alarm",
+			mcp.WithTitleAnnotation("Update Alarm"),
 			mcp.WithDescription("Update an existing Insights alarm. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -142,6 +146,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// delete_alarm tool
 	r.AddTool(
 		mcp.NewTool("delete_alarm",
+			mcp.WithTitleAnnotation("Delete Alarm"),
 			mcp.WithDescription("Delete an Insights alarm."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -163,6 +168,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_alarm_history tool
 	r.AddTool(
 		mcp.NewTool("get_alarm_history",
+			mcp.WithTitleAnnotation("Get Alarm History"),
 			mcp.WithDescription("Get the trigger history for an Insights alarm. To interpret trigger records and alarm states, fetch reference topic: alarms (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),

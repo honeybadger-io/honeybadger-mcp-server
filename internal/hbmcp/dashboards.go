@@ -14,6 +14,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	// list_dashboards tool
 	r.AddTool(
 		mcp.NewTool("list_dashboards",
+			mcp.WithTitleAnnotation("List Dashboards"),
 			mcp.WithDescription("List all Insights dashboards for a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -31,6 +32,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	// get_dashboard tool
 	r.AddTool(
 		mcp.NewTool("get_dashboard",
+			mcp.WithTitleAnnotation("Get Dashboard"),
 			mcp.WithDescription("Get a single Insights dashboard by ID"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -52,6 +54,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	// create_dashboard tool
 	r.AddTool(
 		mcp.NewTool("create_dashboard",
+			mcp.WithTitleAnnotation("Create Dashboard"),
 			mcp.WithDescription("Create a new Insights dashboard for a Honeybadger project. IMPORTANT: Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference first (skip topics still visible in your context). Verify each widget's query returns the expected results via query_insights before creating the dashboard."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -80,6 +83,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	// update_dashboard tool
 	r.AddTool(
 		mcp.NewTool("update_dashboard",
+			mcp.WithTitleAnnotation("Update Dashboard"),
 			mcp.WithDescription("Update an existing Insights dashboard. IMPORTANT: Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference first (skip topics still visible in your context)."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
@@ -112,6 +116,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	// delete_dashboard tool
 	r.AddTool(
 		mcp.NewTool("delete_dashboard",
+			mcp.WithTitleAnnotation("Delete Dashboard"),
 			mcp.WithDescription("Delete an Insights dashboard"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),

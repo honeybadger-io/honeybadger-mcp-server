@@ -169,6 +169,7 @@ func (f *referenceFetcher) index(ctx context.Context) (*instructionIndex, error)
 func RegisterReferenceTools(r *toolRegistrar, fetcher *referenceFetcher) {
 	r.AddTool(
 		mcp.NewTool("get_reference",
+			mcp.WithTitleAnnotation("Get Reference Documentation"),
 			mcp.WithDescription("Returns Honeybadger reference documentation by topic: badgerql (query language), queries (Insights query fundamentals: streams, time ranges, field grounding), charts (visualization views, chart_config), dashboards (widgets, layout), alarms (trigger_config, states, patterns), errors (fault/notice model, error search syntax). Fetch all topics you need in one call, e.g. topics: [\"badgerql\", \"charts\"]; skip topics still visible in your context. Call with no arguments for a topic index, or [\"all\"] for everything."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
@@ -191,6 +192,7 @@ func RegisterReferenceTools(r *toolRegistrar, fetcher *referenceFetcher) {
 	// v2.0.
 	r.AddHiddenTool(
 		mcp.NewTool("get_insights_reference",
+			mcp.WithTitleAnnotation("Get Insights Reference (Deprecated)"),
 			mcp.WithDescription("Deprecated and non-functional: renamed to get_reference. Returns no content; calling it only reports that the client's tool list is out of date. Use get_reference instead."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
