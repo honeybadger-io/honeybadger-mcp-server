@@ -285,7 +285,7 @@ read-only: true
   - `fault_id` : The ID of the fault to update (number, required)
   - `resolved` : Whether the fault is resolved (boolean, optional)
   - `ignored` : Whether the fault is ignored (boolean, optional)
-  - `assignee_id` : Positive integer to assign that user; null to remove the current assignee; omit to leave unchanged (number or null, optional)
+  - `assignee_id` : Positive integer to assign that user; null to remove the current assignee; omit to leave unchanged (integer or null, optional)
   - `resolve_on_deploy` : Mark the fault to be resolved automatically on next deploy (boolean, optional)
 
 - **get_fault_counts** - Get fault count statistics for a project with optional filtering. Fetch the `errors` reference topic (via `get_reference`) for the `q` search syntax.

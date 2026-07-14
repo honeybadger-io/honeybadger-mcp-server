@@ -1,6 +1,14 @@
 package hbmcp
 
-import "time"
+import (
+	"math"
+	"time"
+)
+
+// maxSafeInteger is the largest integer a float64 can represent exactly
+// (2^53). JSON numbers decode to float64, so IDs above this can't round-trip
+// without silent rounding and must be rejected rather than truncated.
+const maxSafeInteger = 1 << 53
 
 // nullable is an mcp.PropertyOption that makes a property schema accept JSON
 // null in addition to its declared type, e.g. {"type": ["number", "null"]}.
@@ -19,7 +27,7 @@ func nullable(schema map[string]any) {
 func requireID(args map[string]any, name string) (int, bool) {
 	switch v := args[name].(type) {
 	case float64:
-		if v == float64(int(v)) && v >= 1 {
+		if v >= 1 && v <= maxSafeInteger && v == math.Trunc(v) {
 			return int(v), true
 		}
 	case int: // arguments constructed in Go rather than decoded from JSON

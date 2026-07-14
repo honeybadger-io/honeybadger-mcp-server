@@ -607,6 +607,8 @@ func TestHandleUpdateFault_InvalidValues(t *testing.T) {
 		{"zero assignee_id", map[string]interface{}{"assignee_id": 0}},
 		{"negative assignee_id", map[string]interface{}{"assignee_id": -1}},
 		{"string assignee_id", map[string]interface{}{"assignee_id": "42"}},
+		{"unsafe-large assignee_id", map[string]interface{}{"assignee_id": float64(1 << 54)}},
+		{"unsafe-large fault_id", map[string]interface{}{"fault_id": float64(1 << 54)}},
 	}
 
 	for _, tt := range tests {

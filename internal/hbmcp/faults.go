@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -305,7 +306,7 @@ func handleUpdateFault(ctx context.Context, client *hbapi.Client, req mcp.CallTo
 		case nil:
 			params.AssigneeID = hbapi.Null[int]() // explicit null unassigns the fault
 		case float64:
-			if v != float64(int(v)) || v < 1 {
+			if v < 1 || v > maxSafeInteger || v != math.Trunc(v) {
 				return mcp.NewToolResultError("assignee_id must be a positive integer or null"), nil
 			}
 			params.AssigneeID = hbapi.Value(int(v))
