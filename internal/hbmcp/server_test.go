@@ -11,9 +11,10 @@ import (
 
 // TestAllToolsHaveTitleAndAnnotations enforces the tool-authoring contract for
 // the Anthropic Connectors Directory: every tool exposed over tools/list must
-// carry a human-readable title annotation and an explicit readOnlyHint. This is
-// a guard against forgetting mcp.WithTitleAnnotation (or the hint) on a new
-// tool — a missing title is an automatic directory-review rejection.
+// carry a human-readable title annotation plus explicit readOnlyHint and
+// destructiveHint annotations. This is a guard against forgetting
+// mcp.WithTitleAnnotation (or either hint) on a new tool — a missing title is
+// an automatic directory-review rejection.
 func TestAllToolsHaveTitleAndAnnotations(t *testing.T) {
 	cfg := &config.Config{
 		AuthToken:     "test-token",
