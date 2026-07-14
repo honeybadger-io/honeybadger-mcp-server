@@ -264,6 +264,41 @@ func TestReferenceFetcher_ServesStaleOnRefreshFailure(t *testing.T) {
 	}
 }
 
+func TestReferenceFetcher_BacksOffAfterStaleServe(t *testing.T) {
+	var hits map[string]*atomic.Int64
+	var fail atomic.Bool
+	server := newDocsServer(t, &hits, &fail)
+	defer server.Close()
+	f := testFetcher(server.URL)
+
+	// Prime the cache, then break the docs site and force every entry stale.
+	if result, err := handleGetReference(context.Background(), f, referenceRequest("badgerql")); err != nil || result.IsError {
+		t.Fatalf("priming call failed: err=%v result=%s", err, getResultText(result))
+	}
+	fail.Store(true)
+	f.mu.Lock()
+	for _, e := range f.entries {
+		e.fetchedAt = e.fetchedAt.Add(-2 * f.ttl)
+	}
+	f.mu.Unlock()
+
+	// A stale-serving refresh failure should reset fetchedAt so we back off.
+	if result, err := handleGetReference(context.Background(), f, referenceRequest("badgerql")); err != nil || result.IsError {
+		t.Fatalf("stale serve failed: err=%v result=%s", err, getResultText(result))
+	}
+	after := hits["/instructions/badgerql.txt"].Load()
+
+	// Subsequent calls within the TTL must not re-hit the docs site.
+	for i := 0; i < 3; i++ {
+		if result, err := handleGetReference(context.Background(), f, referenceRequest("badgerql")); err != nil || result.IsError {
+			t.Fatalf("call %d failed: err=%v result=%s", i, err, getResultText(result))
+		}
+	}
+	if n := hits["/instructions/badgerql.txt"].Load(); n != after {
+		t.Errorf("expected no further fetches after stale serve, got %d extra", n-after)
+	}
+}
+
 func TestReferenceFetcher_ColdCacheFailureIsError(t *testing.T) {
 	var fail atomic.Bool
 	fail.Store(true)

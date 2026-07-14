@@ -111,11 +111,13 @@ func (f *referenceFetcher) get(ctx context.Context, path string) (string, error)
 			if err == nil {
 				err = fmt.Errorf("unexpected status %d", status)
 			}
-			f.mu.Unlock()
 			if stale != nil {
+				stale.fetchedAt = now
+				f.mu.Unlock()
 				f.logger.Warn("Reference refresh failed, serving stale copy", "path", path, "error", err)
 				return stale.body, nil
 			}
+			f.mu.Unlock()
 			return "", fmt.Errorf("failed to fetch reference from %s/%s: %w", f.baseURL, path, err)
 		}
 	}
