@@ -368,6 +368,40 @@ read-only: true
   - `alarm_id` : The ID of the alarm to get history for (string, required)
   - `page` : Page number for pagination (default: 0) (number, optional)
 
+### Check-Ins
+
+- **list_check_ins** - List all check-ins (cron/scheduled task monitoring) for a project
+  - `project_id` : The ID of the project to list check-ins for (number, required)
+
+- **get_check_in** - Get a single check-in by ID
+  - `project_id` : The ID of the project the check-in belongs to (number, required)
+  - `check_in_id` : The ID of the check-in to retrieve (string, required)
+
+- **create_check_in** - Create a new check-in for a project _(requires `read-only=false`)_
+  - `project_id` : The ID of the project to create the check-in in (number, required)
+  - `name` : The name of the check-in (string, required)
+  - `schedule_type` : The schedule type: `simple` (report every fixed period) or `cron` (report on a cron schedule) (string, required)
+  - `slug` : Optional URL-friendly identifier used to report the check-in, e.g. `nightly-backups` (string, optional)
+  - `report_period` : How often the check-in is expected to report, e.g. `1 day`, `30 minutes`. Required for simple schedules (string, optional)
+  - `grace_period` : Amount of time to allow a late report before alerting, e.g. `5 minutes` (string, optional)
+  - `cron_schedule` : Cron expression defining when the check-in is expected to report, e.g. `0 5 * * *`. Required for cron schedules (string, optional)
+  - `cron_timezone` : Timezone for the cron schedule (defaults to UTC) (string, optional)
+
+- **update_check_in** - Update an existing check-in; only the provided fields are changed _(requires `read-only=false`)_
+  - `project_id` : The ID of the project the check-in belongs to (number, required)
+  - `check_in_id` : The ID of the check-in to update (string, required)
+  - `name` : The name of the check-in (string, optional)
+  - `slug` : URL-friendly identifier used to report the check-in (string, optional)
+  - `schedule_type` : The schedule type: `simple` or `cron` (string, optional)
+  - `report_period` : How often the check-in is expected to report. Used by simple schedules (string, optional)
+  - `grace_period` : Amount of time to allow a late report before alerting (string, optional)
+  - `cron_schedule` : Cron expression defining when the check-in is expected to report. Used by cron schedules (string, optional)
+  - `cron_timezone` : Timezone for the cron schedule (string, optional)
+
+- **delete_check_in** - Delete a check-in and its reporting history _(requires `read-only=false`)_
+  - `project_id` : The ID of the project the check-in belongs to (number, required)
+  - `check_in_id` : The ID of the check-in to delete (string, required)
+
 ### Tool Search
 
 - **search_tools** - Search available Honeybadger tools by name or description. Use this to discover tools before calling them. In read-only mode, only read-only tools are returned.
