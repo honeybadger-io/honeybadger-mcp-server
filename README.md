@@ -387,12 +387,11 @@ read-only: true
   - `cron_schedule` : Cron expression defining when the check-in is expected to report, e.g. `0 5 * * *`. Required for cron schedules (string, optional)
   - `cron_timezone` : Timezone for the cron schedule (defaults to UTC) (string, optional)
 
-- **update_check_in** - Update an existing check-in; only the provided fields are changed _(requires `read-only=false`)_
+- **update_check_in** - Update an existing check-in; only the provided fields are changed. The schedule type cannot be changed after creation _(requires `read-only=false`)_
   - `project_id` : The ID of the project the check-in belongs to (number, required)
   - `check_in_id` : The ID of the check-in to update (string, required)
   - `name` : The name of the check-in (string, optional)
   - `slug` : URL-friendly identifier used to report the check-in (string, optional)
-  - `schedule_type` : The schedule type: `simple` or `cron` (string, optional)
   - `report_period` : How often the check-in is expected to report. Used by simple schedules (string, optional)
   - `grace_period` : Amount of time to allow a late report before alerting (string, optional)
   - `cron_schedule` : Cron expression defining when the check-in is expected to report. Used by cron schedules (string, optional)

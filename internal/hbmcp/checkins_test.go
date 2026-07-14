@@ -257,6 +257,9 @@ func TestHandleUpdateCheckIn(t *testing.T) {
 		if _, present := checkIn["cron_schedule"]; present {
 			t.Error("cron_schedule should be omitted when not provided")
 		}
+		if _, present := checkIn["schedule_type"]; present {
+			t.Error("schedule_type should never be sent on update")
+		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}))
@@ -273,6 +276,7 @@ func TestHandleUpdateCheckIn(t *testing.T) {
 				"check_in_id":   "abc123",
 				"name":          "Hourly Backups",
 				"report_period": "1 hour",
+				"schedule_type": "cron",
 			},
 		},
 	}

@@ -93,7 +93,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	// update_check_in tool
 	r.AddTool(
 		mcp.NewTool("update_check_in",
-			mcp.WithDescription("Update an existing check-in. Only the provided fields are changed."),
+			mcp.WithDescription("Update an existing check-in. Only the provided fields are changed; fields cannot be cleared once set. The schedule type cannot be changed after creation."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",
@@ -110,10 +110,6 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 			mcp.WithString("slug",
 				mcp.Description("URL-friendly identifier used to report the check-in"),
-			),
-			mcp.WithString("schedule_type",
-				mcp.Description("The schedule type: 'simple' or 'cron'"),
-				mcp.Enum("simple", "cron"),
 			),
 			mcp.WithString("report_period",
 				mcp.Description("How often the check-in is expected to report, e.g. '1 day', '30 minutes'. Used by simple schedules."),
@@ -269,15 +265,11 @@ func handleUpdateCheckIn(ctx context.Context, client *hbapi.Client, req mcp.Call
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
 
-	scheduleType := req.GetString("schedule_type", "")
-	if scheduleType != "" && scheduleType != "simple" && scheduleType != "cron" {
-		return mcp.NewToolResultError("schedule_type must be 'simple' or 'cron'"), nil
-	}
-
+	// The API doesn't allow changing schedule_type after creation, so it is
+	// deliberately not exposed here.
 	params := hbapi.CheckInParams{
-		Name:         req.GetString("name", ""),
-		Slug:         req.GetString("slug", ""),
-		ScheduleType: scheduleType,
+		Name: req.GetString("name", ""),
+		Slug: req.GetString("slug", ""),
 	}
 
 	if reportPeriod := req.GetString("report_period", ""); reportPeriod != "" {
