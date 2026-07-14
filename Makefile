@@ -10,7 +10,7 @@ MCP_PORT       ?= 9090
 MCP_PUBLIC_URL ?= http://localhost:$(MCP_PORT)
 MCP_URL        ?= $(MCP_PUBLIC_URL)/mcp
 
-.PHONY: build test docker docker-local docker-run mcp-add mcp-remove
+.PHONY: build test docker docker-local docker-run claude-mcp-add claude-mcp-remove
 
 build:
 	go build -o honeybadger-mcp-server ./cmd/honeybadger-mcp-server
