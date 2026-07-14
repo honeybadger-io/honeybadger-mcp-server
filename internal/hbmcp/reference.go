@@ -283,7 +283,7 @@ func renderIndex(idx *instructionIndex) string {
 // client-side skills, not the server.
 func ServerInstructions() string {
 	var sb strings.Builder
-	sb.WriteString("Honeybadger provides error tracking, uptime monitoring, and Insights (log/event analytics queried with BadgerQL).\n\n")
+	sb.WriteString("Honeybadger provides error tracking, uptime and check-in (cron/scheduled task) monitoring, and Insights (log/event analytics queried with BadgerQL).\n\n")
 	sb.WriteString("Reference documentation is split into non-overlapping topics served by the get_reference tool: ")
 	sb.WriteString(strings.Join(referenceTopicNames, ", "))
 	sb.WriteString(". Tool descriptions state which topics they require. Fetch required topics in a single get_reference call before using those tools, and never re-fetch a topic whose content is still visible in your context. Call get_reference with no arguments for the topic index.\n\n")
