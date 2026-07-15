@@ -15,7 +15,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_check_ins",
 			mcp.WithTitleAnnotation("List Check-Ins"),
-			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns the first 25 check-ins; pagination is not currently supported."),
+			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns the first 25 check-ins; pagination is not currently supported. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -33,7 +33,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("get_check_in",
 			mcp.WithTitleAnnotation("Get Check-In"),
-			mcp.WithDescription("Get a single check-in by ID"),
+			mcp.WithDescription("Get a single check-in by ID. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -55,7 +55,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("create_check_in",
 			mcp.WithTitleAnnotation("Create Check-In"),
-			mcp.WithDescription("Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive."),
+			mcp.WithDescription("Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule types, the required field per type, plan gating (cron needs the Business plan), and the timezone format."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",
@@ -85,7 +85,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 				mcp.Description("Cron expression defining when the check-in is expected to report, e.g. '0 5 * * *'. Required for cron schedules."),
 			),
 			mcp.WithString("cron_timezone",
-				mcp.Description("Optional timezone for the cron schedule (defaults to UTC)"),
+				mcp.Description("Optional timezone for the cron schedule. Rails/ActiveSupport zone name (e.g. 'Eastern Time (US & Canada)', 'London'), NOT an IANA identifier like 'America/New_York'. Defaults to UTC."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -97,7 +97,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("update_check_in",
 			mcp.WithTitleAnnotation("Update Check-In"),
-			mcp.WithDescription("Update an existing check-in. Only the provided fields are changed; fields cannot be cleared once set. The schedule type cannot be changed after creation."),
+			mcp.WithDescription("Update an existing check-in. Only the provided fields are changed; fields cannot be cleared once set. The schedule type cannot be changed after creation. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule fields, plan gating, and the timezone format."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",
@@ -125,7 +125,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 				mcp.Description("Cron expression defining when the check-in is expected to report. Used by cron schedules."),
 			),
 			mcp.WithString("cron_timezone",
-				mcp.Description("Timezone for the cron schedule"),
+				mcp.Description("Timezone for the cron schedule. Rails/ActiveSupport zone name (e.g. 'Eastern Time (US & Canada)', 'London'), NOT an IANA identifier like 'America/New_York'."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

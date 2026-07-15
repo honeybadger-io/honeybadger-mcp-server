@@ -19,7 +19,7 @@ import (
 // network call is possible. The docs site's index.json is authoritative at
 // request time — validation and composition order come from it, so a set
 // added to the docs is servable before it's named here.
-var referenceTopicNames = []string{"badgerql", "queries", "charts", "dashboards", "alarms", "errors"}
+var referenceTopicNames = []string{"badgerql", "queries", "charts", "dashboards", "alarms", "errors", "checkins"}
 
 // instructionSet mirrors one entry of the docs site's index.json.
 type instructionSet struct {
@@ -170,11 +170,11 @@ func RegisterReferenceTools(r *toolRegistrar, fetcher *referenceFetcher) {
 	r.AddTool(
 		mcp.NewTool("get_reference",
 			mcp.WithTitleAnnotation("Get Reference Documentation"),
-			mcp.WithDescription("Returns Honeybadger reference documentation by topic: badgerql (query language), queries (Insights query fundamentals: streams, time ranges, field grounding), charts (visualization views, chart_config), dashboards (widgets, layout), alarms (trigger_config, states, patterns), errors (fault/notice model, error search syntax). Fetch all topics you need in one call, e.g. topics: [\"badgerql\", \"charts\"]; skip topics still visible in your context. Call with no arguments for a topic index, or [\"all\"] for everything."),
+			mcp.WithDescription("Returns Honeybadger reference documentation by topic. Topics: badgerql (query language), queries (Insights query fundamentals: streams, time ranges, field grounding), charts (visualization views, chart_config), dashboards (widgets, layout), alarms (trigger_config, states, patterns), errors (fault/notice model, error search syntax), checkins (cron/scheduled-task monitoring: schedule types, plan gating, timezone format, report payloads, lifecycle states). Fetch all topics you need in one call, e.g. topics: [\"badgerql\", \"charts\"]; skip topics still visible in your context. Call with no arguments for a topic index, or [\"all\"] for everything."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithArray("topics",
-				mcp.Description("Reference topics to fetch: badgerql, queries, charts, dashboards, alarms, errors, or all. Omit for an index of topics."),
+				mcp.Description("Reference topics to fetch: badgerql, queries, charts, dashboards, alarms, errors, checkins, or all. Omit for an index of topics."),
 				mcp.WithStringItems(),
 			),
 		),
