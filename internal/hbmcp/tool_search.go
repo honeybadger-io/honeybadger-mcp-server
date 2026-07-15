@@ -36,16 +36,6 @@ func (r *toolRegistrar) AddTool(tool mcp.Tool, handler server.ToolHandlerFunc) {
 	})
 }
 
-// AddHiddenTool registers a callable tool that is omitted from the searchable
-// catalog and the landing-page listing. It is used for deprecated aliases that
-// must stay reachable for clients whose cached tool list still names them,
-// without inviting fresh clients to discover and adopt them. The tool still
-// appears in tools/list (mcp-go has no way to route a handler otherwise), so its
-// description must make its deprecated status self-evident.
-func (r *toolRegistrar) AddHiddenTool(tool mcp.Tool, handler server.ToolHandlerFunc) {
-	r.server.AddTool(tool, handler)
-}
-
 func searchCatalog(catalog []ToolInfo, query string) []ToolInfo {
 	q := strings.ToLower(query)
 	var results []ToolInfo

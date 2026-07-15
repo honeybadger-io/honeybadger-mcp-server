@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 var testSets = []struct {
@@ -155,47 +154,6 @@ func TestHandleGetReference_All(t *testing.T) {
 	for _, s := range testSets {
 		if !strings.Contains(resultText, s.content) {
 			t.Errorf("\"all\" should include full content of topic %q", s.name)
-		}
-	}
-}
-
-func TestHandleDeprecatedInsightsReference_ReportsRenameAsError(t *testing.T) {
-	// The alias needs no docs server: it never fetches content, it only reports
-	// that the caller's tool list is stale.
-	result, err := handleDeprecatedInsightsReference(context.Background(), referenceRequest("all"))
-	if err != nil {
-		t.Fatalf("handleDeprecatedInsightsReference() error = %v", err)
-	}
-	if !result.IsError {
-		t.Fatal("alias should return an error result so the client treats the call as failed")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "get_reference") {
-		t.Error("notice should point callers at get_reference")
-	}
-	if !strings.Contains(resultText, "reconnect") {
-		t.Error("notice should instruct the user to reconnect")
-	}
-	// The alias must not serve reference content — reaching it means the tool
-	// list is stale, and it exists only to say so.
-	for _, s := range testSets {
-		if strings.Contains(resultText, s.content) {
-			t.Errorf("alias must not return reference content, but included topic %q", s.name)
-		}
-	}
-}
-
-func TestDeprecatedAliasHiddenFromCatalog(t *testing.T) {
-	// The alias must stay out of search_tools / landing so fresh clients don't
-	// discover and adopt the deprecated name.
-	s := server.NewMCPServer("test", "0.0.0")
-	r := newToolRegistrar(s)
-	RegisterReferenceTools(r, testFetcher("http://example.invalid"))
-
-	for _, ti := range r.catalog {
-		if ti.Name == "get_insights_reference" {
-			t.Error("deprecated alias should not appear in the searchable catalog")
 		}
 	}
 }
