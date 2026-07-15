@@ -170,7 +170,7 @@ func RegisterReferenceTools(r *toolRegistrar, fetcher *referenceFetcher) {
 	r.AddTool(
 		mcp.NewTool("get_reference",
 			mcp.WithTitleAnnotation("Get Reference Documentation"),
-			mcp.WithDescription("Returns Honeybadger reference documentation by topic: badgerql (query language), queries (Insights query fundamentals: streams, time ranges, field grounding), charts (visualization views, chart_config), dashboards (widgets, layout), alarms (trigger_config, states, patterns), errors (fault/notice model, error search syntax), checkins (cron/scheduled-task monitoring: schedule types, plan gating, timezone format, report payloads, lifecycle states). Fetch all topics you need in one call, e.g. topics: [\"badgerql\", \"charts\"]; skip topics still visible in your context. Call with no arguments for a topic index, or [\"all\"] for everything."),
+			mcp.WithDescription("Returns Honeybadger reference documentation by topic. Topics: badgerql (query language), queries (Insights query fundamentals: streams, time ranges, field grounding), charts (visualization views, chart_config), dashboards (widgets, layout), alarms (trigger_config, states, patterns), errors (fault/notice model, error search syntax), checkins (cron/scheduled-task monitoring: schedule types, plan gating, timezone format, report payloads, lifecycle states). Fetch all topics you need in one call, e.g. topics: [\"badgerql\", \"charts\"]; skip topics still visible in your context. Call with no arguments for a topic index, or [\"all\"] for everything."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithArray("topics",
