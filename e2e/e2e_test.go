@@ -34,7 +34,7 @@ func TestListTools(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 34 // create_alarm, create_check_in, create_dashboard, create_project, delete_alarm, delete_check_in, delete_dashboard, delete_project, get_alarm, get_alarm_history, get_check_in, get_dashboard, get_fault, get_fault_counts, get_insights_reference, get_reference, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_alarms, list_check_ins, list_dashboards, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights, search_tools, update_alarm, update_check_in, update_dashboard, update_fault, update_project
+	expectedToolCount := 33 // create_alarm, create_check_in, create_dashboard, create_project, delete_alarm, delete_check_in, delete_dashboard, delete_project, get_alarm, get_alarm_history, get_check_in, get_dashboard, get_fault, get_fault_counts, get_reference, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_alarms, list_check_ins, list_dashboards, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights, search_tools, update_alarm, update_check_in, update_dashboard, update_fault, update_project
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools, got %d", expectedToolCount, len(tools))
 	}
@@ -57,7 +57,7 @@ func TestListTools(t *testing.T) {
 	}
 
 	// Verify all expected tools are present
-	expectedTools := []string{"create_alarm", "create_check_in", "create_dashboard", "create_project", "delete_alarm", "delete_check_in", "delete_dashboard", "delete_project", "get_alarm", "get_alarm_history", "get_check_in", "get_dashboard", "get_fault", "get_fault_counts", "get_insights_reference", "get_reference", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_alarms", "list_check_ins", "list_dashboards", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights", "search_tools", "update_alarm", "update_check_in", "update_dashboard", "update_fault", "update_project"}
+	expectedTools := []string{"create_alarm", "create_check_in", "create_dashboard", "create_project", "delete_alarm", "delete_check_in", "delete_dashboard", "delete_project", "get_alarm", "get_alarm_history", "get_check_in", "get_dashboard", "get_fault", "get_fault_counts", "get_reference", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_alarms", "list_check_ins", "list_dashboards", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights", "search_tools", "update_alarm", "update_check_in", "update_dashboard", "update_fault", "update_project"}
 	for _, expectedTool := range expectedTools {
 		found := false
 		for _, foundTool := range foundTools {
@@ -94,7 +94,7 @@ func TestListToolsReadOnly(t *testing.T) {
 		t.Fatalf("Failed to list tools: %v", err)
 	}
 
-	expectedToolCount := 21 // get_alarm, get_alarm_history, get_check_in, get_dashboard, get_fault, get_fault_counts, get_insights_reference, get_reference, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_alarms, list_check_ins, list_dashboards, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights, search_tools
+	expectedToolCount := 20 // get_alarm, get_alarm_history, get_check_in, get_dashboard, get_fault, get_fault_counts, get_reference, get_project, get_project_integrations, get_project_occurrence_counts, get_project_report, list_alarms, list_check_ins, list_dashboards, list_fault_affected_users, list_fault_notices, list_faults, list_projects, query_insights, search_tools
 	if len(tools) != expectedToolCount {
 		t.Errorf("Expected %d tools in read-only mode, got %d", expectedToolCount, len(tools))
 	}
@@ -112,7 +112,7 @@ func TestListToolsReadOnly(t *testing.T) {
 	}
 
 	// Verify only read-only tools are present
-	expectedReadOnlyTools := []string{"get_alarm", "get_alarm_history", "get_check_in", "get_dashboard", "get_fault", "get_fault_counts", "get_insights_reference", "get_reference", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_alarms", "list_check_ins", "list_dashboards", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights", "search_tools"}
+	expectedReadOnlyTools := []string{"get_alarm", "get_alarm_history", "get_check_in", "get_dashboard", "get_fault", "get_fault_counts", "get_reference", "get_project", "get_project_integrations", "get_project_occurrence_counts", "get_project_report", "list_alarms", "list_check_ins", "list_dashboards", "list_fault_affected_users", "list_fault_notices", "list_faults", "list_projects", "query_insights", "search_tools"}
 	for _, expectedTool := range expectedReadOnlyTools {
 		found := false
 		for _, foundTool := range foundTools {

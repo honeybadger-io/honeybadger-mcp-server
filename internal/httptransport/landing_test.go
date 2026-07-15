@@ -18,7 +18,7 @@ func testLandingHandler(t *testing.T) http.Handler {
 		Tools: []hbmcp.ToolInfo{
 			{Name: "list_projects", Description: "List all projects", ReadOnly: true},
 			{Name: "create_project", Description: "Create a new project", ReadOnly: false},
-			{Name: "create_alarm", Description: "Create a new Insights alarm. IMPORTANT: Call get_insights_reference first for full alarm documentation.", ReadOnly: false},
+			{Name: "create_alarm", Description: "Create a new Insights alarm. IMPORTANT: Call get_reference first for full alarm documentation.", ReadOnly: false},
 		},
 	})
 	if err != nil {
