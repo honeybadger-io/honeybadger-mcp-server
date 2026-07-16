@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/honeybadger-io/api-go v0.7.1-0.20260716002511-5deb256fa44d
+	github.com/honeybadger-io/api-go v0.8.0
 	github.com/mark3labs/mcp-go v0.55.1
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
