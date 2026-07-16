@@ -33,6 +33,10 @@ func RegisterInsightsTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithString("timezone",
 				mcp.Description("IANA timezone identifier (e.g., 'America/New_York') for timestamp interpretation"),
 			),
+			mcp.WithArray("stream_ids",
+				mcp.WithStringItems(),
+				mcp.Description("Optional list of stream IDs to restrict the query to specific Insights streams. Use list_streams to discover a project's stream IDs; pass the 'id' field (not the slug). Omit to query all streams. Passing only unrecognized IDs yields an error, not an empty result."),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleQueryInsights(ctx, clientFor(ctx), req)
@@ -54,9 +58,10 @@ func handleQueryInsights(ctx context.Context, client *hbapi.Client, req mcp.Call
 
 	// Build request struct
 	request := hbapi.InsightsQueryRequest{
-		Query:    query,
-		Ts:       req.GetString("ts", ""),
-		Timezone: req.GetString("timezone", ""),
+		Query:     query,
+		Ts:        req.GetString("ts", ""),
+		Timezone:  req.GetString("timezone", ""),
+		StreamIDs: req.GetStringSlice("stream_ids", nil),
 	}
 
 	response, err := client.Insights.Query(ctx, projectID, request)

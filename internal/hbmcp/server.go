@@ -79,6 +79,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	RegisterProjectTools(r, clientFor)
 	RegisterFaultTools(r, clientFor)
 	RegisterInsightsTools(r, clientFor)
+	RegisterStreamTools(r, clientFor)
 	RegisterDashboardTools(r, clientFor)
 	RegisterAlarmTools(r, clientFor)
 	RegisterCheckInTools(r, clientFor)

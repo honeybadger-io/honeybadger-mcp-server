@@ -20,5 +20,5 @@ the build if any tool (including hidden aliases) is missing a title,
 `readOnlyHint`, or `destructiveHint`. Run `go test ./...` before committing.
 
 Tools live in `internal/hbmcp/` grouped by domain (`faults.go`, `alarms.go`,
-`projects.go`, `dashboards.go`, `checkins.go`, `insights.go`, `reference.go`)
+`projects.go`, `dashboards.go`, `checkins.go`, `insights.go`, `streams.go`, `reference.go`)
 and are registered from `internal/hbmcp/server.go`.
