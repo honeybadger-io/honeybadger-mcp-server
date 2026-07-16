@@ -314,6 +314,12 @@ read-only: true
   - `query` : BadgerQL query string to execute against your Insights data (string, required)
   - `ts` : Time range - shortcuts like 'today', 'week', or ISO 8601 duration (e.g., 'PT3H'). Defaults to PT3H (string, optional)
   - `timezone` : IANA timezone identifier (e.g., 'America/New_York') for timestamp interpretation (string, optional)
+  - `stream_ids` : List of stream IDs to restrict the query to specific Insights streams. Use `list_streams` to discover a project's stream IDs. Omit to query all streams (array of strings, optional)
+
+### Streams
+
+- **list_streams** - List Insights data streams for a project
+  - `project_id` : The ID of the project to list streams for (number, required)
 
 ### Dashboards
 

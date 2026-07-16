@@ -114,6 +114,9 @@ func TestHandleQueryInsights_WithAllOptions(t *testing.T) {
 		if reqBody.Timezone != "America/New_York" {
 			t.Errorf("expected timezone 'America/New_York', got %s", reqBody.Timezone)
 		}
+		if len(reqBody.StreamIDs) != 2 || reqBody.StreamIDs[0] != "Oh3Y3WdMFvde" || reqBody.StreamIDs[1] != "MuHadpB4C9G4" {
+			t.Errorf("expected stream_ids [Oh3Y3WdMFvde MuHadpB4C9G4], got %v", reqBody.StreamIDs)
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -143,6 +146,7 @@ func TestHandleQueryInsights_WithAllOptions(t *testing.T) {
 				"query":      "fields @ts, message::str",
 				"ts":         "week",
 				"timezone":   "America/New_York",
+				"stream_ids": []interface{}{"Oh3Y3WdMFvde", "MuHadpB4C9G4"},
 			},
 		},
 	}
