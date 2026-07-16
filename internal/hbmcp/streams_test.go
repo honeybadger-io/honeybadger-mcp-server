@@ -74,8 +74,8 @@ func TestHandleListStreams(t *testing.T) {
 	if !strings.Contains(resultText, "Default") {
 		t.Error("Result should contain stream name")
 	}
-	if !strings.Contains(resultText, "internal") {
-		t.Error("Result should contain internal flag")
+	if !strings.Contains(resultText, `"internal":true`) {
+		t.Error("Result should contain the internal boolean flag set to true")
 	}
 }
 
