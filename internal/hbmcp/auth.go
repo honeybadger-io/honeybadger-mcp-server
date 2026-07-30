@@ -1,10 +1,15 @@
 package hbmcp
 
-import "context"
+import (
+	"context"
+
+	"github.com/honeybadger-io/api-go/apiv3"
+)
 
 type authTokenKey struct{}
 type claimsKey struct{}
 type credentialKindKey struct{}
+type tokenInfoKey struct{}
 
 func WithAuthToken(ctx context.Context, token string) context.Context {
 	if token == "" {
@@ -48,4 +53,21 @@ func CredentialKindFromContext(ctx context.Context) CredentialKind {
 		return v
 	}
 	return KindUnknown
+}
+
+// WithTokenInfo records what the request's credential permits, as reported by the
+// API. Absent when introspection was unavailable, which callers must treat as
+// "unknown", never as "nothing permitted".
+func WithTokenInfo(ctx context.Context, info *apiv3.TokenInfo) context.Context {
+	if info == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, tokenInfoKey{}, info)
+}
+
+// TokenInfoFromContext returns the request credential's description, or nil when
+// none was recorded.
+func TokenInfoFromContext(ctx context.Context) *apiv3.TokenInfo {
+	info, _ := ctx.Value(tokenInfoKey{}).(*apiv3.TokenInfo)
+	return info
 }

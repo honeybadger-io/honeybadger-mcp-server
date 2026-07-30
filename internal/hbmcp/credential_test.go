@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 )
 
@@ -101,5 +102,52 @@ func TestCredentialKindRoundTrip(t *testing.T) {
 	// An unknown kind is never recorded, so it cannot be mistaken for a real one.
 	if got := CredentialKindFromContext(WithCredentialKind(context.Background(), KindUnknown)); got != KindUnknown {
 		t.Errorf("got %q, want %q", got, KindUnknown)
+	}
+}
+
+// Introspected scopes outrank OAuth claims, because the claims carry only legacy
+// read/write while the API reports the granular set.
+func TestEffectiveReadOnlyPrefersIntrospectedScopes(t *testing.T) {
+	cfg := &config.Config{TransportMode: config.TransportHTTP}
+
+	// Claims say read-only; introspection says the credential can write faults.
+	ctx := WithCredentialKind(context.Background(), KindOAuth)
+	ctx = WithClaims(ctx, &Claims{Scopes: []string{"read"}})
+	ctx = WithTokenInfo(ctx, &apiv3.TokenInfo{Scopes: []string{"faults:read", "faults:write"}})
+
+	if EffectiveReadOnly(ctx, cfg) {
+		t.Error("introspection reported a writing scope and the tools were still hidden")
+	}
+}
+
+func TestEffectiveReadOnlyIntrospectedReadOnlyHidesWrites(t *testing.T) {
+	cfg := &config.Config{TransportMode: config.TransportHTTP}
+	ctx := WithCredentialKind(context.Background(), KindAccountToken)
+	ctx = WithTokenInfo(ctx, &apiv3.TokenInfo{Scopes: []string{"faults:read", "insights:read"}})
+
+	if !EffectiveReadOnly(ctx, cfg) {
+		t.Error("a credential holding only read scopes was offered the writing tools")
+	}
+}
+
+func TestGrantsAnyWrite(t *testing.T) {
+	for _, tc := range []struct {
+		scopes []string
+		want   bool
+	}{
+		{[]string{"faults:write"}, true},
+		{[]string{"faults:read", "checkins:write"}, true},
+		{[]string{"projects:create"}, true}, // creating is writing
+		{[]string{"write"}, true},           // legacy alias
+		{[]string{"faults:read"}, false},
+		{[]string{"read"}, false},
+		{nil, false},
+		{[]string{}, false},
+		{[]string{"writer"}, false},          // must not match on substring
+		{[]string{"read:write_logs"}, false}, // nor mid-scope
+	} {
+		if got := grantsAnyWrite(tc.scopes); got != tc.want {
+			t.Errorf("grantsAnyWrite(%v) = %v, want %v", tc.scopes, got, tc.want)
+		}
 	}
 }

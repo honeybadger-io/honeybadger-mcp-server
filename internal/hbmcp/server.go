@@ -2,6 +2,7 @@ package hbmcp
 
 import (
 	"context"
+	"strings"
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/honeybadger-io/api-go/apiv3"
@@ -23,12 +24,19 @@ type V3ClientFactory func(ctx context.Context) *apiv3.Client
 
 // EffectiveReadOnly decides whether to hide the writing tools from this request.
 //
-// An OAuth token carries read/write in its claims, so that answer is
-// authoritative and a missing claim fails closed. A scoped API token is opaque:
-// nothing here knows what it permits, so hiding the writing tools would deny an
-// account token the writes it legitimately holds. Those requests see the whole
-// catalog and the API refuses what the credential cannot do — with
-// insufficient_scope naming the missing permission.
+// Three sources, in descending order of authority:
+//
+//  1. Introspection. The API's own account of what the credential holds, which
+//     covers all three credential kinds and is granular — an OAuth token's JWT
+//     carries only legacy read/write, because the expansion to granular
+//     permissions happens server-side.
+//  2. OAuth claims. Coarse but free, and correct as far as it goes. Used when
+//     introspection was unavailable.
+//  3. For an opaque credential with neither, the whole catalog. Hiding the
+//     writing tools there would deny an account token writes it legitimately
+//     holds: nothing here knows its scopes, and absent knowledge is not absent
+//     permission. The API refuses what the credential cannot do, naming the
+//     missing scope as it does.
 //
 // In stdio mode there is no per-request credential, so the startup --read-only
 // flag decides.
@@ -37,12 +45,30 @@ func EffectiveReadOnly(ctx context.Context, cfg *config.Config) bool {
 		return cfg.ReadOnly
 	}
 
+	if info := TokenInfoFromContext(ctx); info != nil {
+		return !grantsAnyWrite(info.Scopes)
+	}
+
 	if kind := CredentialKindFromContext(ctx); kind != KindUnknown && !kind.Verifiable() {
 		return false
 	}
 
 	claims := ClaimsFromContext(ctx)
 	return claims == nil || !claims.HasScope("write")
+}
+
+// grantsAnyWrite reports whether any scope permits writing.
+//
+// Granular scopes read "faults:write", "checkins:write" and so on, and the legacy
+// aliases are the bare words. Matching the suffix keeps this working as the
+// catalog grows rather than requiring a list of every writing scope.
+func grantsAnyWrite(scopes []string) bool {
+	for _, s := range scopes {
+		if s == "write" || strings.HasSuffix(s, ":write") || strings.HasSuffix(s, ":create") {
+			return true
+		}
+	}
+	return false
 }
 
 func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {

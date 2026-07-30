@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbmcp"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/httptransport"
@@ -308,7 +309,17 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		rootHandler.Handle(prmPath, handler)
 	}
 	rootHandler.Handle(httptransport.WellKnownPRMPath, handler)
-	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, resource, mcpHandler))
+	// Introspection gives every credential kind a granular scope list, which an
+	// OAuth token's claims cannot supply — the JWT carries only legacy read/write,
+	// since the expansion to granular permissions happens server-side. Cached
+	// briefly so this costs one API call per credential per window rather than one
+	// per request.
+	introspector := hbmcp.NewIntrospectionCache(
+		func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+			return apiv3.NewClient().WithBaseURL(cfg.APIURL).WithBearerToken(token).Tokens.Get(ctx)
+		}, 0, 0, 0)
+
+	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, resource, introspector, mcpHandler))
 	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
 	landing, err := httptransport.NewLandingHandler(httptransport.LandingData{
 		MCPURL:  resource,
