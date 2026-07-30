@@ -342,7 +342,7 @@ func TestHandleListFaultAffectedUsers(t *testing.T) {
 		if want := "/v3/accounts/me/projects/Xk9mZp/faults/f1/affected_users"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		v3JSON(w, http.StatusOK, `{"data":[{"user":{"email":"a@example.com"},"count":3}]}`)
+		v3JSON(w, http.StatusOK, `{"data":[{"user":"a@example.com","count":3}]}`)
 	})
 
 	result, err := handleListFaultAffectedUsers(context.Background(), client,
