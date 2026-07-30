@@ -517,9 +517,59 @@ func TestHandleUpdateFaultSendsResolveOnDeploy(t *testing.T) {
 	}
 }
 
+// The API accepts the request and discards the value when the fault is already
+// resolved or ignored. Reporting the request rather than the echo would claim a
+// pending resolution that does not exist.
+func TestHandleUpdateFaultReportsDiscardedResolveOnDeploy(t *testing.T) {
+	c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusOK, `{"data":{"id":"f1","project_id":"Xk9mZp","resolved":true}}`)
+	})
+
+	result, err := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
+		"project_id": "Xk9mZp", "fault_id": "f1", "resolve_on_deploy": true,
+	}))
+	if err != nil {
+		t.Fatalf("handleUpdateFault: %v", err)
+	}
+	text := getResultText(result)
+	if strings.Contains(text, `"resolve_on_deploy":true`) {
+		t.Errorf("claimed a pending resolution the API discarded: %s", text)
+	}
+	if !strings.Contains(text, "did not store this value") {
+		t.Errorf("no explanation of the discard: %s", text)
+	}
+}
+
+// Only resolve_on_deploy with resolved:true or ignored:true is contradictory.
+// Clearing either state, or cancelling a pending resolution, is coherent.
+func TestHandleUpdateFaultAllowsCoherentResolveOnDeployCombinations(t *testing.T) {
+	for _, args := range []map[string]any{
+		{"resolved": false, "resolve_on_deploy": true},
+		{"ignored": false, "resolve_on_deploy": true},
+		{"resolved": true, "resolve_on_deploy": false},
+	} {
+		c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPatch || r.Method == http.MethodPut {
+				v3JSON(w, http.StatusOK, `{"data":{"id":"f1","project_id":"Xk9mZp","resolve_on_deploy":false}}`)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		})
+
+		full := map[string]any{"project_id": "Xk9mZp", "fault_id": "f1"}
+		for k, v := range args {
+			full[k] = v
+		}
+		result, _ := handleUpdateFault(context.Background(), c, mcpRequest(full))
+		if result.IsError && strings.Contains(getResultText(result), "cannot be combined") {
+			t.Errorf("refused a coherent combination %v: %s", args, getResultText(result))
+		}
+	}
+}
+
 // Setting it alongside resolved is contradictory: resolving now clears any
 // pending resolution, so the deploy flag would be silently discarded.
-func TestHandleUpdateFaultRejectsResolveOnDeployWithResolved(t *testing.T) {
+func TestHandleUpdateFaultRejectsResolveOnDeployWithResolvedTrue(t *testing.T) {
 	c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		t.Error("request reached the server")
 	})
@@ -529,19 +579,6 @@ func TestHandleUpdateFaultRejectsResolveOnDeployWithResolved(t *testing.T) {
 	}))
 	if !result.IsError || !strings.Contains(getResultText(result), "resolve_on_deploy") {
 		t.Errorf("result = %q, want a refusal naming resolve_on_deploy", getResultText(result))
-	}
-}
-
-func TestHandleUpdateFaultRejectsResolveOnDeploy(t *testing.T) {
-	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
-		faultArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, "resolve_on_deploy": true,
-		}))
-	if err != nil {
-		t.Fatalf("error = %v", err)
-	}
-	if !result.IsError || !strings.Contains(getResultText(result), "resolve_on_deploy") {
-		t.Errorf("got %q", getResultText(result))
 	}
 }
 

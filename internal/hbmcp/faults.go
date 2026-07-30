@@ -79,7 +79,10 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("update_fault",
 			mcp.WithTitleAnnotation("Update Fault"),
-			mcp.WithDescription("Resolve, unresolve, ignore, or unignore a fault. Only the provided fields are changed. Assigning a fault and resolve-on-deploy are not yet available."),
+			mcp.WithDescription("Resolve, unresolve, ignore, or unignore a fault, assign it to a "+
+				"project member, or set it to resolve on the next deploy. Only the provided "+
+				"fields are changed. Each field is a separate request, so a later one can fail "+
+				"after an earlier one has already taken effect; the result names what was applied."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -289,13 +292,15 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	// Resolving or ignoring clears a pending resolution, so asking for both in one
-	// call cannot be honoured: whichever ran second would decide, and the caller
-	// would be told both were applied.
-	if hasOnDeploy && (hasResolved || hasIgnored) {
+	// Resolving or ignoring a fault clears a pending resolution, so only that
+	// combination is contradictory — asking to resolve now and on the next deploy.
+	// Turning either state off, or cancelling a pending resolution alongside any
+	// state change, is coherent and runs in the order given.
+	if hasOnDeploy && onDeploy && ((hasResolved && resolved) || (hasIgnored && ignored)) {
 		return mcp.NewToolResultError(
-			"resolve_on_deploy cannot be combined with resolved or ignored — resolving or " +
-				"ignoring a fault clears any pending resolution. Send it in its own call."), nil
+			"resolve_on_deploy cannot be combined with resolved:true or ignored:true — both " +
+				"clear any pending resolution, so the fault would end up resolved or ignored " +
+				"now rather than on the next deploy. Send resolve_on_deploy in its own call."), nil
 	}
 	if !hasResolved && !hasIgnored && !hasAssignee && !hasOnDeploy {
 		return mcp.NewToolResultError(
@@ -345,11 +350,22 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 			if hasOnDeploy {
 				// Not a fault column but a pending resolution, so it goes through the
 				// fault update endpoint rather than having one of its own.
-				if _, err := client.Faults.Update(ctx, projectID, faultID,
-					apiv3.FaultParams{ResolveOnDeploy: &onDeploy}, opts...); err != nil {
+				fault, err := client.Faults.Update(ctx, projectID, faultID,
+					apiv3.FaultParams{ResolveOnDeploy: &onDeploy}, opts...)
+				if err != nil {
 					return nil, err
 				}
-				applied["resolve_on_deploy"] = onDeploy
+				// The request succeeds even when the value was discarded: a fault that
+				// is already resolved or ignored has no pending resolution to store, and
+				// an inactive project omits the field entirely. Report the echo rather
+				// than the request, so the tool never claims a change that did not
+				// happen.
+				applied["resolve_on_deploy"] = fault.ResolveOnDeploy
+				if fault.ResolveOnDeploy == nil || *fault.ResolveOnDeploy != onDeploy {
+					applied["resolve_on_deploy_note"] = "The API did not store this value. A " +
+						"fault that is already resolved or ignored has no pending resolution to " +
+						"set, and an inactive project does not report the field."
+				}
 			}
 			return nil, nil
 		})
