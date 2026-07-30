@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // RegisterInsightsTools registers all insights-related MCP tools
-func RegisterInsightsTools(r *toolRegistrar, clientFor ClientFactory) {
+func RegisterInsightsTools(r *toolRegistrar, clientFor V3ClientFactory) {
 	// query_insights tool
 	r.AddTool(
 		mcp.NewTool("query_insights",
@@ -18,10 +18,9 @@ func RegisterInsightsTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Execute a BadgerQL query against Insights data. Requires reference topics: queries, badgerql (fetch via get_reference; skip topics still visible in your context). To visualize or share results, also fetch the charts topic."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to query insights for"),
-				mcp.Min(1),
 			),
 			mcp.WithString("query",
 				mcp.Required(),
@@ -45,9 +44,9 @@ func RegisterInsightsTools(r *toolRegistrar, clientFor ClientFactory) {
 
 }
 
-func handleQueryInsights(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleQueryInsights(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
@@ -56,21 +55,18 @@ func handleQueryInsights(ctx context.Context, client *hbapi.Client, req mcp.Call
 		return mcp.NewToolResultError("query is required"), nil
 	}
 
-	// Build request struct
-	request := hbapi.InsightsQueryRequest{
+	query_ := apiv3.InsightsQuery{
 		Query:     query,
 		Ts:        req.GetString("ts", ""),
 		Timezone:  req.GetString("timezone", ""),
 		StreamIDs: req.GetStringSlice("stream_ids", nil),
 	}
 
-	response, err := client.Insights.Query(ctx, projectID, request)
+	// v3 rejects a bad query with a 422 rather than v2's inline error on a 200,
+	// so a query error arrives here rather than in the response body.
+	response, err := client.Insights.Query(ctx, projectID, query_)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to query insights: %v", err)), nil
-	}
-
-	if response.Error != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Insights query error: %s", response.Error.Message)), nil
 	}
 
 	// Return JSON response

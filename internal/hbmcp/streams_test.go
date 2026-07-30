@@ -3,23 +3,21 @@ package hbmcp
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 func TestHandleListStreams(t *testing.T) {
 	mockResponse := `{
-		"results": [
+		"data": [
 			{
 				"id": "abc123def456",
 				"name": "Default",
 				"slug": "default",
 				"internal": false,
-				"project_id": 123,
+				"project_id": "Xk9mZp",
 				"created_at": "2024-01-01T00:00:00Z"
 			},
 			{
@@ -27,33 +25,27 @@ func TestHandleListStreams(t *testing.T) {
 				"name": "Internal",
 				"slug": "internal",
 				"internal": true,
-				"project_id": 123,
+				"project_id": "Xk9mZp",
 				"created_at": "2024-01-01T00:00:00Z"
 			}
-		]
+		],
+		"pagination": {"page": 1, "per_page": 25, "total_count": 2, "total_pages": 1}
 	}`
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			t.Errorf("expected GET method, got %s", r.Method)
 		}
-		if r.URL.Path != "/v2/projects/123/streams" {
-			t.Errorf("expected path /v2/projects/123/streams, got %s", r.URL.Path)
+		if want := "/v3/accounts/me/projects/Xk9mZp/streams"; r.URL.Path != want {
+			t.Errorf("expected path %s, got %s", want, r.URL.Path)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
+		v3JSON(w, http.StatusOK, mockResponse)
+	})
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Arguments: map[string]interface{}{
-				"project_id": 123,
+				"project_id": "Xk9mZp",
 			},
 		},
 	}
@@ -80,7 +72,7 @@ func TestHandleListStreams(t *testing.T) {
 }
 
 func TestHandleListStreamsMissingProjectID(t *testing.T) {
-	client := hbapi.NewClient().WithAuthToken("test-token")
+	client := offlineV3Client()
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
@@ -104,21 +96,15 @@ func TestHandleListStreamsMissingProjectID(t *testing.T) {
 }
 
 func TestHandleListStreamsAPIError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"errors": "Not found"}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusNotFound,
+			`{"error":{"code":"not_found","message":"Resource not found"}}`)
+	})
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Arguments: map[string]interface{}{
-				"project_id": 999,
+				"project_id": "nope",
 			},
 		},
 	}

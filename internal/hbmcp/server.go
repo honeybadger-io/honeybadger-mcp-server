@@ -4,13 +4,22 @@ import (
 	"context"
 
 	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/logging"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// ClientFactory builds a v2 client. Tools still on v2 take this.
+//
+// Temporary: it disappears when every tool has moved to V3ClientFactory. Keeping
+// both lets the migration land tool by tool with the build and tests green,
+// rather than breaking every handler at once.
 type ClientFactory func(ctx context.Context) *hbapi.Client
+
+// V3ClientFactory builds a v3 client. Migrated tools take this.
+type V3ClientFactory func(ctx context.Context) *apiv3.Client
 
 // In http mode the token's scope is authoritative; in stdio there's no token,
 // so the startup --read-only flag decides. Missing claims fails closed.
@@ -74,12 +83,13 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	s := server.NewMCPServer("honeybadger-mcp-server", version, serverOptions...)
 
 	clientFor := newClientFactory(cfg)
+	v3ClientFor := newV3ClientFactory(cfg)
 	r := newToolRegistrar(s)
 	RegisterReferenceTools(r, newReferenceFetcher(cfg.InstructionsURL, logger))
 	RegisterProjectTools(r, clientFor)
 	RegisterFaultTools(r, clientFor)
-	RegisterInsightsTools(r, clientFor)
-	RegisterStreamTools(r, clientFor)
+	RegisterInsightsTools(r, v3ClientFor)
+	RegisterStreamTools(r, v3ClientFor)
 	RegisterDashboardTools(r, clientFor)
 	RegisterAlarmTools(r, clientFor)
 	RegisterCheckInTools(r, clientFor)
@@ -102,5 +112,28 @@ func newClientFactory(cfg *config.Config) ClientFactory {
 		return hbapi.NewClient().
 			WithBaseURL(cfg.APIURL).
 			WithAuthToken(cfg.AuthToken)
+	}
+}
+
+// newV3ClientFactory builds the per-request v3 client.
+//
+// The base client is built once and each request derives from it. apiv3 clients
+// are immutable, so WithBearerToken returns a fresh client rather than mutating a
+// shared one — which is what keeps one request's credential from reaching
+// another's in http mode.
+func newV3ClientFactory(cfg *config.Config) V3ClientFactory {
+	base := apiv3.NewClient().WithBaseURL(cfg.APIURL)
+
+	if cfg.TransportMode == config.TransportHTTP {
+		return func(ctx context.Context) *apiv3.Client {
+			return base.WithBearerToken(AuthTokenFromContext(ctx))
+		}
+	}
+
+	// v3 accepts only Bearer credentials: a scoped API token (hbt_ or hba_) or an
+	// OAuth access token. The personal auth tokens this flag used to carry are
+	// rejected outright, so the configured value must now be a scoped token.
+	return func(ctx context.Context) *apiv3.Client {
+		return base.WithBearerToken(cfg.AuthToken)
 	}
 }
