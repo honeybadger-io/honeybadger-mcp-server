@@ -115,7 +115,15 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	}
 	serverOptions = append(serverOptions, server.WithToolFilter(func(ctx context.Context, tools []mcp.Tool) []mcp.Tool {
 		if EffectiveReadOnly(ctx, cfg) {
-			return filterReadOnlyTools(tools)
+			tools = filterReadOnlyTools(tools)
+		}
+
+		// Scope filtering needs the credential's actual permissions, which only
+		// introspection supplies. Without it every tool stays advertised and the
+		// API refuses what the credential cannot do — showing a tool that then
+		// fails is better than hiding one the caller was entitled to.
+		if info := TokenInfoFromContext(ctx); info != nil {
+			tools = filterByScopes(tools, info.Scopes)
 		}
 		return tools
 	}))
