@@ -99,6 +99,15 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			mcp.WithBoolean("ignored",
 				mcp.Description("Whether the fault is ignored"),
 			),
+			// Nullable on purpose: a user's public ID assigns, null unassigns
+			// through the DELETE side of the same path, and omitting it changes
+			// nothing. The handler reads it from the raw arguments because the typed
+			// getter cannot tell null from absent.
+			mcp.WithString("assignee_id",
+				mcp.Description("Public ID of a project member to assign the fault to. "+
+					"Send null to unassign. A user who is not a member of the project is "+
+					"rejected rather than silently unassigning."),
+			),
 			mcp.WithBoolean("resolve_on_deploy",
 				mcp.Description("Resolve this fault the next time a deploy is recorded. "+
 					"Stored as a pending resolution rather than a change to the fault, so it "+
