@@ -156,7 +156,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 	r.AddTool(
 		mcp.NewTool("get_project_occurrence_counts",
 			mcp.WithTitleAnnotation("Get Project Occurrence Counts"),
-			mcp.WithDescription("Get occurrence counts for all projects or a specific project"),
+			mcp.WithDescription("Get occurrence counts for all projects or a specific project. NOTE: this tool still runs on the v2 API, which has no v3 equivalent yet, so it needs the legacy numeric project id — not the opaque id list_projects returns. If you do not already have that numeric id, this tool cannot be used."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -180,7 +180,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 	r.AddTool(
 		mcp.NewTool("get_project_integrations",
 			mcp.WithTitleAnnotation("Get Project Integrations"),
-			mcp.WithDescription("Get a list of integrations (channels) for a Honeybadger project"),
+			mcp.WithDescription("Get a list of integrations (channels) for a Honeybadger project. NOTE: this tool still runs on the v2 API, which has no v3 equivalent yet, so it needs the legacy numeric project id — not the opaque id list_projects returns. If you do not already have that numeric id, this tool cannot be used."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -198,7 +198,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 	r.AddTool(
 		mcp.NewTool("get_project_report",
 			mcp.WithTitleAnnotation("Get Project Report"),
-			mcp.WithDescription("Get report data for a Honeybadger project"),
+			mcp.WithDescription("Get report data for a Honeybadger project. NOTE: this tool still runs on the v2 API, which has no v3 equivalent yet, so it needs the legacy numeric project id — not the opaque id list_projects returns. If you do not already have that numeric id, this tool cannot be used."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",

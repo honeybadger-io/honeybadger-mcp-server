@@ -65,13 +65,10 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory, v3ClientF
 				mcp.Required(),
 				mcp.Description("The title of the dashboard"),
 			),
-			mcp.WithString("widgets",
-				mcp.Required(),
-				mcp.Description("JSON array of widget objects. The dashboards reference topic has the full widget schema and examples. Each widget needs: type (insights_vis, alarms, errors, deployments, checkins, uptime), and optionally: grid ({x,y,w,h}), presentation ({title, subtitle}), config (type-specific settings). For insights_vis widgets, config should include query (BadgerQL string) and vis ({view, chart_config})."),
-			),
-			mcp.WithString("default_ts",
-				mcp.Description("Default time range for the dashboard. ISO 8601 duration (e.g., P1D, PT3H) or keyword (today, yesterday, week, month)."),
-			),
+			// widgets and default_ts are not advertised: v3's dashboard schema
+			// cannot carry them, and a required parameter the handler always
+			// refuses would make the tool unusable for a conforming caller. The
+			// handler still rejects them if an older caller sends them anyway.
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleCreateDashboard(ctx, v3ClientFor(ctx), req)
@@ -97,13 +94,10 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory, v3ClientF
 				mcp.Required(),
 				mcp.Description("The title of the dashboard"),
 			),
-			mcp.WithString("widgets",
-				mcp.Required(),
-				mcp.Description("JSON array of widget objects. The dashboards reference topic has the full widget schema and examples. Each widget needs: type (insights_vis, alarms, errors, deployments, checkins, uptime), and optionally: grid ({x,y,w,h}), presentation ({title, subtitle}), config (type-specific settings). For insights_vis widgets, config should include query (BadgerQL string) and vis ({view, chart_config})."),
-			),
-			mcp.WithString("default_ts",
-				mcp.Description("Default time range for the dashboard. ISO 8601 duration (e.g., P1D, PT3H) or keyword (today, yesterday, week, month)."),
-			),
+			// widgets and default_ts are not advertised: v3's dashboard schema
+			// cannot carry them, and a required parameter the handler always
+			// refuses would make the tool unusable for a conforming caller. The
+			// handler still rejects them if an older caller sends them anyway.
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateDashboard(ctx, v3ClientFor(ctx), req)

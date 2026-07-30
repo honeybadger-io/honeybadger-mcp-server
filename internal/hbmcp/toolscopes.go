@@ -57,13 +57,17 @@ var toolOperations = map[string][]string{
 	"query_insights": {"runInsightsQuery"},
 	"list_streams":   {"listStreams"},
 
-	// No v3 endpoint exists for these yet. Left empty rather than omitted, so the
-	// completeness test still covers them and they are not filtered out on a
-	// scope nobody can hold. See openapi/README.md in api-go.
-	"get_fault_counts":              {},
-	"get_project_occurrence_counts": {},
-	"get_project_report":            {},
-	"get_project_integrations":      {},
+	// These four still run on the v2 client because v3 has no equivalent endpoint.
+	//
+	// They are mapped to the v3 operation that will replace each one, so scope
+	// filtering already treats them as what they are — reads of faults and
+	// projects — rather than as tools needing nothing. A credential holding no
+	// read scope should not be offered them just because their migration is
+	// pending.
+	"get_fault_counts":              {"listFaults"},
+	"get_project_occurrence_counts": {"getProjectStats"},
+	"get_project_report":            {"getProjectStats"},
+	"get_project_integrations":      {"listChannels"},
 }
 
 // toolRequiredScopes returns the scopes a tool needs, derived from the spec.
@@ -117,4 +121,18 @@ func contains(haystack []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+// filterCatalogByScopes is filterByScopes for the searchable catalog, which
+// carries ToolInfo rather than mcp.Tool. Both must apply the same rule: search
+// would otherwise surface tools tools/list had hidden.
+func filterCatalogByScopes(catalog []ToolInfo, held []string) []ToolInfo {
+	kept := make([]ToolInfo, 0, len(catalog))
+	for _, tool := range catalog {
+		required := toolRequiredScopes(tool.Name)
+		if len(required) == 0 || holdsAny(held, required) {
+			kept = append(kept, tool)
+		}
+	}
+	return kept
 }

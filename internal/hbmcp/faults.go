@@ -170,7 +170,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 	r.AddTool(
 		mcp.NewTool("get_fault_counts",
 			mcp.WithTitleAnnotation("Get Fault Counts"),
-			mcp.WithDescription("Get fault count statistics for a project with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax."),
+			mcp.WithDescription("Get fault count statistics for a project with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax. NOTE: this tool still runs on the v2 API, which has no v3 equivalent yet, so it needs the legacy numeric project id — not the opaque id list_projects returns. If you do not already have that numeric id, this tool cannot be used."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithNumber("project_id",
@@ -324,6 +324,17 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 			return nil, nil
 		})
 	if err != nil {
+		// Each flag is its own request in v3, so the first can succeed and the
+		// second fail. Saying only "failed" would leave the caller believing
+		// nothing changed when something did.
+		if len(applied) > 2 { // more than the two ids means a change landed
+			partial, marshalErr := json.Marshal(applied)
+			if marshalErr == nil {
+				return mcp.NewToolResultError(fmt.Sprintf(
+					"Failed to update fault: %v. These changes were already applied and remain "+
+						"in effect: %s", err, partial)), nil
+			}
+		}
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update fault: %v", err)), nil
 	}
 

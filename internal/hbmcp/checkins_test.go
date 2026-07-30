@@ -183,3 +183,39 @@ func TestHandleDeleteCheckIn(t *testing.T) {
 		t.Errorf("result should name what was deleted: %q", getResultText(result))
 	}
 }
+
+// A cron check-in is refused whether or not the request spells out the schedule
+// v3 cannot carry. Rejecting only the explicit field let a bare
+// schedule_type:"cron" through, which creates a monitor expecting nothing.
+func TestHandleCreateCheckInRefusesCronEvenWithoutASchedule(t *testing.T) {
+	result, err := handleCreateCheckIn(context.Background(), offlineV3Client(),
+		checkInArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "name": "Nightly", "schedule_type": "cron",
+		}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("a cron check-in with no schedule was accepted")
+	}
+	if !strings.Contains(getResultText(result), "Cron check-ins") {
+		t.Errorf("error should explain the cron gap: %q", getResultText(result))
+	}
+}
+
+// A simple check-in is unaffected.
+func TestHandleCreateCheckInAllowsSimpleSchedule(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"c1","name":"Nightly"}}`)
+	})
+
+	result, err := handleCreateCheckIn(context.Background(), client, checkInArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "name": "Nightly", "schedule_type": "simple", "report_period": "1d",
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("a simple check-in was refused: %s", getResultText(result))
+	}
+}

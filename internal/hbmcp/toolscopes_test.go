@@ -82,12 +82,31 @@ func TestToolRequiredScopes(t *testing.T) {
 	}
 }
 
-// Tools that reach no API need no scope, so they must survive any filter.
+// Only the tools that genuinely reach no API are scope-free. get_project_report
+// is not one of them — it calls v2, so it needs a read scope like any other read.
 func TestScopeFreeToolsAlwaysSurvive(t *testing.T) {
-	tools := []mcp.Tool{{Name: "get_reference"}, {Name: "search_tools"}, {Name: "get_project_report"}}
+	tools := []mcp.Tool{{Name: "get_reference"}, {Name: "search_tools"}}
 	kept := filterByScopes(tools, nil)
-	if len(kept) != 3 {
-		t.Errorf("kept %d of 3 scope-free tools with no scopes held", len(kept))
+	if len(kept) != 2 {
+		t.Errorf("kept %d of 2 scope-free tools with no scopes held", len(kept))
+	}
+}
+
+// The tools awaiting a v3 endpoint still read data, so a credential with no read
+// scope must not be offered them.
+func TestPendingMigrationToolsStillRequireScopes(t *testing.T) {
+	for _, tool := range []string{
+		"get_fault_counts", "get_project_occurrence_counts",
+		"get_project_report", "get_project_integrations",
+	} {
+		if len(toolRequiredScopes(tool)) == 0 {
+			t.Errorf("%s requires no scope; it reads data and should need one", tool)
+		}
+	}
+
+	kept := filterByScopes([]mcp.Tool{{Name: "get_fault_counts"}}, []string{"insights:read"})
+	if len(kept) != 0 {
+		t.Error("get_fault_counts was offered to a credential holding only insights:read")
 	}
 }
 

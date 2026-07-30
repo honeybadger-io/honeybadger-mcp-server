@@ -16,7 +16,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 	r.AddTool(
 		mcp.NewTool("list_check_ins",
 			mcp.WithTitleAnnotation("List Check-Ins"),
-			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns the first 25 check-ins; pagination is not currently supported. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
+			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns every check-in, following pagination. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id",
@@ -219,9 +219,17 @@ func handleCreateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 		return mcp.NewToolResultError("name is required"), nil
 	}
 	if msg := rejectUnsupported(req, checkInFieldsNotInV3, "creating a check-in",
-		"v3's check-in schema accepts name, schedule_type, report_period and grace_period; "+
-			"a cron check-in needs its schedule, so create it in the Honeybadger UI"); msg != "" {
+		"v3's check-in schema accepts name, schedule_type, report_period and grace_period"); msg != "" {
 		return mcp.NewToolResultError(msg), nil
+	}
+	// Refuse every cron check-in, not only requests that spell out a schedule v3
+	// cannot send. A cron monitor without its schedule expects nothing, so
+	// creating one on a bare schedule_type would be worse than refusing.
+	if req.GetString("schedule_type", "") == "cron" {
+		return mcp.NewToolResultError(
+			"Cron check-ins cannot be created through the v3 API yet: its schema cannot carry " +
+				"the cron schedule or timezone, and a cron check-in without a schedule expects " +
+				"nothing. Create it in the Honeybadger UI, or use a simple check-in."), nil
 	}
 
 	params := apiv3.CheckInParams{

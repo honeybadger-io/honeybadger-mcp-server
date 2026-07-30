@@ -85,7 +85,16 @@ func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer, expect
 			ctx = hbmcp.WithClaims(ctx, claims)
 		}
 
-		if introspector != nil {
+		// Introspection is the only thing that can authenticate an opaque
+		// credential, so for those it is required rather than advisory. An OAuth
+		// token has already proved itself locally and can proceed without it.
+		if introspector == nil {
+			if !kind.Verifiable() {
+				w.Header().Set("WWW-Authenticate", invalidToken)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+		} else {
 			info, err := introspector.Get(ctx, raw)
 			switch {
 			case err == nil:
@@ -93,16 +102,31 @@ func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer, expect
 
 			case errors.Is(err, apiv3.ErrUnauthorized):
 				// Introspection needs no scope, so a refusal means the credential
-				// itself is not good. This is the only way an opaque token gets a
-				// proper challenge instead of failing later inside a tool call.
+				// itself is not good. For an opaque token this is the only way it
+				// gets a proper challenge instead of failing inside a tool call.
 				w.Header().Set("WWW-Authenticate", invalidToken)
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 
 			default:
-				// Anything else — the API being unreachable, a timeout — must not
-				// deny a request this server cannot judge. Proceed without the
-				// scope information; the API still authorizes every call.
+				// Introspection is unavailable — a timeout, a 5xx. What that means
+				// depends on what the credential already proved:
+				//
+				// An OAuth token proceeds. Its signature, issuer, expiry and
+				// audience were all verified here, so an upstream blip must not
+				// deny a request this server can already vouch for. It simply
+				// carries no granular scopes, and the API still authorizes it.
+				//
+				// An opaque token is refused. Nothing about it has been checked,
+				// so proceeding would treat any hbt_-prefixed string as
+				// authenticated for the length of the outage. It costs those
+				// callers nothing real: with the API down, every tool call would
+				// fail anyway.
+				if !kind.Verifiable() {
+					w.Header().Set("WWW-Authenticate", invalidToken)
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
 			}
 		}
 

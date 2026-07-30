@@ -236,7 +236,10 @@ func TestValidateMiddlewareAcceptsOpaqueScopedTokens(t *testing.T) {
 			t.Fatalf("%s was sent to JWT verification", raw)
 			return nil, nil
 		}
-		ValidateMiddleware("https://mcp.test/prm", refuse, "https://issuer.test", "https://mcp.test", nil, next).
+		// Introspection is what authenticates an opaque credential, so it has to
+		// succeed for the request to proceed.
+		stub := &stubIntrospector{info: &apiv3.TokenInfo{Kind: apiv3.TokenKindUser}}
+		ValidateMiddleware("https://mcp.test/prm", refuse, "https://issuer.test", "https://mcp.test", stub, next).
 			ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
@@ -345,9 +348,14 @@ func TestValidateMiddlewareRejectsCredentialIntrospectionRefuses(t *testing.T) {
 	}
 }
 
-// The API being unreachable must not deny requests. This server cannot judge the
-// credential either way, and the API still authorizes every call it makes.
-func TestValidateMiddlewareProceedsWhenIntrospectionIsUnavailable(t *testing.T) {
+// An OAuth token proceeds through an introspection outage: its signature,
+// issuer, expiry and audience were already verified here, so an upstream blip
+// must not deny a request this server can vouch for. It simply carries no
+// granular scopes.
+func TestValidateMiddlewareOAuthProceedsWhenIntrospectionIsUnavailable(t *testing.T) {
+	key, keyfn := testKey(t)
+	token := signHBO(t, key, validClaims())
+
 	reached := false
 	var got *apiv3.TokenInfo
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -359,19 +367,58 @@ func TestValidateMiddlewareProceedsWhenIntrospectionIsUnavailable(t *testing.T) 
 	stub := &stubIntrospector{err: errors.New("dial tcp: connection refused")}
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
-	req.Header.Set("Authorization", "Bearer hbt_fine")
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
-	ValidateMiddleware("https://mcp.test/prm", nil, "", "", stub, next).ServeHTTP(rec, req)
+	ValidateMiddleware("https://mcp.test/prm", keyfn, "https://issuer.example", "https://host/mcp",
+		stub, next).ServeHTTP(rec, req)
 
 	if !reached {
-		t.Fatal("an outage in introspection denied the request")
+		t.Fatal("an outage denied a request whose JWT this server had already verified")
 	}
-	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200", rec.Code)
-	}
-	// Unknown, not empty: a caller must not read this as "no permissions".
+	// Unknown scopes, not absent ones: a caller must not read this as "no permissions".
 	if got != nil {
 		t.Errorf("token info = %+v, want none recorded", got)
+	}
+}
+
+// An opaque token is refused during an outage. Nothing about it has been checked,
+// so proceeding would treat any hbt_-prefixed string as authenticated for the
+// length of the outage.
+func TestValidateMiddlewareOpaqueFailsClosedWhenIntrospectionIsUnavailable(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("an unverifiable credential reached the handler during an outage")
+	})
+
+	stub := &stubIntrospector{err: errors.New("dial tcp: connection refused")}
+
+	for _, raw := range []string{"hbt_anything", "hba_anything"} {
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+raw)
+		rec := httptest.NewRecorder()
+
+		ValidateMiddleware("https://mcp.test/prm", nil, "", "", stub, next).ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s: status = %d, want 401", raw, rec.Code)
+		}
+	}
+}
+
+// Without an introspector there is no way to authenticate an opaque credential at
+// all, so it must not be accepted on its prefix alone.
+func TestValidateMiddlewareOpaqueRequiresAnIntrospector(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("an opaque credential was accepted with nothing able to verify it")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer hbt_anything")
+	rec := httptest.NewRecorder()
+
+	ValidateMiddleware("https://mcp.test/prm", nil, "", "", nil, next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }

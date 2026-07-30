@@ -585,3 +585,37 @@ func TestHandleGetFaultCounts_Error(t *testing.T) {
 		t.Error("Error message should contain 'Failed to get fault counts'")
 	}
 }
+
+// Each flag is a separate request, so the first can land and the second fail. The
+// caller has to be told what already took effect, or they will believe nothing
+// changed when something did.
+func TestHandleUpdateFaultReportsPartialApplication(t *testing.T) {
+	var calls int
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusNoContent) // resolve succeeds
+			return
+		}
+		v3JSON(w, http.StatusForbidden, // ignore fails
+			`{"error":{"code":"insufficient_scope","message":"Insufficient scope"}}`)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, "ignored": true,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected an error for the failed half")
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "already applied") {
+		t.Errorf("error must say what took effect, got %q", text)
+	}
+	if !strings.Contains(text, "resolved") {
+		t.Errorf("error must name the change that landed, got %q", text)
+	}
+}

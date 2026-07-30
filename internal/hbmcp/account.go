@@ -11,7 +11,10 @@ import (
 )
 
 // withAccount runs an operation, and if v3 refuses because "me" is ambiguous,
-// asks which account the credential belongs to and runs it again.
+// finds out which account the credential belongs to and runs it again.
+//
+// The answer comes from the request's cached introspection when there is one, so
+// recovery normally costs no extra API call at all.
 //
 // Stateless by construction: the resolved id lives in this call and is gone when
 // it returns. Nothing is cached on the client or carried between requests, which
@@ -32,6 +35,15 @@ func withAccount[T any](
 		return result, err
 	}
 
+	// The http middleware has usually already introspected this credential and
+	// cached the result, so prefer that over asking again — otherwise every
+	// ambiguous-account call costs an extra /v3/token round trip that the cache
+	// exists to avoid.
+	if info := TokenInfoFromContext(ctx); info != nil && info.AccountID != "" {
+		return call(info.AccountID)
+	}
+
+	// No cached description: stdio has no middleware to attach one.
 	info, introspectErr := client.Tokens.Get(ctx)
 	if introspectErr != nil || info.AccountID == "" {
 		// Report what the caller asked about, not the recovery attempt.
@@ -81,20 +93,16 @@ var projectSettingsNotInV3 = []string{
 
 // rejectUnsupportedProjectSettings returns an error message when a request
 // carries project settings v3 cannot express, or "" when it is safe to proceed.
+// rejectUnsupportedProjectSettings returns an error message when a request
+// carries project settings v3 cannot express, or "" when it is safe to proceed.
+//
+// Presence is what matters, not truthiness. Checking values would let
+// disable_public_links:false through — a perfectly valid request to turn the
+// setting off — and then drop it, which is exactly the silent no-op this guard
+// exists to prevent.
 func rejectUnsupportedProjectSettings(req mcp.CallToolRequest) string {
-	var present []string
-	for _, field := range projectSettingsNotInV3 {
-		if req.GetString(field, "") != "" || req.GetInt(field, 0) != 0 || req.GetBool(field, false) {
-			present = append(present, field)
-		}
-	}
-	if len(present) == 0 {
-		return ""
-	}
-	return fmt.Sprintf(
-		"The v3 API does not yet accept %s on project writes, so setting them here would "+
-			"silently do nothing. Change them in the Honeybadger UI, and retry without them.",
-		strings.Join(present, ", "))
+	return rejectUnsupported(req, projectSettingsNotInV3, "writing a project",
+		"change them in the Honeybadger UI, and retry without them")
 }
 
 // requireProjectAndFault reads the two ids every fault tool needs.

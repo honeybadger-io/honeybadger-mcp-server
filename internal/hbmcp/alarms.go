@@ -52,6 +52,12 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 
 	// create_alarm tool
 	r.AddTool(
+		// The alarm's configuration parameters are not advertised: v3's schema
+		// cannot carry them, and required parameters the handler always refuses
+		// would make these tools unusable for a conforming caller. create_alarm
+		// refuses outright for the same reason — an alarm with no query never
+		// fires. Both handlers still reject the fields if an older caller sends
+		// them.
 		mcp.NewTool("create_alarm",
 			mcp.WithTitleAnnotation("Create Alarm"),
 			mcp.WithDescription("Create a new Insights alarm for a Honeybadger project. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. Verify the query returns the expected results via query_insights before creating the alarm."),
@@ -64,28 +70,6 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 			mcp.WithString("name",
 				mcp.Required(),
 				mcp.Description("The name of the alarm"),
-			),
-			mcp.WithString("query",
-				mcp.Required(),
-				mcp.Description("BadgerQL query for the alarm (e.g., 'filter event_type::str == \"notice\"'). The alarm system wraps the query to count results automatically."),
-			),
-			mcp.WithString("evaluation_period",
-				mcp.Required(),
-				mcp.Description("How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m."),
-			),
-			mcp.WithString("trigger_config",
-				mcp.Required(),
-				mcp.Description("JSON object defining when to trigger the alarm. Example: {\"type\": \"alert_result_count\", \"config\": {\"operator\": \"gt\", \"value\": 10}}"),
-			),
-			mcp.WithString("description",
-				mcp.Description("Optional description of the alarm"),
-			),
-			mcp.WithString("stream_ids",
-				mcp.Description("Optional JSON array of stream IDs to query (defaults to [\"default\"])"),
-			),
-			mcp.WithString("lookback_lag",
-				mcp.Required(),
-				mcp.Description("Delay before evaluating to allow data to arrive (e.g., 1m, or 0s for no lag)."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -111,28 +95,6 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 			mcp.WithString("name",
 				mcp.Required(),
 				mcp.Description("The name of the alarm"),
-			),
-			mcp.WithString("query",
-				mcp.Required(),
-				mcp.Description("BadgerQL query for the alarm"),
-			),
-			mcp.WithString("evaluation_period",
-				mcp.Required(),
-				mcp.Description("How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m."),
-			),
-			mcp.WithString("trigger_config",
-				mcp.Required(),
-				mcp.Description("JSON object defining when to trigger the alarm"),
-			),
-			mcp.WithString("description",
-				mcp.Description("Optional description of the alarm"),
-			),
-			mcp.WithString("stream_ids",
-				mcp.Description("Optional JSON array of stream IDs to query"),
-			),
-			mcp.WithString("lookback_lag",
-				mcp.Required(),
-				mcp.Description("Delay before evaluating to allow data to arrive (e.g., 1m, 0s for no lag)"),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -341,6 +303,14 @@ func handleGetAlarmHistory(ctx context.Context, client *apiv3.Client, req mcp.Ca
 		opts = append(opts, apiv3.Page(page, 0))
 	}
 
+	// ListHistory returns only the rows, so the page the caller asked for is
+	// echoed back with them — otherwise there is no way to tell whether another
+	// page exists without probing for it.
+	page := req.GetInt("page", 0)
+	if page == 0 {
+		page = 1
+	}
+
 	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) ([]apiv3.AlarmHistoryEntry, error) {
 			return client.Alarms.ListHistory(ctx, projectID, alarmID, append(opts, inAccount(accountID)...)...)
@@ -349,7 +319,12 @@ func handleGetAlarmHistory(ctx context.Context, client *apiv3.Client, req mcp.Ca
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get alarm history: %v", err)), nil
 	}
 
-	jsonBytes, err := json.Marshal(response)
+	jsonBytes, err := json.Marshal(map[string]any{
+		"results":    response,
+		"page":       page,
+		"page_size":  len(response),
+		"pagination": "Only the requested page is returned. Ask for the next page to find out whether more rows exist.",
+	})
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}

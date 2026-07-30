@@ -495,3 +495,28 @@ func TestHandleGetProjectReport_WithOptions(t *testing.T) {
 		t.Fatalf("expected successful result, got error: %s", getResultText(result))
 	}
 }
+
+// Turning a setting off is a real request. Detecting these by truthiness let
+// disable_public_links:false through, dropped it, and reported success.
+func TestHandleUpdateProjectRejectsFalseValuedSettings(t *testing.T) {
+	for field, value := range map[string]interface{}{
+		"disable_public_links":     false,
+		"resolve_errors_on_deploy": false,
+		"user_url":                 "",
+	} {
+		result, err := handleUpdateProject(context.Background(), offlineV3Client(),
+			projectArgs(map[string]interface{}{
+				"id": "Xk9mZp", "name": "N", field: value,
+			}))
+		if err != nil {
+			t.Fatalf("%s: error = %v", field, err)
+		}
+		if !result.IsError {
+			t.Errorf("%s=%v was accepted and would have been silently dropped", field, value)
+			continue
+		}
+		if !strings.Contains(getResultText(result), field) {
+			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
+		}
+	}
+}

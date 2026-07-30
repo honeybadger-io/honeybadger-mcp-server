@@ -64,7 +64,10 @@ func handleQueryInsights(ctx context.Context, client *apiv3.Client, req mcp.Call
 
 	// v3 rejects a bad query with a 422 rather than v2's inline error on a 200,
 	// so a query error arrives here rather than in the response body.
-	response, err := client.Insights.Query(ctx, projectID, query_)
+	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.InsightsResult, error) {
+			return client.Insights.Query(ctx, projectID, query_, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to query insights: %v", err)), nil
 	}

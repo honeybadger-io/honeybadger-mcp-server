@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -193,4 +194,71 @@ func TestIntrospectionCacheConcurrentUse(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+// One fetch per credential however many callers arrive together. Without this, a
+// burst on an uncached token becomes a burst upstream.
+func TestIntrospectionCacheCollapsesConcurrentMisses(t *testing.T) {
+	var calls int32
+	release := make(chan struct{})
+	c := NewIntrospectionCache(func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		atomic.AddInt32(&calls, 1)
+		<-release // hold the fetch open so every caller piles up behind it
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}, 0, 0, 0)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 25; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			info, err := c.Get(context.Background(), "hbt_same")
+			if err != nil {
+				t.Errorf("Get: %v", err)
+				return
+			}
+			if info.AccountID != "Ab3kL9" {
+				t.Errorf("AccountID = %q", info.AccountID)
+			}
+		}()
+	}
+
+	close(release)
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Errorf("fetched %d times for one credential, want 1", got)
+	}
+}
+
+// Refreshing an entry the cache already holds must not evict another tenant's.
+func TestIntrospectionCacheRefreshDoesNotEvictOthers(t *testing.T) {
+	c := NewIntrospectionCache(func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		return &apiv3.TokenInfo{AccountID: token}, nil
+	}, time.Second, 0, 2)
+
+	base := time.Now()
+	c.now = func() time.Time { return base }
+
+	for _, token := range []string{"hbt_a", "hbt_b"} {
+		if _, err := c.Get(context.Background(), token); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if c.Len() != 2 {
+		t.Fatalf("cache holds %d, want 2", c.Len())
+	}
+
+	// Expire only the first, then refresh it. The second must survive.
+	c.now = func() time.Time { return base.Add(2 * time.Second) }
+	if _, err := c.Get(context.Background(), "hbt_a"); err != nil {
+		t.Fatal(err)
+	}
+
+	c.mu.Lock()
+	_, bStillHeld := c.entries[digest("hbt_b")]
+	c.mu.Unlock()
+	if !bStillHeld {
+		t.Error("refreshing one credential evicted another tenant's entry")
+	}
 }
