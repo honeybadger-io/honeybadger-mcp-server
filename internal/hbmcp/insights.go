@@ -10,7 +10,7 @@ import (
 )
 
 // RegisterInsightsTools registers all insights-related MCP tools
-func RegisterInsightsTools(r *toolRegistrar, clientFor V3ClientFactory) {
+func RegisterInsightsTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// query_insights tool
 	r.AddTool(
 		mcp.NewTool("query_insights",
@@ -38,7 +38,7 @@ func RegisterInsightsTools(r *toolRegistrar, clientFor V3ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleQueryInsights(ctx, clientFor(ctx), req)
+			return handleQueryInsights(ctx, v3ClientFor(ctx), req)
 		},
 	)
 

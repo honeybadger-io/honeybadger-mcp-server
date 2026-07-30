@@ -10,7 +10,7 @@ import (
 )
 
 // RegisterStreamTools registers all stream-related MCP tools
-func RegisterStreamTools(r *toolRegistrar, clientFor V3ClientFactory) {
+func RegisterStreamTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_streams tool
 	r.AddTool(
 		mcp.NewTool("list_streams",
@@ -24,7 +24,7 @@ func RegisterStreamTools(r *toolRegistrar, clientFor V3ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListStreams(ctx, clientFor(ctx), req)
+			return handleListStreams(ctx, v3ClientFor(ctx), req)
 		},
 	)
 }

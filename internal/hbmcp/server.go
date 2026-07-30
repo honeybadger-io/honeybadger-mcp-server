@@ -130,6 +130,9 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 
 	s := server.NewMCPServer("honeybadger-mcp-server", version, serverOptions...)
 
+	// Both factories exist until the last four tools have a v3 endpoint to call:
+	// get_fault_counts, get_project_occurrence_counts, get_project_integrations,
+	// and get_project_report. See api-go's openapi/GAPS.md.
 	clientFor := newClientFactory(cfg)
 	v3ClientFor := newV3ClientFactory(cfg)
 	r := newToolRegistrar(s)
@@ -138,9 +141,9 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	RegisterFaultTools(r, clientFor, v3ClientFor)
 	RegisterInsightsTools(r, v3ClientFor)
 	RegisterStreamTools(r, v3ClientFor)
-	RegisterDashboardTools(r, clientFor)
+	RegisterDashboardTools(r, clientFor, v3ClientFor)
 	RegisterAlarmTools(r, clientFor, v3ClientFor)
-	RegisterCheckInTools(r, clientFor)
+	RegisterCheckInTools(r, clientFor, v3ClientFor)
 	registerSearchTool(s, r.catalog, cfg)
 
 	return s, append(r.catalog, searchToolInfo)

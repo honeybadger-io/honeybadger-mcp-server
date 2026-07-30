@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // RegisterCheckInTools registers all check-in-related MCP tools
-func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
+// RegisterCheckInTools registers the check-in tools, all on v3.
+func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V3ClientFactory) {
 	// list_check_ins tool
 	r.AddTool(
 		mcp.NewTool("list_check_ins",
@@ -18,14 +19,13 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns the first 25 check-ins; pagination is not currently supported. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to list check-ins for"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListCheckIns(ctx, clientFor(ctx), req)
+			return handleListCheckIns(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -36,10 +36,9 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get a single check-in by ID. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the check-in belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("check_in_id",
 				mcp.Required(),
@@ -47,7 +46,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetCheckIn(ctx, clientFor(ctx), req)
+			return handleGetCheckIn(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -58,10 +57,9 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule types, the required field per type, plan gating (cron needs the Business plan), and the timezone format."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to create the check-in in"),
-				mcp.Min(1),
 			),
 			mcp.WithString("name",
 				mcp.Required(),
@@ -89,7 +87,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreateCheckIn(ctx, clientFor(ctx), req)
+			return handleCreateCheckIn(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -100,10 +98,9 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Update an existing check-in. Only the provided fields are changed; fields cannot be cleared once set. The schedule type cannot be changed after creation. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule fields, plan gating, and the timezone format."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the check-in belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("check_in_id",
 				mcp.Required(),
@@ -129,7 +126,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateCheckIn(ctx, clientFor(ctx), req)
+			return handleUpdateCheckIn(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -140,10 +137,9 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Delete a check-in. This also deletes the check-in's reporting history."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the check-in belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("check_in_id",
 				mcp.Required(),
@@ -151,18 +147,21 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteCheckIn(ctx, clientFor(ctx), req)
+			return handleDeleteCheckIn(ctx, v3ClientFor(ctx), req)
 		},
 	)
 }
 
-func handleListCheckIns(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleListCheckIns(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	checkIns, err := client.CheckIns.List(ctx, projectID)
+	checkIns, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) ([]apiv3.CheckIn, error) {
+			return client.CheckIns.ListAll(ctx, projectID, listAllInAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list check-ins: %v", err)), nil
 	}
@@ -175,9 +174,9 @@ func handleListCheckIns(ctx context.Context, client *hbapi.Client, req mcp.CallT
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleGetCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
@@ -186,7 +185,10 @@ func handleGetCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
 
-	checkIn, err := client.CheckIns.Get(ctx, projectID, checkInID)
+	checkIn, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.CheckIn, error) {
+			return client.CheckIns.Get(ctx, projectID, checkInID, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get check-in: %v", err)), nil
 	}
@@ -199,54 +201,40 @@ func handleGetCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleCreateCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+// checkInFieldsNotInV3 are check-in fields v2 accepted that v3's write schema does
+// not declare.
+//
+// A cron check-in is defined by its schedule, so accepting cron_schedule and
+// dropping it would create a monitor that never expects anything — the request is
+// refused instead.
+var checkInFieldsNotInV3 = []string{"slug", "cron_schedule", "cron_timezone"}
+
+func handleCreateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-
 	name := req.GetString("name", "")
 	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-
-	scheduleType := req.GetString("schedule_type", "")
-	if scheduleType == "" {
-		return mcp.NewToolResultError("schedule_type is required"), nil
-	}
-	if scheduleType != "simple" && scheduleType != "cron" {
-		return mcp.NewToolResultError("schedule_type must be 'simple' or 'cron'"), nil
+	if msg := rejectUnsupported(req, checkInFieldsNotInV3, "creating a check-in",
+		"v3's check-in schema accepts name, schedule_type, report_period and grace_period; "+
+			"a cron check-in needs its schedule, so create it in the Honeybadger UI"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
-	params := hbapi.CheckInParams{
+	params := apiv3.CheckInParams{
 		Name:         name,
-		Slug:         req.GetString("slug", ""),
-		ScheduleType: scheduleType,
+		ScheduleType: req.GetString("schedule_type", ""),
+		ReportPeriod: req.GetString("report_period", ""),
+		GracePeriod:  req.GetString("grace_period", ""),
 	}
 
-	switch scheduleType {
-	case "simple":
-		reportPeriod := req.GetString("report_period", "")
-		if reportPeriod == "" {
-			return mcp.NewToolResultError("report_period is required for simple schedules"), nil
-		}
-		params.ReportPeriod = &reportPeriod
-	case "cron":
-		cronSchedule := req.GetString("cron_schedule", "")
-		if cronSchedule == "" {
-			return mcp.NewToolResultError("cron_schedule is required for cron schedules"), nil
-		}
-		params.CronSchedule = &cronSchedule
-	}
-
-	if gracePeriod := req.GetString("grace_period", ""); gracePeriod != "" {
-		params.GracePeriod = &gracePeriod
-	}
-	if cronTimezone := req.GetString("cron_timezone", ""); cronTimezone != "" {
-		params.CronTimezone = &cronTimezone
-	}
-
-	checkIn, err := client.CheckIns.Create(ctx, projectID, params)
+	checkIn, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.CheckIn, error) {
+			return client.CheckIns.Create(ctx, projectID, params, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create check-in: %v", err)), nil
 	}
@@ -255,51 +243,54 @@ func handleCreateCheckIn(ctx context.Context, client *hbapi.Client, req mcp.Call
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleUpdateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-
 	checkInID := req.GetString("check_in_id", "")
 	if checkInID == "" {
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
-
-	// The API doesn't allow changing schedule_type after creation, so it is
-	// deliberately not exposed here.
-	params := hbapi.CheckInParams{
-		Name: req.GetString("name", ""),
-		Slug: req.GetString("slug", ""),
+	if msg := rejectUnsupported(req, checkInFieldsNotInV3, "updating a check-in",
+		"v3's check-in schema accepts name, schedule_type, report_period and grace_period"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
-	if reportPeriod := req.GetString("report_period", ""); reportPeriod != "" {
-		params.ReportPeriod = &reportPeriod
+	// Unset fields are omitted rather than blanked, so an update touches only what
+	// it was given.
+	params := apiv3.CheckInParams{
+		Name:         req.GetString("name", ""),
+		ScheduleType: req.GetString("schedule_type", ""),
+		ReportPeriod: req.GetString("report_period", ""),
+		GracePeriod:  req.GetString("grace_period", ""),
 	}
-	if gracePeriod := req.GetString("grace_period", ""); gracePeriod != "" {
-		params.GracePeriod = &gracePeriod
-	}
-	if cronSchedule := req.GetString("cron_schedule", ""); cronSchedule != "" {
-		params.CronSchedule = &cronSchedule
-	}
-	if cronTimezone := req.GetString("cron_timezone", ""); cronTimezone != "" {
-		params.CronTimezone = &cronTimezone
+	if params == (apiv3.CheckInParams{}) {
+		return mcp.NewToolResultError(
+			"at least one of name, schedule_type, report_period, or grace_period is required"), nil
 	}
 
-	if err := client.CheckIns.Update(ctx, projectID, checkInID, params); err != nil {
+	checkIn, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.CheckIn, error) {
+			return client.CheckIns.Update(ctx, projectID, checkInID, params, inAccount(accountID)...)
+		})
+	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update check-in: %v", err)), nil
 	}
 
-	return mcp.NewToolResultText(fmt.Sprintf("Check-in %s successfully updated", checkInID)), nil
+	jsonBytes, err := json.Marshal(checkIn)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleDeleteCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleDeleteCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 

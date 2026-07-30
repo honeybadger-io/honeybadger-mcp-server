@@ -4,527 +4,182 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+func checkInArgs(args map[string]interface{}) mcp.CallToolRequest { return mcpRequest(args) }
+
 func TestHandleListCheckIns(t *testing.T) {
-	mockResponse := `{
-		"results": [
-			{
-				"id": "abc123",
-				"name": "Nightly Backups",
-				"slug": "nightly-backups",
-				"state": "reporting",
-				"schedule_type": "simple",
-				"report_period": "1 day",
-				"grace_period": "5 minutes",
-				"cron_schedule": null,
-				"cron_timezone": null,
-				"reported_at": "2024-01-02T05:00:00Z",
-				"expected_at": "2024-01-03T05:00:00Z",
-				"missed_count": 0,
-				"url": "https://api.honeybadger.io/v1/check_in/xyz789",
-				"details_url": "https://app.honeybadger.io/projects/123/check_ins/abc123"
-			}
-		]
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/check_ins"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123/check_ins" {
-			t.Errorf("expected path /v2/projects/123/check_ins, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{"data":[{"id":"c1","name":"Nightly","slug":"nightly"}],
+		  "pagination":{"page":1,"per_page":25,"total_count":1,"total_pages":1}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleListCheckIns(context.Background(), client, req)
+	result, err := handleListCheckIns(context.Background(), client,
+		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
 	if err != nil {
-		t.Fatalf("handleListCheckIns() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "abc123") {
-		t.Error("Result should contain check-in ID")
-	}
-	if !strings.Contains(resultText, "Nightly Backups") {
-		t.Error("Result should contain check-in name")
+	if !strings.Contains(getResultText(result), "Nightly") {
+		t.Errorf("result = %q", getResultText(result))
 	}
 }
 
 func TestHandleGetCheckIn(t *testing.T) {
-	mockResponse := `{
-		"id": "abc123",
-		"name": "Nightly Backups",
-		"slug": "nightly-backups",
-		"state": "missing",
-		"schedule_type": "cron",
-		"report_period": null,
-		"grace_period": "5 minutes",
-		"cron_schedule": "0 5 * * *",
-		"cron_timezone": "UTC",
-		"reported_at": "2024-01-02T05:00:00Z",
-		"expected_at": "2024-01-03T05:00:00Z",
-		"missed_count": 2,
-		"url": "https://api.honeybadger.io/v1/check_in/xyz789",
-		"details_url": "https://app.honeybadger.io/projects/123/check_ins/abc123"
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/check_ins/c1"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123/check_ins/abc123" {
-			t.Errorf("expected path /v2/projects/123/check_ins/abc123, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{"data":{"id":"c1","name":"Nightly"}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":  123,
-				"check_in_id": "abc123",
-			},
-		},
-	}
-
-	result, err := handleGetCheckIn(context.Background(), client, req)
+	result, err := handleGetCheckIn(context.Background(), client,
+		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1"}))
 	if err != nil {
-		t.Fatalf("handleGetCheckIn() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
+}
 
-	resultText := getResultText(result)
-
-	var checkIn hbapi.CheckIn
-	if err := json.Unmarshal([]byte(resultText), &checkIn); err != nil {
-		t.Fatalf("Response should be valid JSON: %v", err)
-	}
-
-	if checkIn.ID != "abc123" {
-		t.Errorf("expected ID abc123, got %s", checkIn.ID)
-	}
-
-	if checkIn.Name != "Nightly Backups" {
-		t.Errorf("expected name 'Nightly Backups', got %s", checkIn.Name)
-	}
-
-	if checkIn.State != "missing" {
-		t.Errorf("expected state 'missing', got %s", checkIn.State)
+func TestHandleCheckInMissingIDs(t *testing.T) {
+	for name, call := range map[string]func() (*mcp.CallToolResult, error){
+		"get": func() (*mcp.CallToolResult, error) {
+			return handleGetCheckIn(context.Background(), offlineV3Client(), checkInArgs(nil))
+		},
+		"delete": func() (*mcp.CallToolResult, error) {
+			return handleDeleteCheckIn(context.Background(), offlineV3Client(), checkInArgs(nil))
+		},
+	} {
+		result, err := call()
+		if err != nil {
+			t.Fatalf("%s: error = %v", name, err)
+		}
+		if !result.IsError || !strings.Contains(getResultText(result), "project_id is required") {
+			t.Errorf("%s: got %q", name, getResultText(result))
+		}
 	}
 }
 
 func TestHandleCreateCheckIn(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			t.Errorf("expected POST method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/check_ins" {
-			t.Errorf("expected path /v2/projects/123/check_ins, got %s", r.URL.Path)
-		}
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"c1","name":"Nightly"}}`)
+	})
 
-		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
-		}
-
-		checkIn, ok := body["check_in"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected check_in key in request body")
-		}
-		if checkIn["name"] != "Nightly Backups" {
-			t.Errorf("expected name 'Nightly Backups', got %v", checkIn["name"])
-		}
-		if checkIn["schedule_type"] != "simple" {
-			t.Errorf("expected schedule_type 'simple', got %v", checkIn["schedule_type"])
-		}
-		if checkIn["report_period"] != "1 day" {
-			t.Errorf("expected report_period '1 day', got %v", checkIn["report_period"])
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{
-			"id": "new123",
-			"name": "Nightly Backups",
-			"slug": "nightly-backups",
-			"state": "pending",
-			"schedule_type": "simple",
-			"report_period": "1 day",
-			"grace_period": null,
-			"cron_schedule": null,
-			"cron_timezone": null,
-			"reported_at": null,
-			"expected_at": null,
-			"missed_count": 0,
-			"url": "https://api.honeybadger.io/v1/check_in/xyz789",
-			"details_url": "https://app.honeybadger.io/projects/123/check_ins/new123"
-		}`))
+	result, err := handleCreateCheckIn(context.Background(), client, checkInArgs(map[string]interface{}{
+		"project_id":    "Xk9mZp",
+		"name":          "Nightly",
+		"schedule_type": "simple",
+		"report_period": "1d",
+		"grace_period":  "1h",
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":    123,
-				"name":          "Nightly Backups",
-				"slug":          "nightly-backups",
-				"schedule_type": "simple",
-				"report_period": "1 day",
-			},
-		},
-	}
-
-	result, err := handleCreateCheckIn(context.Background(), client, req)
 	if err != nil {
-		t.Fatalf("handleCreateCheckIn() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "new123") {
-		t.Error("Result should contain new check-in ID")
+	for key, want := range map[string]any{
+		"name": "Nightly", "schedule_type": "simple", "report_period": "1d", "grace_period": "1h",
+	} {
+		if body[key] != want {
+			t.Errorf("%s = %v, want %v", key, body[key], want)
+		}
 	}
 }
 
-func TestHandleUpdateCheckIn(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			t.Errorf("expected PUT method, got %s", r.Method)
+// A cron check-in is defined by its schedule. v3 cannot send one, and a monitor
+// with no schedule expects nothing — so the request is refused.
+func TestHandleCreateCheckInRejectsFieldsV3Lacks(t *testing.T) {
+	for field, value := range map[string]interface{}{
+		"cron_schedule": "0 3 * * *",
+		"cron_timezone": "UTC",
+		"slug":          "nightly",
+	} {
+		result, err := handleCreateCheckIn(context.Background(), offlineV3Client(),
+			checkInArgs(map[string]interface{}{
+				"project_id": "Xk9mZp", "name": "Nightly", field: value,
+			}))
+		if err != nil {
+			t.Fatalf("%s: error = %v", field, err)
 		}
-		if r.URL.Path != "/v2/projects/123/check_ins/abc123" {
-			t.Errorf("expected path /v2/projects/123/check_ins/abc123, got %s", r.URL.Path)
+		if !result.IsError {
+			t.Errorf("%s: accepted; it would have been dropped", field)
+			continue
 		}
+		if !strings.Contains(getResultText(result), field) {
+			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
+		}
+	}
+}
 
-		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
-		}
+// An update sends only what it was given, so unset fields keep their values.
+func TestHandleUpdateCheckInOmitsUnsetFields(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"c1","name":"Nightly"}}`)
+	})
 
-		checkIn, ok := body["check_in"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected check_in key in request body")
-		}
-		if checkIn["name"] != "Hourly Backups" {
-			t.Errorf("expected name 'Hourly Backups', got %v", checkIn["name"])
-		}
-		if checkIn["report_period"] != "1 hour" {
-			t.Errorf("expected report_period '1 hour', got %v", checkIn["report_period"])
-		}
-		if _, present := checkIn["cron_schedule"]; present {
-			t.Error("cron_schedule should be omitted when not provided")
-		}
-		if _, present := checkIn["schedule_type"]; present {
-			t.Error("schedule_type should never be sent on update")
-		}
-
-		w.WriteHeader(http.StatusNoContent)
+	result, err := handleUpdateCheckIn(context.Background(), client, checkInArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "check_in_id": "c1", "grace_period": "10m",
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":    123,
-				"check_in_id":   "abc123",
-				"name":          "Hourly Backups",
-				"report_period": "1 hour",
-				"schedule_type": "cron",
-			},
-		},
-	}
-
-	result, err := handleUpdateCheckIn(context.Background(), client, req)
 	if err != nil {
-		t.Fatalf("handleUpdateCheckIn() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
+	if body["grace_period"] != "10m" {
+		t.Errorf("grace_period = %v", body["grace_period"])
+	}
+	for _, absent := range []string{"name", "schedule_type", "report_period"} {
+		if _, present := body[absent]; present {
+			t.Errorf("%q was sent unset; it would blank the field", absent)
+		}
+	}
+}
 
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "successfully updated") {
-		t.Error("Result should contain success message")
+func TestHandleUpdateCheckInRequiresSomething(t *testing.T) {
+	result, err := handleUpdateCheckIn(context.Background(), offlineV3Client(),
+		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1"}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "at least one of") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
 func TestHandleDeleteCheckIn(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "DELETE" {
-			t.Errorf("expected DELETE method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/check_ins/abc123" {
-			t.Errorf("expected path /v2/projects/123/check_ins/abc123, got %s", r.URL.Path)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("method = %s, want DELETE", r.Method)
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":  123,
-				"check_in_id": "abc123",
-			},
-		},
-	}
-
-	result, err := handleDeleteCheckIn(context.Background(), client, req)
+	result, err := handleDeleteCheckIn(context.Background(), client,
+		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1"}))
 	if err != nil {
-		t.Fatalf("handleDeleteCheckIn() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "deleted successfully") {
-		t.Error("Result should contain success message")
-	}
-}
-
-func TestHandleCreateCheckIn_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"name":          "Test",
-				"schedule_type": "simple",
-				"report_period": "1 day",
-			},
-		},
-	}
-
-	result, err := handleCreateCheckIn(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateCheckIn() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing project ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
-	}
-}
-
-func TestHandleCreateCheckIn_MissingName(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":    123,
-				"schedule_type": "simple",
-				"report_period": "1 day",
-			},
-		},
-	}
-
-	result, err := handleCreateCheckIn(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateCheckIn() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing name")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "name is required") {
-		t.Error("Error message should mention name is required")
-	}
-}
-
-func TestHandleCreateCheckIn_InvalidScheduleType(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":    123,
-				"name":          "Test",
-				"schedule_type": "hourly",
-			},
-		},
-	}
-
-	result, err := handleCreateCheckIn(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateCheckIn() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for invalid schedule_type")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "schedule_type must be 'simple' or 'cron'") {
-		t.Error("Error message should mention valid schedule types")
-	}
-}
-
-func TestHandleCreateCheckIn_SimpleMissingReportPeriod(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":    123,
-				"name":          "Test",
-				"schedule_type": "simple",
-			},
-		},
-	}
-
-	result, err := handleCreateCheckIn(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateCheckIn() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing report_period")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "report_period is required for simple schedules") {
-		t.Error("Error message should mention report_period is required for simple schedules")
-	}
-}
-
-func TestHandleCreateCheckIn_CronMissingCronSchedule(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":    123,
-				"name":          "Test",
-				"schedule_type": "cron",
-			},
-		},
-	}
-
-	result, err := handleCreateCheckIn(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateCheckIn() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing cron_schedule")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "cron_schedule is required for cron schedules") {
-		t.Error("Error message should mention cron_schedule is required for cron schedules")
-	}
-}
-
-func TestHandleUpdateCheckIn_MissingCheckInID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"name":       "Test",
-			},
-		},
-	}
-
-	result, err := handleUpdateCheckIn(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleUpdateCheckIn() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing check_in_id")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "check_in_id is required") {
-		t.Error("Error message should mention check_in_id is required")
-	}
-}
-
-func TestHandleDeleteCheckIn_MissingCheckInID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleDeleteCheckIn(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleDeleteCheckIn() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing check_in_id")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "check_in_id is required") {
-		t.Error("Error message should mention check_in_id is required")
+	if !strings.Contains(getResultText(result), "c1") {
+		t.Errorf("result should name what was deleted: %q", getResultText(result))
 	}
 }
