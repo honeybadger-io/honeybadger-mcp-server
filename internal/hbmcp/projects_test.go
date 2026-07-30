@@ -266,31 +266,6 @@ func TestHandleCreateProject_MissingName(t *testing.T) {
 	}
 }
 
-// v3's project write schema declares only name. Accepting the other settings and
-// dropping them would report success for a change that never happened, so the
-// request is refused and says which fields are the problem.
-func TestHandleCreateProjectRejectsSettingsV3CannotSend(t *testing.T) {
-	for field, value := range map[string]interface{}{
-		"purge_days":               30,
-		"user_url":                 "http://example.com/users/[user_id]",
-		"resolve_errors_on_deploy": true,
-		"user_search_field":        "context.user_email",
-	} {
-		result, err := handleCreateProject(context.Background(), offlineV3Client(),
-			projectArgs(map[string]interface{}{"name": "New", field: value}))
-		if err != nil {
-			t.Fatalf("%s: handleCreateProject() error = %v", field, err)
-		}
-		if !result.IsError {
-			t.Errorf("%s: request accepted; the field would have been silently dropped", field)
-			continue
-		}
-		if !strings.Contains(getResultText(result), field) {
-			t.Errorf("%s: error does not name the field: %q", field, getResultText(result))
-		}
-	}
-}
-
 func TestHandleUpdateProject(t *testing.T) {
 	var body map[string]any
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -322,17 +297,6 @@ func TestHandleUpdateProject_MissingID(t *testing.T) {
 	}
 	if !result.IsError || !strings.Contains(getResultText(result), "id is required") {
 		t.Errorf("expected 'id is required', got %q", getResultText(result))
-	}
-}
-
-func TestHandleUpdateProjectRejectsSettingsV3CannotSend(t *testing.T) {
-	result, err := handleUpdateProject(context.Background(), offlineV3Client(),
-		projectArgs(map[string]interface{}{"id": "Xk9mZp", "name": "N", "purge_days": 30}))
-	if err != nil {
-		t.Fatalf("handleUpdateProject() error = %v", err)
-	}
-	if !result.IsError || !strings.Contains(getResultText(result), "purge_days") {
-		t.Errorf("expected the request to be refused naming purge_days, got %q", getResultText(result))
 	}
 }
 
@@ -496,27 +460,97 @@ func TestHandleGetProjectReport_WithOptions(t *testing.T) {
 	}
 }
 
-// Turning a setting off is a real request. Detecting these by truthiness let
-// disable_public_links:false through, dropped it, and reported success.
-func TestHandleUpdateProjectRejectsFalseValuedSettings(t *testing.T) {
-	for field, value := range map[string]interface{}{
-		"disable_public_links":     false,
-		"resolve_errors_on_deploy": false,
-		"user_url":                 "",
+// The project write schema carries every setting v2 accepted, so they must reach
+// the wire rather than being refused.
+func TestHandleUpdateProjectSendsSettings(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"App","active":true}}`)
+	})
+
+	result, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]interface{}{
+		"id":                       "Xk9mZp",
+		"name":                     "App",
+		"purge_days":               float64(30),
+		"user_url":                 "http://example.com/users/[user_id]",
+		"resolve_errors_on_deploy": true,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+
+	for key, want := range map[string]any{
+		"name":                     "App",
+		"purge_days":               float64(30),
+		"user_url":                 "http://example.com/users/[user_id]",
+		"resolve_errors_on_deploy": true,
 	} {
-		result, err := handleUpdateProject(context.Background(), offlineV3Client(),
-			projectArgs(map[string]interface{}{
-				"id": "Xk9mZp", "name": "N", field: value,
-			}))
-		if err != nil {
-			t.Fatalf("%s: error = %v", field, err)
+		if body[key] != want {
+			t.Errorf("%s = %v, want %v", key, body[key], want)
 		}
-		if !result.IsError {
-			t.Errorf("%s=%v was accepted and would have been silently dropped", field, value)
-			continue
+	}
+}
+
+// Turning a setting off is a real request, and false must survive to the wire —
+// the typed getter cannot tell false from absent, which is why the handler reads
+// the raw arguments.
+func TestHandleUpdateProjectSendsFalseSettings(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"App","active":true}}`)
+	})
+
+	if _, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]interface{}{
+		"id": "Xk9mZp", "name": "App", "disable_public_links": false,
+	})); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+
+	v, present := body["disable_public_links"]
+	if !present {
+		t.Fatal("disable_public_links was dropped; false is a value, not an absence")
+	}
+	if v != false {
+		t.Errorf("disable_public_links = %v, want false", v)
+	}
+}
+
+// Settings the caller did not mention must stay absent, so an update does not
+// blank them.
+func TestHandleUpdateProjectOmitsUnmentionedSettings(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"App","active":true}}`)
+	})
+
+	if _, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]interface{}{
+		"id": "Xk9mZp", "name": "App",
+	})); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+
+	for _, absent := range []string{"purge_days", "user_url", "source_url", "disable_public_links"} {
+		if _, present := body[absent]; present {
+			t.Errorf("%q was sent unmentioned; it would overwrite the current value", absent)
 		}
-		if !strings.Contains(getResultText(result), field) {
-			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
-		}
+	}
+}
+
+// The update body is the same schema as create, with name required, so the tool
+// says so rather than letting the API reject it.
+func TestHandleUpdateProjectRequiresName(t *testing.T) {
+	result, err := handleUpdateProject(context.Background(), offlineV3Client(),
+		projectArgs(map[string]interface{}{"id": "Xk9mZp", "purge_days": float64(30)}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "name is required") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }

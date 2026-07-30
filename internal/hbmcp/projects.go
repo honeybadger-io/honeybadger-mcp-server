@@ -156,12 +156,11 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 	r.AddTool(
 		mcp.NewTool("get_project_occurrence_counts",
 			mcp.WithTitleAnnotation("Get Project Occurrence Counts"),
-			mcp.WithDescription("Get occurrence counts for all projects or a specific project. NOTE: this tool still runs on the v2 API, which has no v3 equivalent yet, so it needs the legacy numeric project id — not the opaque id list_projects returns. If you do not already have that numeric id, this tool cannot be used."),
+			mcp.WithDescription("Get occurrence counts over time, for one project or across every project the credential can reach."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
-				mcp.Description("Optional project ID to get occurrence counts for a specific project"),
-				mcp.Min(1),
+			mcp.WithString("project_id",
+				mcp.Description("Optional project ID. Omit to report across every project the credential can reach."),
 			),
 			mcp.WithString("period",
 				mcp.Description("Time period for grouping data: 'hour', 'day', 'week', or 'month'. Defaults to 'hour'"),
@@ -172,7 +171,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectOccurrenceCounts(ctx, clientFor(ctx), req)
+			return handleGetProjectOccurrenceCounts(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -180,17 +179,16 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 	r.AddTool(
 		mcp.NewTool("get_project_integrations",
 			mcp.WithTitleAnnotation("Get Project Integrations"),
-			mcp.WithDescription("Get a list of integrations (channels) for a Honeybadger project. NOTE: this tool still runs on the v2 API, which has no v3 equivalent yet, so it needs the legacy numeric project id — not the opaque id list_projects returns. If you do not already have that numeric id, this tool cannot be used."),
+			mcp.WithDescription("Get a list of integrations (notification channels) for a Honeybadger project."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to get integrations for"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectIntegrations(ctx, clientFor(ctx), req)
+			return handleGetProjectIntegrations(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -314,18 +312,53 @@ func handleGetProject(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
+// projectParamsFrom reads the writable project fields out of a request.
+//
+// Only fields the caller actually sent are set, so an update leaves the rest
+// alone. Booleans come from the raw arguments because the typed getter cannot
+// distinguish false from absent, and false is a real value here — it is how a
+// caller turns a setting off.
+func projectParamsFrom(req mcp.CallToolRequest, name string) apiv3.ProjectParams {
+	args := req.GetArguments()
+	params := apiv3.ProjectParams{Name: name}
+
+	for field, target := range map[string]**string{
+		"user_url":          &params.UserUrl,
+		"source_url":        &params.SourceUrl,
+		"user_search_field": &params.UserSearchField,
+		"language":          &params.Language,
+	} {
+		if v, ok := args[field].(string); ok && v != "" {
+			value := v
+			*target = &value
+		}
+	}
+	for field, target := range map[string]**bool{
+		"resolve_errors_on_deploy": &params.ResolveErrorsOnDeploy,
+		"disable_public_links":     &params.DisablePublicLinks,
+	} {
+		if v, ok := args[field].(bool); ok {
+			value := v
+			*target = &value
+		}
+	}
+	if v, ok := args["purge_days"].(float64); ok && v > 0 {
+		days := int(v)
+		params.PurgeDays = &days
+	}
+	return params
+}
+
 func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	name := req.GetString("name", "")
 	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-	if msg := rejectUnsupportedProjectSettings(req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
+	params := projectParamsFrom(req, name)
 
 	project, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (*apiv3.Project, error) {
-			return client.Projects.Create(ctx, name, inAccount(accountID)...)
+			return client.Projects.Create(ctx, params, inAccount(accountID)...)
 		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
@@ -345,17 +378,19 @@ func handleUpdateProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
 	}
+	// The API's update body is the same schema as create, with name required, so a
+	// caller changing only another field still has to supply the current name.
 	name := req.GetString("name", "")
 	if name == "" {
-		return mcp.NewToolResultError("name is required"), nil
+		return mcp.NewToolResultError(
+			"name is required: the v3 API's project update takes the same body as create, " +
+				"so the current name must be sent even when changing something else"), nil
 	}
-	if msg := rejectUnsupportedProjectSettings(req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
+	params := projectParamsFrom(req, name)
 
 	result, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (*apiv3.Project, error) {
-			return client.Projects.Update(ctx, id, name, inAccount(accountID)...)
+			return client.Projects.Update(ctx, id, params, inAccount(accountID)...)
 		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
@@ -392,56 +427,59 @@ func handleDeleteProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectOccurrenceCounts(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Build options struct using typed getters
-	options := hbapi.ProjectGetOccurrenceCountsOptions{
-		Period:      req.GetString("period", ""),
+func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	o := apiv3.OccurrenceOptions{
+		Period:      apiv3.OccurrencePeriod(req.GetString("period", "")),
 		Environment: req.GetString("environment", ""),
 	}
+	projectID := req.GetString("project_id", "")
 
-	// Check if project_id is provided
-	var result interface{}
-	var err error
-
-	projectID := req.GetInt("project_id", 0)
-	if projectID > 0 {
-		// Get occurrence counts for specific project
-		result, err = client.Projects.GetOccurrenceCounts(ctx, projectID, options)
-	} else {
-		// Get occurrence counts for all projects
-		result, err = client.Projects.GetAllOccurrenceCounts(ctx, options)
-	}
-
+	// Omitting the project reports across the whole account, which is what v2's
+	// all-projects variant did. Note it is account-scoped rather than global.
+	counts, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (map[string]any, error) {
+			o.AccountID = accountID
+			if projectID == "" {
+				return client.Projects.AccountOccurrences(ctx, o)
+			}
+			return client.Projects.Occurrences(ctx, projectID, o)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get occurrence counts: %v", err)), nil
 	}
 
-	// Return JSON response
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(counts)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectIntegrations(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+// handleGetProjectIntegrations lists a project's notification channels.
+//
+// v2 called these integrations and v3 calls them channels. Treating them as the
+// same thing is an inference rather than a documented equivalence — the shapes
+// match, and v2's own client comment reads "integrations (channels)" — but it has
+// not been confirmed. The alternative was leaving this tool on v2, where it needs
+// a numeric project id nothing can discover any more, so it would not work at all.
+func handleGetProjectIntegrations(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	integrations, err := client.Projects.GetIntegrations(ctx, projectID)
+	channels, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) ([]apiv3.Channel, error) {
+			return client.Channels.ListAll(ctx, projectID, listAllInAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project integrations: %v", err)), nil
 	}
 
-	// Return JSON response
-	jsonBytes, err := json.Marshal(integrations)
+	jsonBytes, err := json.Marshal(channels)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 

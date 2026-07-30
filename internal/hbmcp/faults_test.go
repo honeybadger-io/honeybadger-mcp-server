@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
-	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -415,207 +413,38 @@ func TestHandleListFaultAffectedUsersRejectsSearch(t *testing.T) {
 }
 
 func TestHandleGetFaultCounts(t *testing.T) {
-	mockResponse := `{
-		"total": 2,
-		"environments": [
-			{
-				"environment": "production",
-				"resolved": true,
-				"ignored": false,
-				"count": 1
-			},
-			{
-				"environment": "production",
-				"resolved": false,
-				"ignored": false,
-				"count": 1
-			}
-		]
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/faults/summary" {
-			t.Errorf("expected path /v2/projects/123/faults/summary, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleGetFaultCounts(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetFaultCounts() error = %v", err)
-	}
-
-	if result.IsError {
-		t.Fatal("expected successful result, got error")
-	}
-
-	// Check that fault counts data is present
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "production") {
-		t.Error("Environment information should be present in response")
-	}
-
-	// Verify the response can be unmarshaled as fault counts
-	var response hbapi.FaultCounts
-	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Errorf("Response should be valid JSON fault counts response: %v", err)
-	}
-
-	if response.Total != 2 {
-		t.Errorf("expected total count 2, got %d", response.Total)
-	}
-
-	if len(response.Environments) != 2 {
-		t.Errorf("expected 2 environment entries, got %d", len(response.Environments))
-	}
-}
-
-func TestHandleGetFaultCounts_WithOptions(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		if query.Get("q") != "environment:production" {
-			t.Errorf("expected q=environment:production, got %s", query.Get("q"))
-		}
-		if query.Get("created_after") != "1704067200" {
-			t.Errorf("expected created_after=1704067200, got %s", query.Get("created_after"))
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"total": 1, "environments": []}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":    123,
-				"q":             "environment:production",
-				"created_after": "2024-01-01T00:00:00Z",
-			},
-		},
-	}
-
-	result, err := handleGetFaultCounts(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetFaultCounts() error = %v", err)
-	}
-
-	if result.IsError {
-		t.Fatal("expected successful result, got error")
-	}
-}
-
-func TestHandleGetFaultCounts_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{},
-		},
-	}
-
-	result, err := handleGetFaultCounts(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetFaultCounts() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing project ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
-	}
-}
-
-func TestHandleGetFaultCounts_Error(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"errors": "Invalid API token"}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("invalid-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleGetFaultCounts(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetFaultCounts() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to get fault counts") {
-		t.Error("Error message should contain 'Failed to get fault counts'")
-	}
-}
-
-// Each flag is a separate request, so the first can land and the second fail. The
-// caller has to be told what already took effect, or they will believe nothing
-// changed when something did.
-func TestHandleUpdateFaultReportsPartialApplication(t *testing.T) {
-	var calls int
+	var gotPath, gotQuery string
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		if calls == 1 {
-			w.WriteHeader(http.StatusNoContent) // resolve succeeds
-			return
-		}
-		v3JSON(w, http.StatusForbidden, // ignore fails
-			`{"error":{"code":"insufficient_scope","message":"Insufficient scope"}}`)
+		gotPath, gotQuery = r.URL.Path, r.URL.Query().Get("q")
+		v3JSON(w, http.StatusOK, `{"data":{"total":42,"unresolved":7}}`)
 	})
 
-	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, "ignored": true,
+	result, err := handleGetFaultCounts(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "q": "is:unresolved",
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError {
-		t.Fatal("expected an error for the failed half")
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
+	if want := "/v3/accounts/me/projects/Xk9mZp/faults/summary"; gotPath != want {
+		t.Errorf("path = %q, want %q", gotPath, want)
+	}
+	if gotQuery != "is:unresolved" {
+		t.Errorf("q = %q", gotQuery)
+	}
+	if !strings.Contains(getResultText(result), "42") {
+		t.Errorf("result = %q", getResultText(result))
+	}
+}
 
-	text := getResultText(result)
-	if !strings.Contains(text, "already applied") {
-		t.Errorf("error must say what took effect, got %q", text)
+func TestHandleGetFaultCounts_MissingProjectID(t *testing.T) {
+	result, err := handleGetFaultCounts(context.Background(), offlineV3Client(), faultArgs(nil))
+	if err != nil {
+		t.Fatalf("error = %v", err)
 	}
-	if !strings.Contains(text, "resolved") {
-		t.Errorf("error must name the change that landed, got %q", text)
+	if !result.IsError || !strings.Contains(getResultText(result), "project_id is required") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }

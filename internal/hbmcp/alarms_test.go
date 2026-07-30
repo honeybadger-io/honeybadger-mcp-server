@@ -79,29 +79,67 @@ func TestHandleGetAlarm_MissingAlarmID(t *testing.T) {
 	}
 }
 
-// v3's alarm create schema accepts only a name, so an alarm made through it
-// could never fire. Refusing beats leaving a broken alarm in the account.
-func TestHandleCreateAlarmRefusesUntilV3CanExpressOne(t *testing.T) {
+// An alarm can be created with the query and trigger that make it fire.
+func TestHandleCreateAlarm(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"a1","name":"Error spike"}}`)
+	})
+
+	result, err := handleCreateAlarm(context.Background(), client, alarmArgs(map[string]interface{}{
+		"project_id":        "Xk9mZp",
+		"name":              "Error spike",
+		"query":             "count() > 100",
+		"evaluation_period": "5m",
+		"lookback_lag":      "1m",
+		"trigger_config":    `{"type":"threshold","config":{"operator":">","value":100}}`,
+		"stream_ids":        `["str_1"]`,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+
+	if body["query"] != "count() > 100" {
+		t.Errorf("query = %v", body["query"])
+	}
+	trigger, ok := body["trigger_config"].(map[string]any)
+	if !ok || trigger["type"] != "threshold" {
+		t.Fatalf("trigger_config = %v", body["trigger_config"])
+	}
+	streams, ok := body["stream_ids"].([]any)
+	if !ok || len(streams) != 1 {
+		t.Errorf("stream_ids = %v", body["stream_ids"])
+	}
+}
+
+// A query is what makes an alarm fire, so it is required rather than optional.
+func TestHandleCreateAlarmRequiresQuery(t *testing.T) {
+	result, err := handleCreateAlarm(context.Background(), offlineV3Client(),
+		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "name": "Spike"}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "query is required") {
+		t.Errorf("got %q", getResultText(result))
+	}
+}
+
+// Malformed trigger JSON is caught before a request is made.
+func TestHandleCreateAlarmRejectsInvalidTriggerJSON(t *testing.T) {
 	result, err := handleCreateAlarm(context.Background(), offlineV3Client(),
 		alarmArgs(map[string]interface{}{
-			"project_id":        "Xk9mZp",
-			"name":              "Error spike",
-			"query":             "count() > 100",
-			"evaluation_period": "5m",
-			"trigger_config":    `{"threshold":100}`,
-			"lookback_lag":      "1m",
+			"project_id": "Xk9mZp", "name": "Spike", "query": "count() > 1",
+			"trigger_config": "{not json",
 		}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError {
-		t.Fatal("create was allowed; it would have made an alarm that never fires")
-	}
-	text := getResultText(result)
-	for _, want := range []string{"not available on the v3 API yet", "never fires"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("error should explain why: %q", text)
-		}
+	if !result.IsError || !strings.Contains(getResultText(result), "trigger_config") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
@@ -133,13 +171,13 @@ func TestHandleUpdateAlarmRenames(t *testing.T) {
 // Touching an alarm's configuration is refused rather than applying only the
 // name and reporting success.
 func TestHandleUpdateAlarmRejectsConfigChanges(t *testing.T) {
+	// description is accepted on update; the behaviour fields are not.
 	for field, value := range map[string]interface{}{
 		"query":             "count() > 5",
 		"evaluation_period": "10m",
 		"trigger_config":    `{"threshold":5}`,
 		"lookback_lag":      "2m",
 		"stream_ids":        `["s1"]`,
-		"description":       "watch this",
 	} {
 		result, err := handleUpdateAlarm(context.Background(), offlineV3Client(),
 			alarmArgs(map[string]interface{}{

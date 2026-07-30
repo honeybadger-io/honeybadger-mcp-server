@@ -65,10 +65,12 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory, v3ClientF
 				mcp.Required(),
 				mcp.Description("The title of the dashboard"),
 			),
-			// widgets and default_ts are not advertised: v3's dashboard schema
-			// cannot carry them, and a required parameter the handler always
-			// refuses would make the tool unusable for a conforming caller. The
-			// handler still rejects them if an older caller sends them anyway.
+			mcp.WithString("widgets",
+				mcp.Description("JSON array of widget objects. The dashboards reference topic has the full schema and examples. Each widget needs a type (insights_vis, alarms, errors, deployments, checkins, uptime) and optionally grid, presentation and config."),
+			),
+			mcp.WithString("default_ts",
+				mcp.Description("Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month)."),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleCreateDashboard(ctx, v3ClientFor(ctx), req)
@@ -94,10 +96,12 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory, v3ClientF
 				mcp.Required(),
 				mcp.Description("The title of the dashboard"),
 			),
-			// widgets and default_ts are not advertised: v3's dashboard schema
-			// cannot carry them, and a required parameter the handler always
-			// refuses would make the tool unusable for a conforming caller. The
-			// handler still rejects them if an older caller sends them anyway.
+			mcp.WithString("widgets",
+				mcp.Description("JSON array of widget objects. The dashboards reference topic has the full schema and examples. Each widget needs a type (insights_vis, alarms, errors, deployments, checkins, uptime) and optionally grid, presentation and config."),
+			),
+			mcp.WithString("default_ts",
+				mcp.Description("Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month)."),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateDashboard(ctx, v3ClientFor(ctx), req)
@@ -175,37 +179,45 @@ func handleGetDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallT
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// dashboardFieldsNotInV3 are dashboard fields v2 accepted that v3's write schema
-// does not declare. A dashboard's widgets are the dashboard, so accepting them and
-// dropping them would create an empty one.
-var dashboardFieldsNotInV3 = []string{"widgets", "default_ts"}
-
-// handleCreateDashboard creates a dashboard by name.
+// dashboardParamsFrom reads a dashboard write out of a request.
 //
-// v3's schema declares only name. That still produces a real, if empty, dashboard
-// — unlike an alarm with no query — so this proceeds and refuses only a request
-// that also carries widgets.
+// Widgets arrive as a JSON string, as they did on v2, and travel through as raw
+// JSON — the generated widget type is a nested anonymous struct no caller could
+// build, so passing the array untouched is what makes widgets usable at all.
+func dashboardParamsFrom(req mcp.CallToolRequest) (apiv3.DashboardParams, string) {
+	// v2 called this title and so does v3 now, but accept name too since the tool
+	// has advertised both.
+	title := req.GetString("title", "")
+	if title == "" {
+		title = req.GetString("name", "")
+	}
+	if title == "" {
+		return apiv3.DashboardParams{}, "title is required"
+	}
+
+	params := apiv3.DashboardParams{Title: title, DefaultTs: req.GetString("default_ts", "")}
+	if raw := req.GetString("widgets", ""); raw != "" {
+		if !json.Valid([]byte(raw)) {
+			return apiv3.DashboardParams{}, "widgets must be valid JSON"
+		}
+		params.Widgets = json.RawMessage(raw)
+	}
+	return params, ""
+}
+
 func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-	// v2 called this title; v3's field is name.
-	name := req.GetString("title", "")
-	if name == "" {
-		name = req.GetString("name", "")
-	}
-	if name == "" {
-		return mcp.NewToolResultError("title is required"), nil
-	}
-	if msg := rejectUnsupported(req, dashboardFieldsNotInV3, "creating a dashboard",
-		"v3's dashboard schema accepts only a name; add widgets in the Honeybadger UI"); msg != "" {
+	params, msg := dashboardParamsFrom(req)
+	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
 
 	dashboard, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (*apiv3.Dashboard, error) {
-			return client.Dashboards.Create(ctx, projectID, name, inAccount(accountID)...)
+			return client.Dashboards.Create(ctx, projectID, params, inAccount(accountID)...)
 		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create dashboard: %v", err)), nil
@@ -218,6 +230,12 @@ func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
+// handleUpdateDashboard replaces a dashboard's title, time range and widgets.
+//
+// Note this is a replacement rather than a merge: the update body is the same
+// schema as create, so omitting widgets clears them. The tool therefore requires
+// widgets to be sent explicitly when changing anything else, rather than silently
+// emptying a dashboard.
 func handleUpdateDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
@@ -227,22 +245,20 @@ func handleUpdateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	if dashboardID == "" {
 		return mcp.NewToolResultError("dashboard_id is required"), nil
 	}
-	if msg := rejectUnsupported(req, dashboardFieldsNotInV3, "updating a dashboard",
-		"v3's dashboard schema accepts only a name; edit widgets in the Honeybadger UI"); msg != "" {
+	params, msg := dashboardParamsFrom(req)
+	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-
-	name := req.GetString("title", "")
-	if name == "" {
-		name = req.GetString("name", "")
-	}
-	if name == "" {
-		return mcp.NewToolResultError("title is required"), nil
+	if len(params.Widgets) == 0 {
+		return mcp.NewToolResultError(
+			"widgets is required on update: the v3 API replaces the dashboard rather than " +
+				"merging, so omitting widgets would clear the ones it has. Read the dashboard " +
+				"first with get_dashboard and send its widgets back, changed or unchanged."), nil
 	}
 
 	dashboard, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (*apiv3.Dashboard, error) {
-			return client.Dashboards.Update(ctx, projectID, dashboardID, name, inAccount(accountID)...)
+			return client.Dashboards.Update(ctx, projectID, dashboardID, params, inAccount(accountID)...)
 		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update dashboard: %v", err)), nil

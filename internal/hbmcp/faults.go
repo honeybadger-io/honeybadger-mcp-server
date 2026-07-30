@@ -5,17 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // RegisterFaultTools registers all fault-related MCP tools
-// RegisterFaultTools registers the fault tools.
-//
-// All but get_fault_counts run on v3; that one has no v3 endpoint yet and keeps
-// the v2 client along with its numeric ids.
-func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V3ClientFactory) {
+// RegisterFaultTools registers the fault tools, all on v3.
+func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_faults tool
 	r.AddTool(
 		mcp.NewTool("list_faults",
@@ -170,13 +166,12 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 	r.AddTool(
 		mcp.NewTool("get_fault_counts",
 			mcp.WithTitleAnnotation("Get Fault Counts"),
-			mcp.WithDescription("Get fault count statistics for a project with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax. NOTE: this tool still runs on the v2 API, which has no v3 equivalent yet, so it needs the legacy numeric project id — not the opaque id list_projects returns. If you do not already have that numeric id, this tool cannot be used."),
+			mcp.WithDescription("Get fault count statistics for a project, with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to get fault counts for"),
-				mcp.Min(1),
 			),
 			mcp.WithString("q",
 				mcp.Description("Search string to filter faults (see the errors reference topic for the search query syntax)"),
@@ -192,7 +187,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetFaultCounts(ctx, clientFor(ctx), req)
+			return handleGetFaultCounts(ctx, v3ClientFor(ctx), req)
 		},
 	)
 }
@@ -406,31 +401,28 @@ func handleListFaultAffectedUsers(ctx context.Context, client *apiv3.Client, req
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetFaultCounts(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Since project_id is required, MCP will ensure it exists
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleGetFaultCounts(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	// Build options struct (reuse same filtering options as List)
-	options := hbapi.FaultListOptions{
-		Q:              req.GetString("q", ""),
-		CreatedAfter:   parseTimestampValue(req.GetString("created_after", "")),
-		OccurredAfter:  parseTimestampValue(req.GetString("occurred_after", "")),
-		OccurredBefore: parseTimestampValue(req.GetString("occurred_before", "")),
+	var opts []apiv3.Option
+	if q := req.GetString("q", ""); q != "" {
+		opts = append(opts, apiv3.Search(q))
 	}
 
-	counts, err := client.Faults.GetCounts(ctx, projectID, options)
+	counts, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (map[string]any, error) {
+			return client.Faults.Summary(ctx, projectID, append(opts, inAccount(accountID)...)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get fault counts: %v", err)), nil
 	}
 
-	// Return JSON response
 	jsonBytes, err := json.Marshal(counts)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }

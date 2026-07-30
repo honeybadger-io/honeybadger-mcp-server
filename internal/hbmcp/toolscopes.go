@@ -64,10 +64,13 @@ var toolOperations = map[string][]string{
 	// projects — rather than as tools needing nothing. A credential holding no
 	// read scope should not be offered them just because their migration is
 	// pending.
-	"get_fault_counts":              {"listFaults"},
-	"get_project_occurrence_counts": {"getProjectStats"},
-	"get_project_report":            {"getProjectStats"},
+	"get_fault_counts":              {"getFaultSummary"},
+	"get_project_occurrence_counts": {"getProjectOccurrences", "listAccountOccurrences"},
 	"get_project_integrations":      {"listChannels"},
+
+	// The last tool without a v3 endpoint. Mapped to the closest read that does
+	// exist, so a credential holding no project read scope is not offered it.
+	"get_project_report": {"getProjectStats"},
 }
 
 // toolRequiredScopes returns the scopes a tool needs, derived from the spec.

@@ -76,33 +76,27 @@ func derefInt(v *int) int {
 	return *v
 }
 
-// projectSettingsNotInV3 are project fields v2 accepted that v3's write schema
-// does not declare.
+// staleSchemaFields are parameters this server no longer advertises but an older
+// client may still send, because MCP clients cache tool schemas until they
+// reconnect.
 //
-// A field absent from the schema does not exist in the generated request type, so
-// it cannot be sent. Rejecting the request is the honest response: accepting it
-// and dropping the field would report success for a change that never happened.
-var projectSettingsNotInV3 = []string{
-	"resolve_errors_on_deploy",
-	"disable_public_links",
-	"user_url",
-	"source_url",
-	"purge_days",
-	"user_search_field",
+// This is a safety net, not a description of the API. Each entry is something v3
+// genuinely cannot do, so accepting it silently would report success for a change
+// that never happened.
+var staleSchemaFields = map[string][]string{
+	"update_fault":       {"resolve_on_deploy"},
+	"list_fault_notices": {"created_after", "created_before"},
 }
 
-// rejectUnsupportedProjectSettings returns an error message when a request
-// carries project settings v3 cannot express, or "" when it is safe to proceed.
-// rejectUnsupportedProjectSettings returns an error message when a request
-// carries project settings v3 cannot express, or "" when it is safe to proceed.
-//
-// Presence is what matters, not truthiness. Checking values would let
-// disable_public_links:false through — a perfectly valid request to turn the
-// setting off — and then drop it, which is exactly the silent no-op this guard
-// exists to prevent.
-func rejectUnsupportedProjectSettings(req mcp.CallToolRequest) string {
-	return rejectUnsupported(req, projectSettingsNotInV3, "writing a project",
-		"change them in the Honeybadger UI, and retry without them")
+// rejectStaleSchemaFields refuses a request carrying parameters this server used
+// to advertise and can no longer honour.
+func rejectStaleSchemaFields(tool string, req mcp.CallToolRequest) string {
+	fields, ok := staleSchemaFields[tool]
+	if !ok {
+		return ""
+	}
+	return rejectUnsupported(req, fields, "this operation",
+		"they are no longer accepted; reconnect to refresh the tool schemas")
 }
 
 // requireProjectAndFault reads the two ids every fault tool needs.

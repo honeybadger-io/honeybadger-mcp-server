@@ -52,12 +52,6 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 
 	// create_alarm tool
 	r.AddTool(
-		// The alarm's configuration parameters are not advertised: v3's schema
-		// cannot carry them, and required parameters the handler always refuses
-		// would make these tools unusable for a conforming caller. create_alarm
-		// refuses outright for the same reason — an alarm with no query never
-		// fires. Both handlers still reject the fields if an older caller sends
-		// them.
 		mcp.NewTool("create_alarm",
 			mcp.WithTitleAnnotation("Create Alarm"),
 			mcp.WithDescription("Create a new Insights alarm for a Honeybadger project. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. Verify the query returns the expected results via query_insights before creating the alarm."),
@@ -70,6 +64,25 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 			mcp.WithString("name",
 				mcp.Required(),
 				mcp.Description("The name of the alarm"),
+			),
+			mcp.WithString("query",
+				mcp.Required(),
+				mcp.Description("BadgerQL query evaluated on each check. Requires reference topics: alarms, badgerql (fetch via get_reference)."),
+			),
+			mcp.WithString("evaluation_period",
+				mcp.Description("Window each evaluation covers, e.g. '5 minutes'"),
+			),
+			mcp.WithString("lookback_lag",
+				mcp.Description("How far behind now the evaluation window ends, allowing for ingestion delay"),
+			),
+			mcp.WithString("trigger_config",
+				mcp.Description(`JSON object describing what turns the alarm on, e.g. {"type":"threshold","config":{"operator":">","value":100}}. Without one the alarm is created but never fires.`),
+			),
+			mcp.WithString("stream_ids",
+				mcp.Description("JSON array of stream IDs the query runs against. Omit to use every stream on the project."),
+			),
+			mcp.WithString("description",
+				mcp.Description("Optional description of the alarm"),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -197,33 +210,82 @@ func handleGetAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolR
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// alarmConfigFields are the fields that make an alarm actually alarm. v3's write
-// schema declares only name, so none of them can be sent.
-var alarmConfigFields = []string{
-	"query", "evaluation_period", "trigger_config", "lookback_lag",
-	"stream_ids", "description",
+// alarmUpdateOnlyName lists the fields v3's alarm update cannot carry.
+//
+// Create takes the query, evaluation period, trigger and streams; update takes
+// only name and description. So an alarm's behaviour cannot be changed after it
+// exists, and a request trying to is refused rather than silently applying just
+// the name.
+var alarmUpdateOnlyName = []string{
+	"query", "evaluation_period", "trigger_config", "lookback_lag", "stream_ids",
 }
 
-// handleCreateAlarm refuses, deliberately.
-//
-// v3's create schema declares only name. An alarm with no query, evaluation
-// period, or trigger configuration does not fire — creating one would leave a
-// broken alarm in the account that looks real. Unlike a project, which is still a
-// project with only a name, there is no useful alarm to create here, so this
-// reports the gap instead of half-doing the job.
 func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return mcp.NewToolResultError(
-		"Creating alarms is not available on the v3 API yet: its create schema accepts only a " +
-			"name, so the query, evaluation period and trigger configuration an alarm needs to " +
-			"fire cannot be sent, and the result would be an alarm that never fires. " +
-			"Create the alarm in the Honeybadger UI."), nil
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
+		return mcp.NewToolResultError("project_id is required"), nil
+	}
+	name := req.GetString("name", "")
+	if name == "" {
+		return mcp.NewToolResultError("name is required"), nil
+	}
+	query := req.GetString("query", "")
+	if query == "" {
+		return mcp.NewToolResultError("query is required"), nil
+	}
+
+	params := apiv3.AlarmParams{
+		Name:             name,
+		Query:            query,
+		EvaluationPeriod: req.GetString("evaluation_period", ""),
+		LookbackLag:      req.GetString("lookback_lag", ""),
+		Description:      req.GetString("description", ""),
+	}
+
+	// stream_ids and trigger_config arrive as JSON strings, matching how v2's tool
+	// took them.
+	if raw := req.GetString("stream_ids", ""); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &params.StreamIDs); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)), nil
+		}
+	}
+	if raw := req.GetString("trigger_config", ""); raw != "" {
+		var trigger struct {
+			Type   string `json:"type"`
+			Config struct {
+				Operator string  `json:"operator"`
+				Value    float32 `json:"value"`
+			} `json:"config"`
+		}
+		if err := json.Unmarshal([]byte(raw), &trigger); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
+		}
+		params.Trigger = &apiv3.AlarmTrigger{
+			Type:     trigger.Type,
+			Operator: trigger.Config.Operator,
+			Value:    trigger.Config.Value,
+		}
+	}
+
+	alarm, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.Alarm, error) {
+			return client.Alarms.Create(ctx, projectID, params, inAccount(accountID)...)
+		})
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to create alarm: %v", err)), nil
+	}
+
+	jsonBytes, err := json.Marshal(alarm)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// handleUpdateAlarm renames an alarm, which is all v3's schema permits.
+// handleUpdateAlarm changes an alarm's name or description.
 //
-// A rename is a genuinely useful subset, so unlike create this is allowed —
-// but a request touching the alarm's configuration is refused rather than
-// silently applying only the name.
+// Those are the only fields v3's update schema declares, so a request touching
+// the alarm's behaviour is refused instead of applying a subset.
 func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
@@ -233,19 +295,20 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if alarmID == "" {
 		return mcp.NewToolResultError("alarm_id is required"), nil
 	}
-	if msg := rejectUnsupported(req, alarmConfigFields, "updating an alarm",
-		"v3's alarm write schema accepts only name; change the rest in the Honeybadger UI"); msg != "" {
+	if msg := rejectUnsupported(req, alarmUpdateOnlyName, "updating an alarm",
+		"v3's alarm update accepts only name and description — delete and recreate the alarm "+
+			"to change how it fires"); msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
 
-	name := req.GetString("name", "")
-	if name == "" {
-		return mcp.NewToolResultError("name is required"), nil
+	name, description := req.GetString("name", ""), req.GetString("description", "")
+	if name == "" && description == "" {
+		return mcp.NewToolResultError("at least one of name or description is required"), nil
 	}
 
 	alarm, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (*apiv3.Alarm, error) {
-			return client.Alarms.Update(ctx, projectID, alarmID, name, inAccount(accountID)...)
+			return client.Alarms.Update(ctx, projectID, alarmID, name, description, inAccount(accountID)...)
 		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update alarm: %v", err)), nil

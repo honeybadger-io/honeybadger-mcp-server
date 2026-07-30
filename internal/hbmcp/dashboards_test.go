@@ -52,9 +52,9 @@ func TestHandleGetDashboard(t *testing.T) {
 	}
 }
 
-// The resource is read as title but written as name, so the tool accepts title —
-// which is what v2 used and what a read returns — and sends name.
-func TestHandleCreateDashboardMapsTitleToName(t *testing.T) {
+// title is the field on both sides now: the spec previously wrote it as name
+// while reading it as title, and settled on title.
+func TestHandleCreateDashboardSendsTitle(t *testing.T) {
 	var body map[string]any
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
@@ -69,32 +69,8 @@ func TestHandleCreateDashboardMapsTitleToName(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-	if body["name"] != "Ops" {
-		t.Errorf("sent body = %v, want the title under name", body)
-	}
-}
-
-// A dashboard's widgets are the dashboard; v3 cannot send them, so a request
-// carrying them is refused rather than silently creating an empty one.
-func TestHandleCreateDashboardRejectsWidgets(t *testing.T) {
-	for field, value := range map[string]interface{}{
-		"widgets":    `[{"type":"chart"}]`,
-		"default_ts": "1h",
-	} {
-		result, err := handleCreateDashboard(context.Background(), offlineV3Client(),
-			dashboardArgs(map[string]interface{}{
-				"project_id": "Xk9mZp", "title": "Ops", field: value,
-			}))
-		if err != nil {
-			t.Fatalf("%s: error = %v", field, err)
-		}
-		if !result.IsError {
-			t.Errorf("%s: accepted; an empty dashboard would have been created", field)
-			continue
-		}
-		if !strings.Contains(getResultText(result), field) {
-			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
-		}
+	if body["title"] != "Ops" {
+		t.Errorf("sent body = %v, want the title under title", body)
 	}
 }
 
@@ -118,6 +94,8 @@ func TestHandleUpdateDashboard(t *testing.T) {
 
 	result, err := handleUpdateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
 		"project_id": "Xk9mZp", "dashboard_id": "d1", "title": "Renamed",
+		// Update replaces rather than merges, so the widgets have to come along.
+		"widgets": `[{"type":"errors"}]`,
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -125,7 +103,7 @@ func TestHandleUpdateDashboard(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-	if body["name"] != "Renamed" {
+	if body["title"] != "Renamed" {
 		t.Errorf("sent body = %v", body)
 	}
 }
@@ -145,5 +123,70 @@ func TestHandleDeleteDashboard(t *testing.T) {
 	}
 	if result.IsError {
 		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+}
+
+// Widgets are expressible now and travel through as raw JSON.
+func TestHandleCreateDashboardSendsWidgets(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp"}}`)
+	})
+
+	result, err := handleCreateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
+		"project_id": "Xk9mZp",
+		"title":      "Ops",
+		"default_ts": "P1D",
+		"widgets":    `[{"type":"errors","grid":{"x":0,"y":0,"w":6,"h":4}}]`,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+
+	if body["default_ts"] != "P1D" {
+		t.Errorf("default_ts = %v", body["default_ts"])
+	}
+	widgets, ok := body["widgets"].([]any)
+	if !ok || len(widgets) != 1 {
+		t.Fatalf("widgets = %v", body["widgets"])
+	}
+	if widget, _ := widgets[0].(map[string]any); widget["type"] != "errors" {
+		t.Errorf("widget = %v", widgets[0])
+	}
+}
+
+// Malformed widget JSON is caught before a request is made.
+func TestHandleCreateDashboardRejectsInvalidWidgetJSON(t *testing.T) {
+	result, err := handleCreateDashboard(context.Background(), offlineV3Client(),
+		dashboardArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "title": "Ops", "widgets": "{not json",
+		}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "valid JSON") {
+		t.Errorf("got %q", getResultText(result))
+	}
+}
+
+// Omitting widgets on update would clear the dashboard, since the API replaces
+// rather than merges. The tool refuses instead of emptying it.
+func TestHandleUpdateDashboardRequiresWidgets(t *testing.T) {
+	result, err := handleUpdateDashboard(context.Background(), offlineV3Client(),
+		dashboardArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "dashboard_id": "d1", "title": "Renamed",
+		}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("update without widgets was accepted; it would have cleared them")
+	}
+	if !strings.Contains(getResultText(result), "get_dashboard") {
+		t.Errorf("error should say how to recover: %q", getResultText(result))
 	}
 }

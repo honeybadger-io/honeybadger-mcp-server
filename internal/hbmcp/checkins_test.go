@@ -100,31 +100,6 @@ func TestHandleCreateCheckIn(t *testing.T) {
 	}
 }
 
-// A cron check-in is defined by its schedule. v3 cannot send one, and a monitor
-// with no schedule expects nothing — so the request is refused.
-func TestHandleCreateCheckInRejectsFieldsV3Lacks(t *testing.T) {
-	for field, value := range map[string]interface{}{
-		"cron_schedule": "0 3 * * *",
-		"cron_timezone": "UTC",
-		"slug":          "nightly",
-	} {
-		result, err := handleCreateCheckIn(context.Background(), offlineV3Client(),
-			checkInArgs(map[string]interface{}{
-				"project_id": "Xk9mZp", "name": "Nightly", field: value,
-			}))
-		if err != nil {
-			t.Fatalf("%s: error = %v", field, err)
-		}
-		if !result.IsError {
-			t.Errorf("%s: accepted; it would have been dropped", field)
-			continue
-		}
-		if !strings.Contains(getResultText(result), field) {
-			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
-		}
-	}
-}
-
 // An update sends only what it was given, so unset fields keep their values.
 func TestHandleUpdateCheckInOmitsUnsetFields(t *testing.T) {
 	var body map[string]any
@@ -134,7 +109,8 @@ func TestHandleUpdateCheckInOmitsUnsetFields(t *testing.T) {
 	})
 
 	result, err := handleUpdateCheckIn(context.Background(), client, checkInArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "check_in_id": "c1", "grace_period": "10m",
+		// name comes along because the update body requires it.
+		"project_id": "Xk9mZp", "check_in_id": "c1", "name": "Nightly", "grace_period": "10m",
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -145,21 +121,13 @@ func TestHandleUpdateCheckInOmitsUnsetFields(t *testing.T) {
 	if body["grace_period"] != "10m" {
 		t.Errorf("grace_period = %v", body["grace_period"])
 	}
-	for _, absent := range []string{"name", "schedule_type", "report_period"} {
+	if body["name"] != "Nightly" {
+		t.Errorf("name = %v; the update body requires it", body["name"])
+	}
+	for _, absent := range []string{"schedule_type", "report_period", "cron_schedule"} {
 		if _, present := body[absent]; present {
 			t.Errorf("%q was sent unset; it would blank the field", absent)
 		}
-	}
-}
-
-func TestHandleUpdateCheckInRequiresSomething(t *testing.T) {
-	result, err := handleUpdateCheckIn(context.Background(), offlineV3Client(),
-		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1"}))
-	if err != nil {
-		t.Fatalf("error = %v", err)
-	}
-	if !result.IsError || !strings.Contains(getResultText(result), "at least one of") {
-		t.Errorf("got %q", getResultText(result))
 	}
 }
 
@@ -184,25 +152,6 @@ func TestHandleDeleteCheckIn(t *testing.T) {
 	}
 }
 
-// A cron check-in is refused whether or not the request spells out the schedule
-// v3 cannot carry. Rejecting only the explicit field let a bare
-// schedule_type:"cron" through, which creates a monitor expecting nothing.
-func TestHandleCreateCheckInRefusesCronEvenWithoutASchedule(t *testing.T) {
-	result, err := handleCreateCheckIn(context.Background(), offlineV3Client(),
-		checkInArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "name": "Nightly", "schedule_type": "cron",
-		}))
-	if err != nil {
-		t.Fatalf("error = %v", err)
-	}
-	if !result.IsError {
-		t.Fatal("a cron check-in with no schedule was accepted")
-	}
-	if !strings.Contains(getResultText(result), "Cron check-ins") {
-		t.Errorf("error should explain the cron gap: %q", getResultText(result))
-	}
-}
-
 // A simple check-in is unaffected.
 func TestHandleCreateCheckInAllowsSimpleSchedule(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -217,5 +166,70 @@ func TestHandleCreateCheckInAllowsSimpleSchedule(t *testing.T) {
 	}
 	if result.IsError {
 		t.Fatalf("a simple check-in was refused: %s", getResultText(result))
+	}
+}
+
+// Cron check-ins are expressible now: the schema carries the schedule and its
+// timezone.
+func TestHandleCreateCheckInSendsCronSchedule(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"c1","name":"Nightly"}}`)
+	})
+
+	result, err := handleCreateCheckIn(context.Background(), client, checkInArgs(map[string]interface{}{
+		"project_id":    "Xk9mZp",
+		"name":          "Nightly",
+		"schedule_type": "cron",
+		"cron_schedule": "0 3 * * *",
+		// A Rails zone name, not an IANA identifier — the API rejects the latter.
+		"cron_timezone": "Central Time (US & Canada)",
+		"slug":          "nightly",
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+
+	for key, want := range map[string]any{
+		"schedule_type": "cron",
+		"cron_schedule": "0 3 * * *",
+		"cron_timezone": "Central Time (US & Canada)",
+		"slug":          "nightly",
+	} {
+		if body[key] != want {
+			t.Errorf("%s = %v, want %v", key, body[key], want)
+		}
+	}
+}
+
+// A cron schedule_type without the schedule is caught here rather than by the API.
+func TestHandleCreateCheckInRequiresCronSchedule(t *testing.T) {
+	result, err := handleCreateCheckIn(context.Background(), offlineV3Client(),
+		checkInArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "name": "Nightly", "schedule_type": "cron",
+		}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "cron_schedule is required") {
+		t.Errorf("got %q", getResultText(result))
+	}
+}
+
+// The update body is the same schema as create, with name required.
+func TestHandleUpdateCheckInRequiresName(t *testing.T) {
+	result, err := handleUpdateCheckIn(context.Background(), offlineV3Client(),
+		checkInArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "check_in_id": "c1", "grace_period": "5m",
+		}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "name is required") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }

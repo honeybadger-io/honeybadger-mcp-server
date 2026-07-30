@@ -201,42 +201,32 @@ func handleGetCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// checkInFieldsNotInV3 are check-in fields v2 accepted that v3's write schema does
-// not declare.
+// checkInParamsFrom reads a check-in write out of a request.
 //
-// A cron check-in is defined by its schedule, so accepting cron_schedule and
-// dropping it would create a monitor that never expects anything — the request is
-// refused instead.
-var checkInFieldsNotInV3 = []string{"slug", "cron_schedule", "cron_timezone"}
+// The cron fields exist in v3 now, so a cron check-in is expressible.
+func checkInParamsFrom(req mcp.CallToolRequest) apiv3.CheckInParams {
+	return apiv3.CheckInParams{
+		Name:         req.GetString("name", ""),
+		ScheduleType: req.GetString("schedule_type", ""),
+		ReportPeriod: req.GetString("report_period", ""),
+		GracePeriod:  req.GetString("grace_period", ""),
+		CronSchedule: req.GetString("cron_schedule", ""),
+		CronTimezone: req.GetString("cron_timezone", ""),
+		Slug:         req.GetString("slug", ""),
+	}
+}
 
 func handleCreateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-	name := req.GetString("name", "")
-	if name == "" {
+	params := checkInParamsFrom(req)
+	if params.Name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-	if msg := rejectUnsupported(req, checkInFieldsNotInV3, "creating a check-in",
-		"v3's check-in schema accepts name, schedule_type, report_period and grace_period"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
-	// Refuse every cron check-in, not only requests that spell out a schedule v3
-	// cannot send. A cron monitor without its schedule expects nothing, so
-	// creating one on a bare schedule_type would be worse than refusing.
-	if req.GetString("schedule_type", "") == "cron" {
-		return mcp.NewToolResultError(
-			"Cron check-ins cannot be created through the v3 API yet: its schema cannot carry " +
-				"the cron schedule or timezone, and a cron check-in without a schedule expects " +
-				"nothing. Create it in the Honeybadger UI, or use a simple check-in."), nil
-	}
-
-	params := apiv3.CheckInParams{
-		Name:         name,
-		ScheduleType: req.GetString("schedule_type", ""),
-		ReportPeriod: req.GetString("report_period", ""),
-		GracePeriod:  req.GetString("grace_period", ""),
+	if params.ScheduleType == "cron" && params.CronSchedule == "" {
+		return mcp.NewToolResultError("cron_schedule is required when schedule_type is cron"), nil
 	}
 
 	checkIn, err := withAccount(ctx, client, req.GetString("account_id", ""),
@@ -263,22 +253,14 @@ func handleUpdateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if checkInID == "" {
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
-	if msg := rejectUnsupported(req, checkInFieldsNotInV3, "updating a check-in",
-		"v3's check-in schema accepts name, schedule_type, report_period and grace_period"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 
-	// Unset fields are omitted rather than blanked, so an update touches only what
-	// it was given.
-	params := apiv3.CheckInParams{
-		Name:         req.GetString("name", ""),
-		ScheduleType: req.GetString("schedule_type", ""),
-		ReportPeriod: req.GetString("report_period", ""),
-		GracePeriod:  req.GetString("grace_period", ""),
-	}
-	if params == (apiv3.CheckInParams{}) {
+	// The update body is the same schema as create, with name required, so the
+	// current name must be sent even when changing something else.
+	params := checkInParamsFrom(req)
+	if params.Name == "" {
 		return mcp.NewToolResultError(
-			"at least one of name, schedule_type, report_period, or grace_period is required"), nil
+			"name is required: the v3 API's check-in update takes the same body as create, " +
+				"so the current name must be sent even when changing something else"), nil
 	}
 
 	checkIn, err := withAccount(ctx, client, req.GetString("account_id", ""),
