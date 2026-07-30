@@ -96,3 +96,52 @@ func rejectUnsupportedProjectSettings(req mcp.CallToolRequest) string {
 			"silently do nothing. Change them in the Honeybadger UI, and retry without them.",
 		strings.Join(present, ", "))
 }
+
+// requireProjectAndFault reads the two ids every fault tool needs.
+func requireProjectAndFault(req mcp.CallToolRequest) (projectID, faultID, errMsg string) {
+	projectID = req.GetString("project_id", "")
+	if projectID == "" {
+		return "", "", "project_id is required"
+	}
+	faultID = req.GetString("fault_id", "")
+	if faultID == "" {
+		return "", "", "fault_id is required"
+	}
+	return projectID, faultID, ""
+}
+
+// optionalBool reads a boolean argument that may be absent.
+//
+// Read from the raw arguments rather than through the typed getter, which coerces
+// invalid input — null becomes false — and would turn a malformed request into a
+// silent state change.
+func optionalBool(args map[string]any, name string) (value, present bool, err error) {
+	raw, ok := args[name]
+	if !ok {
+		return false, false, nil
+	}
+	v, ok := raw.(bool)
+	if !ok {
+		return false, false, fmt.Errorf("%s must be a boolean", name)
+	}
+	return v, true, nil
+}
+
+// rejectUnsupported refuses a request carrying parameters v3 cannot express.
+//
+// Silently ignoring them is the one option not on the table: a caller who filters
+// or sets something and gets a success back has been told the wrong thing.
+func rejectUnsupported(req mcp.CallToolRequest, fields []string, action, advice string) string {
+	args := req.GetArguments()
+	var present []string
+	for _, field := range fields {
+		if _, ok := args[field]; ok {
+			present = append(present, field)
+		}
+	}
+	if len(present) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("The v3 API does not support %s when %s, so they would be ignored. %s.",
+		strings.Join(present, ", "), action, advice)
+}

@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 
 	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // RegisterFaultTools registers all fault-related MCP tools
-func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
+// RegisterFaultTools registers the fault tools.
+//
+// All but get_fault_counts run on v3; that one has no v3 endpoint yet and keeps
+// the v2 client along with its numeric ids.
+func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V3ClientFactory) {
 	// list_faults tool
 	r.AddTool(
 		mcp.NewTool("list_faults",
@@ -19,10 +23,9 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get a list of faults for a project with optional filtering and ordering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the fault/notice model and the q search syntax."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to get faults for"),
-				mcp.Min(1),
 			),
 			mcp.WithString("q",
 				mcp.Description("Search string to filter faults (see the errors reference topic for the search query syntax)"),
@@ -51,7 +54,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListFaults(ctx, clientFor(ctx), req)
+			return handleListFaults(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -62,19 +65,17 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get detailed information for a specific fault in a project"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
-				mcp.Min(1),
 			),
-			mcp.WithNumber("fault_id",
+			mcp.WithString("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to retrieve"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetFault(ctx, clientFor(ctx), req)
+			return handleGetFault(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -82,18 +83,16 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("update_fault",
 			mcp.WithTitleAnnotation("Update Fault"),
-			mcp.WithDescription("Update a fault's resolved, ignored, assignee, or resolve-on-deploy state. Only the provided fields are changed. Setting resolved or ignored to true in the same request takes precedence over resolve_on_deploy."),
+			mcp.WithDescription("Resolve, unresolve, ignore, or unignore a fault. Only the provided fields are changed. Assigning a fault and resolve-on-deploy are not yet available."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
-				mcp.Min(1),
 			),
-			mcp.WithNumber("fault_id",
+			mcp.WithString("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to update"),
-				mcp.Min(1),
 			),
 			mcp.WithBoolean("resolved",
 				mcp.Description("Whether the fault is resolved"),
@@ -101,17 +100,13 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithBoolean("ignored",
 				mcp.Description("Whether the fault is ignored"),
 			),
-			mcp.WithInteger("assignee_id",
-				mcp.Description("Positive integer to assign that user; null to remove the current assignee; omit to leave unchanged"),
-				mcp.Min(1),
-				nullable,
-			),
-			mcp.WithBoolean("resolve_on_deploy",
-				mcp.Description("Mark the fault to be resolved automatically on next deploy"),
-			),
+			// assignee_id and resolve_on_deploy are intentionally gone: the v3
+			// assign endpoint does not specify its request body, and there is no
+			// resolve-on-deploy endpoint at all. Advertising parameters that
+			// cannot be sent would be worse than dropping them.
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateFault(ctx, clientFor(ctx), req)
+			return handleUpdateFault(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -122,15 +117,13 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get a list of notices (individual error events) for a specific fault"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
-				mcp.Min(1),
 			),
-			mcp.WithNumber("fault_id",
+			mcp.WithString("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to get notices for"),
-				mcp.Min(1),
 			),
 			mcp.WithString("created_after",
 				mcp.Description("Filter notices created after this timestamp"),
@@ -145,7 +138,7 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListFaultNotices(ctx, clientFor(ctx), req)
+			return handleListFaultNotices(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -156,22 +149,20 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
-				mcp.Min(1),
 			),
-			mcp.WithNumber("fault_id",
+			mcp.WithString("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to get affected users for"),
-				mcp.Min(1),
 			),
 			mcp.WithString("q",
 				mcp.Description("Search string to filter affected users"),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListFaultAffectedUsers(ctx, clientFor(ctx), req)
+			return handleListFaultAffectedUsers(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -206,25 +197,33 @@ func RegisterFaultTools(r *toolRegistrar, clientFor ClientFactory) {
 	)
 }
 
-func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Since project_id is required, MCP will ensure it exists
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+// faultFiltersNotInV3 are list_faults parameters v2 accepted that v3 has no
+// equivalent for. v3's listFaults takes only page, per_page, and q.
+var faultFiltersNotInV3 = []string{"created_after", "occurred_after", "occurred_before", "order"}
+
+func handleListFaults(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-
-	// Build options struct
-	options := hbapi.FaultListOptions{
-		Q:              req.GetString("q", ""),
-		CreatedAfter:   parseTimestampValue(req.GetString("created_after", "")),
-		OccurredAfter:  parseTimestampValue(req.GetString("occurred_after", "")),
-		OccurredBefore: parseTimestampValue(req.GetString("occurred_before", "")),
-		Limit:          req.GetInt("limit", 0),
-		Order:          req.GetString("order", ""),
-		Page:           req.GetInt("page", 0),
+	if msg := rejectUnsupported(req, faultFiltersNotInV3,
+		"filtering faults", "express the filter in q instead, where the search syntax supports it"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
-	response, err := client.Faults.List(ctx, projectID, options)
+	// limit maps to per_page: both cap how many faults come back in one call.
+	opts := []apiv3.Option{}
+	if q := req.GetString("q", ""); q != "" {
+		opts = append(opts, apiv3.Search(q))
+	}
+	if page, perPage := req.GetInt("page", 0), req.GetInt("limit", 0); page > 0 || perPage > 0 {
+		opts = append(opts, apiv3.Page(max(page, 1), perPage))
+	}
+
+	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.ListResponse[apiv3.Fault], error) {
+			return client.Faults.List(ctx, projectID, append(opts, inAccount(accountID)...)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list faults: %v", err)), nil
 	}
@@ -238,18 +237,16 @@ func handleListFaults(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetFault(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
+func handleGetFault(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID, faultID, msg := requireProjectAndFault(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
-	faultID := req.GetInt("fault_id", 0)
-	if faultID == 0 {
-		return mcp.NewToolResultError("fault_id is required"), nil
-	}
-
-	fault, err := client.Faults.Get(ctx, projectID, faultID)
+	fault, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.Fault, error) {
+			return client.Faults.Get(ctx, projectID, faultID, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get fault: %v", err)), nil
 	}
@@ -263,100 +260,101 @@ func handleGetFault(ctx context.Context, client *hbapi.Client, req mcp.CallToolR
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateFault(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// handleUpdateFault maps the tool's resolved and ignored flags onto v3's discrete
+// endpoints.
+//
+// v2 took one mutable PUT carrying every field. v3 replaced it with an endpoint
+// per action, which is why this reads as a sequence rather than a single call.
+// Each endpoint takes a list of fault ids; this tool changes one at a time.
+//
+// The response is a summary of what changed rather than the updated fault: the
+// endpoints answer 204, and re-fetching the record to return it would cost an
+// extra request the caller may not want. Use get_fault for the new state.
+func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID, faultID, msg := requireProjectAndFault(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	if msg := rejectUnsupported(req, []string{"assignee_id", "resolve_on_deploy"},
+		"updating a fault",
+		"the v3 assign endpoint does not specify its request body, and there is no "+
+			"resolve-on-deploy endpoint; change these in the Honeybadger UI"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+
 	args := req.GetArguments()
-
-	projectID, ok := requireID(args, "project_id")
-	if !ok {
-		return mcp.NewToolResultError("project_id must be a positive integer"), nil
+	resolved, hasResolved, err := optionalBool(args, "resolved")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	ignored, hasIgnored, err := optionalBool(args, "ignored")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if !hasResolved && !hasIgnored {
+		return mcp.NewToolResultError("at least one of resolved or ignored is required"), nil
 	}
 
-	faultID, ok := requireID(args, "fault_id")
-	if !ok {
-		return mcp.NewToolResultError("fault_id must be a positive integer"), nil
-	}
+	applied := map[string]any{"project_id": projectID, "fault_id": faultID}
+	ids := []string{faultID}
 
-	// Only include fields that were explicitly provided, so unset fields are
-	// omitted from the request instead of being reset. Values are validated
-	// against the raw arguments because the typed getters silently coerce
-	// invalid input (e.g. null to false, 1.5 to 1).
-	params := hbapi.FaultUpdateParams{}
-
-	for _, f := range []struct {
-		name  string
-		field **bool
-	}{
-		{"resolved", &params.Resolved},
-		{"ignored", &params.Ignored},
-		{"resolve_on_deploy", &params.ResolveOnDeploy},
-	} {
-		raw, ok := args[f.name]
-		if !ok {
-			continue
-		}
-		val, ok := raw.(bool)
-		if !ok {
-			return mcp.NewToolResultError(fmt.Sprintf("%s must be a boolean", f.name)), nil
-		}
-		*f.field = &val
-	}
-
-	if raw, ok := args["assignee_id"]; ok {
-		switch v := raw.(type) {
-		case nil:
-			params.AssigneeID = hbapi.Null[int]() // explicit null unassigns the fault
-		case float64:
-			if v < 1 || v > maxSafeInteger || v != math.Trunc(v) {
-				return mcp.NewToolResultError("assignee_id must be a positive integer or null"), nil
+	_, err = withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (any, error) {
+			opts := inAccount(accountID)
+			if hasResolved {
+				action := client.Faults.Resolve
+				if !resolved {
+					action = client.Faults.Unresolve
+				}
+				if err := action(ctx, projectID, ids, opts...); err != nil {
+					return nil, err
+				}
+				applied["resolved"] = resolved
 			}
-			params.AssigneeID = hbapi.Value(int(v))
-		case int: // arguments constructed in Go rather than decoded from JSON
-			if v < 1 {
-				return mcp.NewToolResultError("assignee_id must be a positive integer or null"), nil
+			if hasIgnored {
+				action := client.Faults.Ignore
+				if !ignored {
+					action = client.Faults.Unignore
+				}
+				if err := action(ctx, projectID, ids, opts...); err != nil {
+					return nil, err
+				}
+				applied["ignored"] = ignored
 			}
-			params.AssigneeID = hbapi.Value(v)
-		default:
-			return mcp.NewToolResultError("assignee_id must be a positive integer or null"), nil
-		}
-	}
-
-	if params.Resolved == nil && params.Ignored == nil && params.AssigneeID == nil && params.ResolveOnDeploy == nil {
-		return mcp.NewToolResultError("at least one of resolved, ignored, assignee_id, or resolve_on_deploy is required"), nil
-	}
-
-	result, err := client.Faults.Update(ctx, projectID, faultID, params)
+			return nil, nil
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update fault: %v", err)), nil
 	}
 
-	// Return JSON response
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(applied)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleListFaultNotices(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
+func handleListFaultNotices(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID, faultID, msg := requireProjectAndFault(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	// Notices are cursor-paginated in v3, so the timestamp filters have no
+	// equivalent — paging walks links rather than naming a time.
+	if msg := rejectUnsupported(req, []string{"created_after", "created_before"},
+		"listing notices", "notices are paged by cursor in v3; omit these and page instead"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
-	faultID := req.GetInt("fault_id", 0)
-	if faultID == 0 {
-		return mcp.NewToolResultError("fault_id is required"), nil
+	opts := []apiv3.Option{}
+	if limit := req.GetInt("limit", 0); limit > 0 {
+		opts = append(opts, apiv3.Limit(limit))
 	}
 
-	// Build options struct
-	options := hbapi.FaultListNoticesOptions{
-		CreatedAfter:  parseTimestampValue(req.GetString("created_after", "")),
-		CreatedBefore: parseTimestampValue(req.GetString("created_before", "")),
-		Limit:         req.GetInt("limit", 0),
-	}
-
-	response, err := client.Faults.ListNotices(ctx, projectID, faultID, options)
+	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.ListResponse[apiv3.Notice], error) {
+			return client.Faults.ListNotices(ctx, projectID, faultID, append(opts, inAccount(accountID)...)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list fault notices: %v", err)), nil
 	}
@@ -369,23 +367,21 @@ func handleListFaultNotices(ctx context.Context, client *hbapi.Client, req mcp.C
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
-func handleListFaultAffectedUsers(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
+func handleListFaultAffectedUsers(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID, faultID, msg := requireProjectAndFault(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	// v3's affected-users endpoint takes no search parameter.
+	if msg := rejectUnsupported(req, []string{"q"},
+		"listing affected users", "v3 returns the full set; filter the result yourself"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
-	faultID := req.GetInt("fault_id", 0)
-	if faultID == 0 {
-		return mcp.NewToolResultError("fault_id is required"), nil
-	}
-
-	// Build options struct
-	options := hbapi.FaultListAffectedUsersOptions{
-		Q: req.GetString("q", ""),
-	}
-
-	users, err := client.Faults.ListAffectedUsers(ctx, projectID, faultID, options)
+	users, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (map[string]any, error) {
+			return client.Faults.AffectedUsers(ctx, projectID, faultID, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list fault affected users: %v", err)), nil
 	}

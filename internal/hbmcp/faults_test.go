@@ -3,9 +3,9 @@ package hbmcp
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -13,1175 +13,404 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+func faultArgs(args map[string]interface{}) mcp.CallToolRequest {
+	return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
+}
+
 func TestHandleListFaults(t *testing.T) {
-	mockResponse := `{
-		"results": [
-			{
-				"id": 1,
-				"action": "index",
-				"assignee": null,
-				"comments_count": 0,
-				"component": "HomeController",
-				"created_at": "2024-01-01T00:00:00Z",
-				"environment": "production",
-				"ignored": false,
-				"klass": "NoMethodError",
-				"last_notice_at": "2024-01-02T00:00:00Z",
-				"message": "undefined method 'foo' for nil:NilClass",
-				"notices_count": 10,
-				"project_id": 123,
-				"resolved": false,
-				"tags": ["urgent", "production"],
-				"url": "https://app.honeybadger.io/projects/123/faults/1"
-			}
-		],
-		"links": {
-			"self": "https://app.honeybadger.io/v2/projects/123/faults"
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/faults"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-	}`
+		v3JSON(w, http.StatusOK, `{
+			"data": [{"id":"f1","project_id":"Xk9mZp","klass":"RuntimeError","message":"boom","notices_count":42}],
+			"pagination": {"page":1,"per_page":25,"total_count":1,"total_pages":1}
+		}`)
+	})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/faults" {
-			t.Errorf("expected path /v2/projects/123/faults, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleListFaults(context.Background(), client, req)
+	result, err := handleListFaults(context.Background(), client,
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
 	if err != nil {
 		t.Fatalf("handleListFaults() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	// Check that fault data is present
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "NoMethodError") {
-		t.Error("Fault message should be present in response")
-	}
-
-	// Verify the response can be unmarshaled as a fault list response
-	var response hbapi.FaultListResponse
-	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Errorf("Response should be valid JSON fault list response: %v", err)
-	}
-
-	if len(response.Results) != 1 {
-		t.Errorf("expected 1 fault, got %d", len(response.Results))
+	if !strings.Contains(getResultText(result), "RuntimeError") {
+		t.Errorf("result = %q", getResultText(result))
 	}
 }
 
-func TestHandleListFaults_WithOptions(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		if query.Get("q") != "NoMethodError" {
-			t.Errorf("expected q=NoMethodError, got %s", query.Get("q"))
-		}
-		if query.Get("limit") != "10" {
-			t.Errorf("expected limit=10, got %s", query.Get("limit"))
-		}
-		if query.Get("order") != "recent" {
-			t.Errorf("expected order=recent, got %s", query.Get("order"))
-		}
+// q passes straight through; v3 expresses environment and status filters inside it.
+func TestHandleListFaults_WithSearch(t *testing.T) {
+	var gotQuery string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query().Get("q")
+		v3JSON(w, http.StatusOK, `{"data":[]}`)
+	})
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"results": []}`))
+	_, err := handleListFaults(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp",
+		"q":          "environment:production is:resolved",
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"q":          "NoMethodError",
-				"limit":      10,
-				"order":      "recent",
-			},
-		},
-	}
-
-	result, err := handleListFaults(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleListFaults() error = %v", err)
 	}
-
-	if result.IsError {
-		t.Fatal("expected successful result, got error")
+	if want := "environment:production is:resolved"; gotQuery != want {
+		t.Errorf("q = %q, want %q", gotQuery, want)
 	}
 }
 
-func TestHandleListFaults_WithPage(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		if query.Get("page") != "2" {
-			t.Errorf("expected page=2, got %s", query.Get("page"))
-		}
-		if query.Get("limit") != "25" {
-			t.Errorf("expected limit=25, got %s", query.Get("limit"))
-		}
+// limit maps to per_page: both cap how many faults one call returns.
+func TestHandleListFaults_LimitMapsToPerPage(t *testing.T) {
+	var query url.Values
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query()
+		v3JSON(w, http.StatusOK, `{"data":[]}`)
+	})
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"results": [], "links": {"next": "https://app.honeybadger.io/v2/projects/123/faults?page=3"}}`))
+	_, err := handleListFaults(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp",
+		"limit":      10,
+		"page":       3,
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"page":       2,
-				"limit":      25,
-			},
-		},
-	}
-
-	result, err := handleListFaults(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleListFaults() error = %v", err)
 	}
-
-	if result.IsError {
-		t.Fatal("expected successful result, got error")
+	if got := query.Get("per_page"); got != "10" {
+		t.Errorf("per_page = %q, want 10", got)
 	}
-
-	// Verify the response contains pagination links
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "page=3") {
-		t.Error("Response should contain pagination links")
+	if got := query.Get("page"); got != "3" {
+		t.Errorf("page = %q, want 3", got)
 	}
 }
 
-func TestHandleListFaults_Error(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"errors": "Invalid API token"}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("invalid-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleListFaults(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleListFaults() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to list faults") {
-		t.Error("Error message should contain 'Failed to list faults'")
+// v3's listFaults takes only page, per_page and q. A caller passing a filter it
+// cannot honour must be told, not silently given unfiltered results.
+func TestHandleListFaultsRejectsFiltersV3Lacks(t *testing.T) {
+	for _, field := range []string{"created_after", "occurred_after", "occurred_before", "order"} {
+		result, err := handleListFaults(context.Background(), offlineV3Client(),
+			faultArgs(map[string]interface{}{"project_id": "Xk9mZp", field: "whatever"}))
+		if err != nil {
+			t.Fatalf("%s: handleListFaults() error = %v", field, err)
+		}
+		if !result.IsError {
+			t.Errorf("%s: accepted; results would have been unfiltered", field)
+			continue
+		}
+		if !strings.Contains(getResultText(result), field) {
+			t.Errorf("%s: error does not name the field: %q", field, getResultText(result))
+		}
 	}
 }
 
 func TestHandleListFaults_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{},
-		},
-	}
-
-	result, err := handleListFaults(context.Background(), client, req)
+	result, err := handleListFaults(context.Background(), offlineV3Client(), faultArgs(nil))
 	if err != nil {
 		t.Fatalf("handleListFaults() error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing project ID")
+	if !result.IsError || !strings.Contains(getResultText(result), "project_id is required") {
+		t.Errorf("expected 'project_id is required', got %q", getResultText(result))
 	}
+}
 
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
+func TestHandleListFaults_Error(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusNotFound, `{"error":{"code":"not_found","message":"Resource not found"}}`)
+	})
+
+	result, err := handleListFaults(context.Background(), client,
+		faultArgs(map[string]interface{}{"project_id": "nope"}))
+	if err != nil {
+		t.Fatalf("handleListFaults() error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "Failed to list faults") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
 func TestHandleGetFault(t *testing.T) {
-	mockResponse := `{
-		"id": 456,
-		"action": "create",
-		"assignee": {"id": 1, "email": "user@example.com", "name": "User 1"},
-		"comments_count": 3,
-		"component": "PostController",
-		"created_at": "2024-01-01T00:00:00Z",
-		"environment": "production",
-		"ignored": false,
-		"klass": "ActiveRecord::RecordNotFound",
-		"last_notice_at": "2024-01-02T00:00:00Z",
-		"message": "Couldn't find Post with 'id'=999",
-		"notices_count": 25,
-		"project_id": 123,
-		"resolved": false,
-		"tags": ["database", "production"],
-		"url": "https://app.honeybadger.io/projects/123/faults/456"
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/faults/f1"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123/faults/456" {
-			t.Errorf("expected path /v2/projects/123/faults/456, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK,
+			`{"data":{"id":"f1","project_id":"Xk9mZp","klass":"RuntimeError","action":null}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   456,
-			},
-		},
-	}
-
-	result, err := handleGetFault(context.Background(), client, req)
+	result, err := handleGetFault(context.Background(), client,
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "f1"}))
 	if err != nil {
 		t.Fatalf("handleGetFault() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	// Check that fault data is present
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "ActiveRecord::RecordNotFound") {
-		t.Error("Fault class should be present in response")
-	}
-
-	// Verify the response can be unmarshaled as a fault
-	var fault hbapi.Fault
-	if err := json.Unmarshal([]byte(resultText), &fault); err != nil {
-		t.Errorf("Response should be valid JSON fault: %v", err)
-	}
-
-	if fault.ID != 456 {
-		t.Errorf("expected fault ID 456, got %d", fault.ID)
-	}
-
-	if fault.Message != "Couldn't find Post with 'id'=999" {
-		t.Errorf("expected fault message 'Couldn't find Post with 'id'=999', got %s", fault.Message)
+	if !strings.Contains(getResultText(result), "RuntimeError") {
+		t.Errorf("result = %q", getResultText(result))
 	}
 }
 
-func TestHandleGetFault_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"fault_id": 456,
-			},
-		},
-	}
-
-	result, err := handleGetFault(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetFault() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing project ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
-	}
-}
-
-func TestHandleGetFault_MissingFaultID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleGetFault(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetFault() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing fault ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "fault_id is required") {
-		t.Error("Error message should mention fault_id is required")
-	}
-}
-
-func TestHandleGetFault_InvalidProjectID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 0,
-				"fault_id":   456,
-			},
-		},
-	}
-
-	result, err := handleGetFault(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetFault() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for invalid project ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
-	}
-}
-
-func TestHandleGetFault_InvalidFaultID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   0,
-			},
-		},
-	}
-
-	result, err := handleGetFault(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetFault() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for invalid fault ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "fault_id is required") {
-		t.Error("Error message should mention fault_id is required")
+func TestHandleGetFault_MissingIDs(t *testing.T) {
+	for _, tc := range []struct {
+		args map[string]interface{}
+		want string
+	}{
+		{nil, "project_id is required"},
+		{map[string]interface{}{"project_id": "Xk9mZp"}, "fault_id is required"},
+	} {
+		result, err := handleGetFault(context.Background(), offlineV3Client(), faultArgs(tc.args))
+		if err != nil {
+			t.Fatalf("handleGetFault() error = %v", err)
+		}
+		if !result.IsError || !strings.Contains(getResultText(result), tc.want) {
+			t.Errorf("args %v: got %q, want %q", tc.args, getResultText(result), tc.want)
+		}
 	}
 }
 
 func TestHandleGetFault_Error(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"errors": "Fault not found"}`))
-	}))
-	defer server.Close()
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusNotFound, `{"error":{"code":"not_found","message":"Resource not found"}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   999,
-			},
-		},
-	}
-
-	result, err := handleGetFault(context.Background(), client, req)
+	result, err := handleGetFault(context.Background(), client,
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "nope"}))
 	if err != nil {
 		t.Fatalf("handleGetFault() error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to get fault") {
-		t.Error("Error message should contain 'Failed to get fault'")
+	if !result.IsError || !strings.Contains(getResultText(result), "Failed to get fault") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
-func TestHandleUpdateFault(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			t.Errorf("expected PUT method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/faults/456" {
-			t.Errorf("expected path /v2/projects/123/faults/456, got %s", r.URL.Path)
-		}
-
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("failed to read request body: %v", err)
-		}
-		expected := `{"fault":{"resolved":true,"assignee_id":789}}`
-		if strings.TrimSpace(string(body)) != expected {
-			t.Errorf("expected body %s, got %s", expected, string(body))
-		}
-
+// v3 replaced v2's mutable PUT with an endpoint per action, so resolving hits
+// /faults/resolve with the fault in a list.
+func TestHandleUpdateFaultResolve(t *testing.T) {
+	var paths []string
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		_ = json.NewDecoder(r.Body).Decode(&body)
 		w.WriteHeader(http.StatusNoContent)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true,
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":  123,
-				"fault_id":    456,
-				"resolved":    true,
-				"assignee_id": 789,
-			},
-		},
-	}
-
-	result, err := handleUpdateFault(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	var updateResult hbapi.UpdateResult
-	if err := json.Unmarshal([]byte(getResultText(result)), &updateResult); err != nil {
-		t.Errorf("Response should be valid JSON update result: %v", err)
+	if len(paths) != 1 || paths[0] != "/v3/accounts/me/projects/Xk9mZp/faults/resolve" {
+		t.Errorf("paths = %v", paths)
 	}
-	if !updateResult.Success {
-		t.Error("expected Success to be true")
+	ids, _ := body["fault_ids"].([]any)
+	if len(ids) != 1 || ids[0] != "f1" {
+		t.Errorf("fault_ids = %v", body["fault_ids"])
 	}
 }
 
-func TestHandleUpdateFault_FalseValues(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("failed to read request body: %v", err)
-		}
-		expected := `{"fault":{"resolved":false,"ignored":false}}`
-		if strings.TrimSpace(string(body)) != expected {
-			t.Errorf("expected body %s, got %s", expected, string(body))
-		}
-
+// resolved:false is a different endpoint, not the same one with a flag.
+func TestHandleUpdateFaultUnresolveAndUnignore(t *testing.T) {
+	var paths []string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
 		w.WriteHeader(http.StatusNoContent)
+	})
+
+	_, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": false, "ignored": false,
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   456,
-				"resolved":   false,
-				"ignored":    false,
-			},
-		},
-	}
-
-	result, err := handleUpdateFault(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
-
-	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+	want := []string{
+		"/v3/accounts/me/projects/Xk9mZp/faults/unresolve",
+		"/v3/accounts/me/projects/Xk9mZp/faults/unignore",
+	}
+	if len(paths) != 2 || paths[0] != want[0] || paths[1] != want[1] {
+		t.Errorf("paths = %v, want %v", paths, want)
 	}
 }
 
-func TestHandleUpdateFault_Unassign(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("failed to read request body: %v", err)
-		}
-		expected := `{"fault":{"assignee_id":null}}`
-		if strings.TrimSpace(string(body)) != expected {
-			t.Errorf("expected body %s, got %s", expected, string(body))
-		}
-
+// Both flags in one request means two calls, and the summary reports both.
+func TestHandleUpdateFaultBothFlags(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, "ignored": true,
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":  123,
-				"fault_id":    456,
-				"assignee_id": nil,
-			},
-		},
-	}
-
-	result, err := handleUpdateFault(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
 
-	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+	var applied map[string]any
+	if err := json.Unmarshal([]byte(getResultText(result)), &applied); err != nil {
+		t.Fatalf("response is not JSON: %v", err)
+	}
+	if applied["resolved"] != true || applied["ignored"] != true {
+		t.Errorf("summary = %v, want both changes reported", applied)
 	}
 }
 
-func TestHandleUpdateFault_InvalidValues(t *testing.T) {
-	client := hbapi.NewClient().WithAuthToken("test-token")
-
-	tests := []struct {
-		name string
-		args map[string]interface{}
-	}{
-		{"null resolved", map[string]interface{}{"resolved": nil}},
-		{"string resolved", map[string]interface{}{"resolved": "true"}},
-		{"null ignored", map[string]interface{}{"ignored": nil}},
-		{"null resolve_on_deploy", map[string]interface{}{"resolve_on_deploy": nil}},
-		{"fractional assignee_id", map[string]interface{}{"assignee_id": 1.5}},
-		{"fractional fault_id", map[string]interface{}{"fault_id": 456.9, "resolved": true}},
-		{"string project_id", map[string]interface{}{"project_id": "123", "resolved": true}},
-		{"zero assignee_id", map[string]interface{}{"assignee_id": 0}},
-		{"negative assignee_id", map[string]interface{}{"assignee_id": -1}},
-		{"string assignee_id", map[string]interface{}{"assignee_id": "42"}},
-		{"unsafe-large assignee_id", map[string]interface{}{"assignee_id": float64(1 << 54)}},
-		{"unsafe-large fault_id", map[string]interface{}{"fault_id": float64(1 << 54)}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			args := map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   456,
-			}
-			for k, v := range tt.args {
-				args[k] = v
-			}
-
-			result, err := handleUpdateFault(context.Background(), client, mcp.CallToolRequest{
-				Params: mcp.CallToolParams{Arguments: args},
-			})
-			if err != nil {
-				t.Fatalf("handleUpdateFault() error = %v", err)
-			}
-			if !result.IsError {
-				t.Fatalf("expected validation error for %s", tt.name)
-			}
-		})
+// assignee_id and resolve_on_deploy cannot be expressed in v3 — the assign
+// endpoint does not specify its body, and resolve-on-deploy does not exist.
+func TestHandleUpdateFaultRejectsUnsupportedFields(t *testing.T) {
+	for field, value := range map[string]interface{}{
+		"assignee_id":       12,
+		"resolve_on_deploy": true,
+	} {
+		result, err := handleUpdateFault(context.Background(), offlineV3Client(),
+			faultArgs(map[string]interface{}{
+				"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, field: value,
+			}))
+		if err != nil {
+			t.Fatalf("%s: handleUpdateFault() error = %v", field, err)
+		}
+		if !result.IsError {
+			t.Errorf("%s: accepted; it would have been silently ignored", field)
+			continue
+		}
+		if !strings.Contains(getResultText(result), field) {
+			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
+		}
 	}
 }
 
-func TestUpdateFaultSchema_NullableAssigneeID(t *testing.T) {
-	tool := mcp.NewTool("update_fault",
-		mcp.WithInteger("assignee_id",
-			mcp.Description("test"),
-			mcp.Min(1),
-			nullable,
-		),
-	)
-
-	prop, ok := tool.InputSchema.Properties["assignee_id"].(map[string]any)
-	if !ok {
-		t.Fatal("assignee_id property not found in schema")
-	}
-
-	types, ok := prop["type"].([]any)
-	if !ok {
-		t.Fatalf("expected type to be an array, got %T (%v)", prop["type"], prop["type"])
-	}
-	if len(types) != 2 || types[0] != "integer" || types[1] != "null" {
-		t.Errorf(`expected type ["integer", "null"], got %v`, types)
-	}
-}
-
-func TestHandleUpdateFault_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient().WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"fault_id": 456,
-				"resolved": true,
-			},
-		},
-	}
-
-	result, err := handleUpdateFault(context.Background(), client, req)
+// A non-boolean must be refused rather than coerced: the typed getter would turn
+// null into false and quietly unresolve the fault.
+func TestHandleUpdateFaultRejectsNonBoolean(t *testing.T) {
+	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
+		faultArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "fault_id": "f1", "resolved": "yes",
+		}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing project_id")
-	}
-}
-
-func TestHandleUpdateFault_MissingFaultID(t *testing.T) {
-	client := hbapi.NewClient().WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"resolved":   true,
-			},
-		},
-	}
-
-	result, err := handleUpdateFault(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleUpdateFault() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing fault_id")
+	if !result.IsError || !strings.Contains(getResultText(result), "must be a boolean") {
+		t.Errorf("got %q, want a boolean type error", getResultText(result))
 	}
 }
 
 func TestHandleUpdateFault_NoFields(t *testing.T) {
-	client := hbapi.NewClient().WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   456,
-			},
-		},
-	}
-
-	result, err := handleUpdateFault(context.Background(), client, req)
+	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "f1"}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result when no updatable fields are provided")
+	if !result.IsError || !strings.Contains(getResultText(result), "at least one of") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
 func TestHandleUpdateFault_Error(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`{"errors": "Assignee must be a member of the project"}`))
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusForbidden,
+			`{"error":{"code":"insufficient_scope","message":"Insufficient scope",
+			  "details":{"required_scope":"faults:write","token_scopes":["faults:read"]}}}`)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true,
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":  123,
-				"fault_id":    456,
-				"assignee_id": 789,
-			},
-		},
-	}
-
-	result, err := handleUpdateFault(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
-
 	if !result.IsError {
-		t.Fatal("expected error result for API error")
+		t.Fatal("expected an error result")
 	}
-	if !strings.Contains(getResultText(result), "Failed to update fault") {
-		t.Errorf("expected error message to mention update failure, got %s", getResultText(result))
+	if !strings.Contains(getResultText(result), "faults:write") {
+		t.Errorf("error should name the missing scope, got %q", getResultText(result))
 	}
 }
 
 func TestHandleListFaultNotices(t *testing.T) {
-	mockResponse := `{
-		"results": [
-			{
-				"id": "notice-uuid-1",
-				"created_at": "2024-01-01T10:00:00Z",
-				"fault_id": 456,
-				"message": "Couldn't find Post with 'id'=999",
-				"url": "https://app.honeybadger.io/projects/123/faults/456/notices/notice-uuid-1",
-				"environment": {
-					"environment_name": "production",
-					"hostname": "web-01.example.com",
-					"project_root": "/app"
-				},
-				"environment_name": "production",
-				"cookies": {"session_id": "abc123"},
-				"web_environment": {"HTTP_HOST": "example.com"},
-				"request": {
-					"action": "show",
-					"component": "PostsController",
-					"url": "https://example.com/posts/999",
-					"context": {"user_id": 42},
-					"params": {"id": "999"},
-					"session": {"user_id": 42},
-					"user": {"id": 42, "email": "user@example.com"}
-				},
-				"backtrace": [
-					{"number": "1", "file": "/app/models/post.rb", "method": "find"},
-					{"number": "2", "file": "/app/controllers/posts_controller.rb", "method": "show"}
-				],
-				"application_trace": [
-					{"number": "1", "file": "/app/models/post.rb", "method": "find"}
-				]
-			}
-		],
-		"links": {
-			"self": "https://app.honeybadger.io/v2/projects/123/faults/456/notices"
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/faults/f1/notices"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-	}`
+		if got := r.URL.Query().Get("limit"); got != "5" {
+			t.Errorf("limit = %q, want 5", got)
+		}
+		// Notice ids are UUIDs, unlike every other v3 resource.
+		v3JSON(w, http.StatusOK, `{
+			"data":[{"id":"11111111-1111-4111-8111-111111111111","fault_id":"f1","project_id":"Xk9mZp"}],
+			"pagination":{"has_older":false,"has_newer":false,"limit":5}
+		}`)
+	})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/faults/456/notices" {
-			t.Errorf("expected path /v2/projects/123/faults/456/notices, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
+	result, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": "f1", "limit": 5,
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   456,
-			},
-		},
-	}
-
-	result, err := handleListFaultNotices(context.Background(), client, req)
 	if err != nil {
 		t.Fatalf("handleListFaultNotices() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
-	}
-
-	// Check that notice data is present
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "notice-uuid-1") {
-		t.Error("Notice ID should be present in response")
-	}
-
-	// Verify the response can be unmarshaled as a notice response
-	var response hbapi.FaultNoticesResponse
-	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Errorf("Response should be valid JSON fault notices response: %v", err)
-	}
-
-	if len(response.Results) != 1 {
-		t.Errorf("expected 1 notice, got %d", len(response.Results))
-	}
-
-	if response.Results[0].ID != "notice-uuid-1" {
-		t.Errorf("expected notice ID 'notice-uuid-1', got %s", response.Results[0].ID)
-	}
-
-	if response.Results[0].FaultID != 456 {
-		t.Errorf("expected fault ID 456, got %d", response.Results[0].FaultID)
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
 }
 
-func TestHandleListFaultNotices_WithOptions(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		if query.Get("created_after") != "1704067200" {
-			t.Errorf("expected created_after=1704067200, got %s", query.Get("created_after"))
+// Notices page by cursor in v3, so the timestamp filters have no equivalent.
+func TestHandleListFaultNoticesRejectsTimestampFilters(t *testing.T) {
+	for _, field := range []string{"created_after", "created_before"} {
+		result, err := handleListFaultNotices(context.Background(), offlineV3Client(),
+			faultArgs(map[string]interface{}{
+				"project_id": "Xk9mZp", "fault_id": "f1", field: "2026-01-01T00:00:00Z",
+			}))
+		if err != nil {
+			t.Fatalf("%s: error = %v", field, err)
 		}
-		if query.Get("created_before") != "1704153600" {
-			t.Errorf("expected created_before=1704153600, got %s", query.Get("created_before"))
+		if !result.IsError || !strings.Contains(getResultText(result), field) {
+			t.Errorf("%s: got %q", field, getResultText(result))
 		}
-		if query.Get("limit") != "10" {
-			t.Errorf("expected limit=10, got %s", query.Get("limit"))
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"results": []}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":     123,
-				"fault_id":       456,
-				"created_after":  "2024-01-01T00:00:00Z",
-				"created_before": "2024-01-02T00:00:00Z",
-				"limit":          10,
-			},
-		},
-	}
-
-	result, err := handleListFaultNotices(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleListFaultNotices() error = %v", err)
-	}
-
-	if result.IsError {
-		t.Fatal("expected successful result, got error")
 	}
 }
 
-func TestHandleListFaultNotices_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"fault_id": 456,
-			},
-		},
-	}
-
-	result, err := handleListFaultNotices(context.Background(), client, req)
+func TestHandleListFaultNotices_MissingIDs(t *testing.T) {
+	result, err := handleListFaultNotices(context.Background(), offlineV3Client(), faultArgs(nil))
 	if err != nil {
-		t.Fatalf("handleListFaultNotices() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing project ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
-	}
-}
-
-func TestHandleListFaultNotices_MissingFaultID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleListFaultNotices(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleListFaultNotices() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing fault ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "fault_id is required") {
-		t.Error("Error message should mention fault_id is required")
-	}
-}
-
-func TestHandleListFaultNotices_Error(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"errors": "Fault not found"}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   999,
-			},
-		},
-	}
-
-	result, err := handleListFaultNotices(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleListFaultNotices() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to list fault notices") {
-		t.Error("Error message should contain 'Failed to list fault notices'")
+	if !result.IsError || !strings.Contains(getResultText(result), "project_id is required") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
 func TestHandleListFaultAffectedUsers(t *testing.T) {
-	mockResponse := `[
-		{
-			"user": "user1@example.com",
-			"count": 15
-		},
-		{
-			"user": "user2@example.com",
-			"count": 8
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/faults/f1/affected_users"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-	]`
+		v3JSON(w, http.StatusOK, `{"data":{"users":[{"email":"a@example.com","count":3}]}}`)
+	})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/faults/456/affected_users" {
-			t.Errorf("expected path /v2/projects/123/faults/456/affected_users, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   456,
-			},
-		},
-	}
-
-	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
+	result, err := handleListFaultAffectedUsers(context.Background(), client,
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "f1"}))
 	if err != nil {
-		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	// Check that user data is present
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "user1@example.com") {
-		t.Error("User email should be present in response")
-	}
-
-	// Verify the response can be unmarshaled as an affected users array
-	var users []hbapi.FaultAffectedUser
-	if err := json.Unmarshal([]byte(resultText), &users); err != nil {
-		t.Errorf("Response should be valid JSON array of affected users: %v", err)
-	}
-
-	if len(users) != 2 {
-		t.Errorf("expected 2 affected users, got %d", len(users))
-	}
-
-	if users[0].User != "user1@example.com" {
-		t.Errorf("expected first user 'user1@example.com', got %s", users[0].User)
-	}
-
-	if users[0].Count != 15 {
-		t.Errorf("expected first user count 15, got %d", users[0].Count)
+	if !strings.Contains(getResultText(result), "a@example.com") {
+		t.Errorf("result = %q", getResultText(result))
 	}
 }
 
-func TestHandleListFaultAffectedUsers_WithSearch(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		if query.Get("q") != "user1" {
-			t.Errorf("expected q=user1, got %s", query.Get("q"))
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`[]`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   456,
-				"q":          "user1",
-			},
-		},
-	}
-
-	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
+// v3's affected-users endpoint takes no search parameter.
+func TestHandleListFaultAffectedUsersRejectsSearch(t *testing.T) {
+	result, err := handleListFaultAffectedUsers(context.Background(), offlineV3Client(),
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "f1", "q": "alice"}))
 	if err != nil {
-		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
-	if result.IsError {
-		t.Fatal("expected successful result, got error")
-	}
-}
-
-func TestHandleListFaultAffectedUsers_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"fault_id": 456,
-			},
-		},
-	}
-
-	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing project ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
-	}
-}
-
-func TestHandleListFaultAffectedUsers_MissingFaultID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing fault ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "fault_id is required") {
-		t.Error("Error message should mention fault_id is required")
-	}
-}
-
-func TestHandleListFaultAffectedUsers_Error(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"errors": "Fault not found"}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"fault_id":   999,
-			},
-		},
-	}
-
-	result, err := handleListFaultAffectedUsers(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleListFaultAffectedUsers() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to list fault affected users") {
-		t.Error("Error message should contain 'Failed to list fault affected users'")
+	if !result.IsError || !strings.Contains(getResultText(result), "q") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
