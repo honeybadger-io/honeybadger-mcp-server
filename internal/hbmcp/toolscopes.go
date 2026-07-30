@@ -74,18 +74,28 @@ var toolOperations = map[string][]string{
 }
 
 // toolRequiredScopes returns the scopes a tool needs, derived from the spec.
-func toolRequiredScopes(tool string) []string {
+//
+// resolved reports whether every operation the tool names was found in the
+// generated map. It is not the same question as whether any scopes came back: a
+// tool that reaches no API resolves cleanly to no scopes, while a tool naming an
+// operation the generator dropped resolves to nothing knowable. Collapsing those
+// two into an empty slice is what made a truncated scope map widen access
+// instead of narrowing it.
+func toolRequiredScopes(tool string) (scopes []string, resolved bool) {
 	ops, known := toolOperations[tool]
 	if !known {
-		return nil
+		return nil, false
 	}
-	var scopes []string
 	for _, op := range ops {
-		if scope, ok := apiv3.OperationScopes[op]; ok && !contains(scopes, scope) {
+		scope, ok := apiv3.OperationScopes[op]
+		if !ok {
+			return nil, false
+		}
+		if !contains(scopes, scope) {
 			scopes = append(scopes, scope)
 		}
 	}
-	return scopes
+	return scopes, true
 }
 
 // filterByScopes drops tools the credential cannot use.
@@ -94,18 +104,40 @@ func toolRequiredScopes(tool string) []string {
 // least one of its scopes to be offered: update_fault maps to several endpoints
 // that share a scope, and holding it is enough to make the tool useful.
 //
-// A tool absent from toolOperations is kept rather than hidden. A tool added
-// without a map entry should still work; the completeness test is what catches
-// the omission, not a silently vanishing tool in production.
+// Two kinds of "we don't know" are handled differently, because they fail in
+// opposite directions:
+//
+//   - The tool is absent from toolOperations. That map is hand-written and
+//     directly guarded by TestEveryToolDeclaresItsOperations, so an omission is a
+//     new tool nobody mapped yet. Offered, because hiding it would make a working
+//     tool vanish for everyone.
+//   - The tool names an operation the generated scope map does not describe. That
+//     map is regenerated from the spec and can lose an entry without anyone
+//     writing a line of code. Hidden, because an operation that claims to need a
+//     scope and cannot say which is not something to offer on a guess.
+//
+// The second case should be unreachable — TestEveryMappedOperationHasAScope fails
+// the build first — and exists as a backstop, not a condition to rely on.
 func filterByScopes(tools []mcp.Tool, held []string) []mcp.Tool {
 	kept := make([]mcp.Tool, 0, len(tools))
 	for _, tool := range tools {
-		required := toolRequiredScopes(tool.Name)
-		if len(required) == 0 || holdsAny(held, required) {
+		if offerTool(tool.Name, held) {
 			kept = append(kept, tool)
 		}
 	}
 	return kept
+}
+
+// offerTool reports whether a credential holding these scopes may see the tool.
+func offerTool(name string, held []string) bool {
+	if _, mapped := toolOperations[name]; !mapped {
+		return true
+	}
+	required, resolved := toolRequiredScopes(name)
+	if !resolved {
+		return false
+	}
+	return len(required) == 0 || holdsAny(held, required)
 }
 
 func holdsAny(held, required []string) bool {
@@ -132,8 +164,7 @@ func contains(haystack []string, needle string) bool {
 func filterCatalogByScopes(catalog []ToolInfo, held []string) []ToolInfo {
 	kept := make([]ToolInfo, 0, len(catalog))
 	for _, tool := range catalog {
-		required := toolRequiredScopes(tool.Name)
-		if len(required) == 0 || holdsAny(held, required) {
+		if offerTool(tool.Name, held) {
 			kept = append(kept, tool)
 		}
 	}

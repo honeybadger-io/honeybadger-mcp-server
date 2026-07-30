@@ -75,7 +75,11 @@ func TestToolRequiredScopes(t *testing.T) {
 		"create_project": "projects:create",
 		"delete_alarm":   "alarms:write",
 	} {
-		got := toolRequiredScopes(tool)
+		got, resolved := toolRequiredScopes(tool)
+		if !resolved {
+			t.Errorf("toolRequiredScopes(%q) did not resolve", tool)
+			continue
+		}
 		if len(got) != 1 || got[0] != want {
 			t.Errorf("toolRequiredScopes(%q) = %v, want [%q]", tool, got, want)
 		}
@@ -99,7 +103,7 @@ func TestPendingMigrationToolsStillRequireScopes(t *testing.T) {
 		"get_fault_counts", "get_project_occurrence_counts",
 		"get_project_report", "get_project_integrations",
 	} {
-		if len(toolRequiredScopes(tool)) == 0 {
+		if got, _ := toolRequiredScopes(tool); len(got) == 0 {
 			t.Errorf("%s requires no scope; it reads data and should need one", tool)
 		}
 	}
@@ -142,5 +146,48 @@ func TestFilterByScopesKeepsUnknownTools(t *testing.T) {
 	kept := filterByScopes([]mcp.Tool{{Name: "brand_new_tool"}}, []string{"faults:read"})
 	if len(kept) != 1 {
 		t.Error("an unmapped tool was filtered out; it should be kept and flagged by tests")
+	}
+}
+
+// Every operation a tool names must resolve to a scope in the generated map.
+//
+// This is the check that makes the runtime behaviour safe. Without it, a scope
+// generator that silently dropped an operation would leave the tool looking like
+// one that needs no scope at all, and it would be offered to every credential —
+// the opposite of what scope filtering exists to do.
+func TestEveryMappedOperationHasAScope(t *testing.T) {
+	for tool, ops := range toolOperations {
+		for _, op := range ops {
+			if _, ok := apiv3.OperationScopes[op]; !ok {
+				t.Errorf("tool %q names operation %q, which has no entry in "+
+					"apiv3.OperationScopes — regenerate it, or the tool will be "+
+					"offered to credentials that cannot use it", tool, op)
+			}
+		}
+	}
+}
+
+// An unresolvable operation must hide the tool, not expose it.
+//
+// "No scope required" and "we could not determine the scope" are different
+// answers, and only the first should widen what a credential sees. This is the
+// runtime backstop for the build-time check above.
+func TestUnknownOperationHidesTheTool(t *testing.T) {
+	original := toolOperations["list_faults"]
+	toolOperations["list_faults"] = []string{"anOperationTheSpecNeverDefined"}
+	t.Cleanup(func() { toolOperations["list_faults"] = original })
+
+	tools := []mcp.Tool{{Name: "list_faults"}, {Name: "get_reference"}}
+	kept := filterByScopes(tools, []string{"faults:read", "projects:read"})
+
+	for _, tool := range kept {
+		if tool.Name == "list_faults" {
+			t.Error("a tool whose scope could not be determined was offered anyway")
+		}
+	}
+	// get_reference maps to no operations at all, which is a real "needs nothing"
+	// and must still be offered.
+	if len(kept) != 1 || kept[0].Name != "get_reference" {
+		t.Errorf("kept = %v, want only get_reference", kept)
 	}
 }
