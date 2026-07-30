@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -146,4 +147,27 @@ func rejectUnsupported(req mcp.CallToolRequest, fields []string, action, advice 
 	}
 	return fmt.Sprintf("The v3 API does not support %s when %s, so they would be ignored. %s.",
 		strings.Join(present, ", "), action, advice)
+}
+
+// timeFilters reads the timestamp filters a fault listing or count accepts.
+//
+// Values are ISO 8601, as the tools have always taken them, and are dropped
+// rather than erroring when unparseable — the API's own validation gives a better
+// message than a guess here would.
+func timeFilters(req mcp.CallToolRequest) []apiv3.Option {
+	var opts []apiv3.Option
+	for field, build := range map[string]func(time.Time) apiv3.ListAllOption{
+		"created_after":   apiv3.CreatedAfter,
+		"occurred_after":  apiv3.OccurredAfter,
+		"occurred_before": apiv3.OccurredBefore,
+	} {
+		raw := req.GetString(field, "")
+		if raw == "" {
+			continue
+		}
+		if at, err := time.Parse(time.RFC3339, raw); err == nil {
+			opts = append(opts, build(at))
+		}
+	}
+	return opts
 }

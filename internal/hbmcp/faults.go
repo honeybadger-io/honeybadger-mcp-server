@@ -192,25 +192,20 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	)
 }
 
-// faultFiltersNotInV3 are list_faults parameters v2 accepted that v3 has no
-// equivalent for. v3's listFaults takes only page, per_page, and q.
-var faultFiltersNotInV3 = []string{"created_after", "occurred_after", "occurred_before", "order"}
-
 func handleListFaults(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-	if msg := rejectUnsupported(req, faultFiltersNotInV3,
-		"filtering faults", "express the filter in q instead, where the search syntax supports it"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
-
 	// limit maps to per_page: both cap how many faults come back in one call.
 	opts := []apiv3.Option{}
 	if q := req.GetString("q", ""); q != "" {
 		opts = append(opts, apiv3.Search(q))
 	}
+	if order := req.GetString("order", ""); order != "" {
+		opts = append(opts, apiv3.OrderBy(order))
+	}
+	opts = append(opts, timeFilters(req)...)
 	if page, perPage := req.GetInt("page", 0), req.GetInt("limit", 0); page > 0 || perPage > 0 {
 		opts = append(opts, apiv3.Page(max(page, 1), perPage))
 	}
@@ -270,10 +265,7 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	if msg := rejectUnsupported(req, []string{"assignee_id", "resolve_on_deploy"},
-		"updating a fault",
-		"the v3 assign endpoint does not specify its request body, and there is no "+
-			"resolve-on-deploy endpoint; change these in the Honeybadger UI"); msg != "" {
+	if msg := rejectStaleSchemaFields("update_fault", req); msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
 
@@ -286,8 +278,18 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	if !hasResolved && !hasIgnored {
-		return mcp.NewToolResultError("at least one of resolved or ignored is required"), nil
+	// assignee_id is nullable: an explicit null unassigns, a value assigns, and
+	// omitting it changes nothing. Read from the raw arguments because the typed
+	// getter cannot distinguish null from absent.
+	assignee, hasAssignee := args["assignee_id"]
+	if hasAssignee {
+		if _, isString := assignee.(string); !isString && assignee != nil {
+			return mcp.NewToolResultError("assignee_id must be a user's public ID string or null"), nil
+		}
+	}
+	if !hasResolved && !hasIgnored && !hasAssignee {
+		return mcp.NewToolResultError(
+			"at least one of resolved, ignored, or assignee_id is required"), nil
 	}
 
 	applied := map[string]any{"project_id": projectID, "fault_id": faultID}
@@ -315,6 +317,20 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 					return nil, err
 				}
 				applied["ignored"] = ignored
+			}
+			if hasAssignee {
+				if id, ok := assignee.(string); ok && id != "" {
+					if err := client.Faults.Assign(ctx, projectID, faultID, id, opts...); err != nil {
+						return nil, err
+					}
+					applied["assignee_id"] = id
+				} else {
+					// Null or empty unassigns, through its own endpoint.
+					if err := client.Faults.Unassign(ctx, projectID, faultID, opts...); err != nil {
+						return nil, err
+					}
+					applied["assignee_id"] = nil
+				}
 			}
 			return nil, nil
 		})
@@ -378,15 +394,14 @@ func handleListFaultAffectedUsers(ctx context.Context, client *apiv3.Client, req
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	// v3's affected-users endpoint takes no search parameter.
-	if msg := rejectUnsupported(req, []string{"q"},
-		"listing affected users", "v3 returns the full set; filter the result yourself"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
+	var opts []apiv3.Option
+	if q := req.GetString("q", ""); q != "" {
+		opts = append(opts, apiv3.Search(q))
 	}
 
 	users, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (map[string]any, error) {
-			return client.Faults.AffectedUsers(ctx, projectID, faultID, inAccount(accountID)...)
+			return client.Faults.AffectedUsers(ctx, projectID, faultID, append(opts, inAccount(accountID)...)...)
 		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list fault affected users: %v", err)), nil
@@ -411,6 +426,7 @@ func handleGetFaultCounts(ctx context.Context, client *apiv3.Client, req mcp.Cal
 	if q := req.GetString("q", ""); q != "" {
 		opts = append(opts, apiv3.Search(q))
 	}
+	opts = append(opts, timeFilters(req)...)
 
 	counts, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (map[string]any, error) {

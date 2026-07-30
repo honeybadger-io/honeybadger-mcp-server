@@ -83,25 +83,6 @@ func TestHandleListFaults_LimitMapsToPerPage(t *testing.T) {
 	}
 }
 
-// v3's listFaults takes only page, per_page and q. A caller passing a filter it
-// cannot honour must be told, not silently given unfiltered results.
-func TestHandleListFaultsRejectsFiltersV3Lacks(t *testing.T) {
-	for _, field := range []string{"created_after", "occurred_after", "occurred_before", "order"} {
-		result, err := handleListFaults(context.Background(), offlineV3Client(),
-			faultArgs(map[string]interface{}{"project_id": "Xk9mZp", field: "whatever"}))
-		if err != nil {
-			t.Fatalf("%s: handleListFaults() error = %v", field, err)
-		}
-		if !result.IsError {
-			t.Errorf("%s: accepted; results would have been unfiltered", field)
-			continue
-		}
-		if !strings.Contains(getResultText(result), field) {
-			t.Errorf("%s: error does not name the field: %q", field, getResultText(result))
-		}
-	}
-}
-
 func TestHandleListFaults_MissingProjectID(t *testing.T) {
 	result, err := handleListFaults(context.Background(), offlineV3Client(), faultArgs(nil))
 	if err != nil {
@@ -256,30 +237,6 @@ func TestHandleUpdateFaultBothFlags(t *testing.T) {
 	}
 }
 
-// assignee_id and resolve_on_deploy cannot be expressed in v3 — the assign
-// endpoint does not specify its body, and resolve-on-deploy does not exist.
-func TestHandleUpdateFaultRejectsUnsupportedFields(t *testing.T) {
-	for field, value := range map[string]interface{}{
-		"assignee_id":       12,
-		"resolve_on_deploy": true,
-	} {
-		result, err := handleUpdateFault(context.Background(), offlineV3Client(),
-			faultArgs(map[string]interface{}{
-				"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, field: value,
-			}))
-		if err != nil {
-			t.Fatalf("%s: handleUpdateFault() error = %v", field, err)
-		}
-		if !result.IsError {
-			t.Errorf("%s: accepted; it would have been silently ignored", field)
-			continue
-		}
-		if !strings.Contains(getResultText(result), field) {
-			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
-		}
-	}
-}
-
 // A non-boolean must be refused rather than coerced: the typed getter would turn
 // null into false and quietly unresolve the fault.
 func TestHandleUpdateFaultRejectsNonBoolean(t *testing.T) {
@@ -400,18 +357,6 @@ func TestHandleListFaultAffectedUsers(t *testing.T) {
 	}
 }
 
-// v3's affected-users endpoint takes no search parameter.
-func TestHandleListFaultAffectedUsersRejectsSearch(t *testing.T) {
-	result, err := handleListFaultAffectedUsers(context.Background(), offlineV3Client(),
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "f1", "q": "alice"}))
-	if err != nil {
-		t.Fatalf("error = %v", err)
-	}
-	if !result.IsError || !strings.Contains(getResultText(result), "q") {
-		t.Errorf("got %q", getResultText(result))
-	}
-}
-
 func TestHandleGetFaultCounts(t *testing.T) {
 	var gotPath, gotQuery string
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -446,5 +391,155 @@ func TestHandleGetFaultCounts_MissingProjectID(t *testing.T) {
 	}
 	if !result.IsError || !strings.Contains(getResultText(result), "project_id is required") {
 		t.Errorf("got %q", getResultText(result))
+	}
+}
+
+// Ordering and the timestamp filters reach the query string now.
+func TestHandleListFaultsSendsOrderAndTimeFilters(t *testing.T) {
+	var query url.Values
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query()
+		v3JSON(w, http.StatusOK, `{"data":[]}`)
+	})
+
+	_, err := handleListFaults(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id":      "Xk9mZp",
+		"order":           "frequent",
+		"created_after":   "2026-01-01T00:00:00Z",
+		"occurred_after":  "2026-01-02T00:00:00Z",
+		"occurred_before": "2026-01-03T00:00:00Z",
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+
+	if got := query.Get("order"); got != "frequent" {
+		t.Errorf("order = %q, want frequent", got)
+	}
+	for _, field := range []string{"created_after", "occurred_after", "occurred_before"} {
+		if query.Get(field) == "" {
+			t.Errorf("%s was not sent; results would be unfiltered", field)
+		}
+	}
+}
+
+// An unparseable timestamp is dropped rather than erroring here: the API's own
+// validation message beats a guess from this layer.
+func TestHandleListFaultsIgnoresUnparseableTimestamp(t *testing.T) {
+	var query url.Values
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query()
+		v3JSON(w, http.StatusOK, `{"data":[]}`)
+	})
+
+	if _, err := handleListFaults(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "created_after": "last tuesday",
+	})); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if query.Get("created_after") != "" {
+		t.Errorf("created_after = %q, want it dropped", query.Get("created_after"))
+	}
+}
+
+// Assignment works through its own endpoint now.
+func TestHandleUpdateFaultAssigns(t *testing.T) {
+	var paths []string
+	var bodies []map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies = append(bodies, body)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": "f1", "assignee_id": "usr_1",
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	if len(paths) != 1 || paths[0] != "/v3/accounts/me/projects/Xk9mZp/faults/f1/assign" {
+		t.Errorf("paths = %v", paths)
+	}
+	if bodies[0]["assignee_id"] != "usr_1" {
+		t.Errorf("body = %v", bodies[0])
+	}
+}
+
+// An explicit null unassigns, through a different endpoint and verb.
+func TestHandleUpdateFaultUnassignsOnNull(t *testing.T) {
+	var method, path string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		method, path = r.Method, r.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	if _, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": "f1", "assignee_id": nil,
+	})); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if method != http.MethodDelete {
+		t.Errorf("method = %q, want DELETE for an unassign", method)
+	}
+	if path != "/v3/accounts/me/projects/Xk9mZp/faults/f1/assign" {
+		t.Errorf("path = %q", path)
+	}
+}
+
+// resolve_on_deploy has no v3 equivalent, and an older client with a cached schema
+// can still send it.
+func TestHandleUpdateFaultRejectsResolveOnDeploy(t *testing.T) {
+	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
+		faultArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, "resolve_on_deploy": true,
+		}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "resolve_on_deploy") {
+		t.Errorf("got %q", getResultText(result))
+	}
+}
+
+// Affected-user search reaches the API now.
+func TestHandleListFaultAffectedUsersSendsSearch(t *testing.T) {
+	var gotQuery string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query().Get("q")
+		v3JSON(w, http.StatusOK, `{"data":{"users":[]}}`)
+	})
+
+	if _, err := handleListFaultAffectedUsers(context.Background(), client,
+		faultArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "fault_id": "f1", "q": "alice",
+		})); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if gotQuery != "alice" {
+		t.Errorf("q = %q, want alice", gotQuery)
+	}
+}
+
+// The counts endpoint takes the same filters, and previously dropped them.
+func TestHandleGetFaultCountsSendsTimeFilters(t *testing.T) {
+	var query url.Values
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query()
+		v3JSON(w, http.StatusOK, `{"data":{"total":1}}`)
+	})
+
+	if _, err := handleGetFaultCounts(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "occurred_after": "2026-01-02T00:00:00Z",
+	})); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if query.Get("occurred_after") == "" {
+		t.Error("occurred_after was not sent; counts would be unfiltered")
 	}
 }

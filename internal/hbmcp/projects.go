@@ -106,7 +106,8 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 				mcp.Description("The ID of the project to update"),
 			),
 			mcp.WithString("name",
-				mcp.Description("The name of the project"),
+				mcp.Required(),
+				mcp.Description("The project's name. Required even when changing something else: the v3 API's update takes the same body as create, so the current name must be sent."),
 				mcp.MinLength(1),
 				mcp.MaxLength(255),
 			),
@@ -179,7 +180,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 	r.AddTool(
 		mcp.NewTool("get_project_integrations",
 			mcp.WithTitleAnnotation("Get Project Integrations"),
-			mcp.WithDescription("Get a list of integrations (notification channels) for a Honeybadger project."),
+			mcp.WithDescription("Get a list of integrations (notification channels) for a Honeybadger project. Returns each channel's type, events, sites and check-ins; the per-integration options and filters v2 reported are not part of the v3 channel model."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id",
@@ -322,13 +323,15 @@ func projectParamsFrom(req mcp.CallToolRequest, name string) apiv3.ProjectParams
 	args := req.GetArguments()
 	params := apiv3.ProjectParams{Name: name}
 
+	// Presence rather than emptiness: an empty string is how a caller clears a
+	// setting, so dropping it would make these fields impossible to unset.
 	for field, target := range map[string]**string{
 		"user_url":          &params.UserUrl,
 		"source_url":        &params.SourceUrl,
 		"user_search_field": &params.UserSearchField,
 		"language":          &params.Language,
 	} {
-		if v, ok := args[field].(string); ok && v != "" {
+		if v, ok := args[field].(string); ok {
 			value := v
 			*target = &value
 		}
@@ -435,9 +438,10 @@ func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client,
 	projectID := req.GetString("project_id", "")
 
 	// Omitting the project reports across the whole account, which is what v2's
-	// all-projects variant did. Note it is account-scoped rather than global.
+	// all-projects variant did — though it is account-scoped rather than global,
+	// and returns a series per project rather than one object.
 	counts, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (map[string]any, error) {
+		func(accountID string) (any, error) {
 			o.AccountID = accountID
 			if projectID == "" {
 				return client.Projects.AccountOccurrences(ctx, o)

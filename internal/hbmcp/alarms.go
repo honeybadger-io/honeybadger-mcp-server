@@ -76,7 +76,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 				mcp.Description("How far behind now the evaluation window ends, allowing for ingestion delay"),
 			),
 			mcp.WithString("trigger_config",
-				mcp.Description(`JSON object describing what turns the alarm on, e.g. {"type":"threshold","config":{"operator":">","value":100}}. Without one the alarm is created but never fires.`),
+				mcp.Description(`JSON object describing what turns the alarm on, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}. Operators are named (gt, lt) rather than symbolic. Without a trigger the alarm is created but never fires. The alarms reference topic has the full list of types.`),
 			),
 			mcp.WithString("stream_ids",
 				mcp.Description("JSON array of stream IDs the query runs against. Omit to use every stream on the project."),
@@ -106,8 +106,10 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 				mcp.Description("The ID of the alarm to update"),
 			),
 			mcp.WithString("name",
-				mcp.Required(),
-				mcp.Description("The name of the alarm"),
+				mcp.Description("A new name for the alarm"),
+			),
+			mcp.WithString("description",
+				mcp.Description("A new description. Pass an empty string to clear it."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -301,14 +303,23 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		return mcp.NewToolResultError(msg), nil
 	}
 
-	name, description := req.GetString("name", ""), req.GetString("description", "")
-	if name == "" && description == "" {
+	// Presence, not emptiness: pointing at "" is how a caller clears a description,
+	// while omitting the field leaves it alone.
+	args := req.GetArguments()
+	var params apiv3.AlarmUpdateParams
+	if v, ok := args["name"].(string); ok {
+		params.Name = &v
+	}
+	if v, ok := args["description"].(string); ok {
+		params.Description = &v
+	}
+	if params.Name == nil && params.Description == nil {
 		return mcp.NewToolResultError("at least one of name or description is required"), nil
 	}
 
 	alarm, err := withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (*apiv3.Alarm, error) {
-			return client.Alarms.Update(ctx, projectID, alarmID, name, description, inAccount(accountID)...)
+			return client.Alarms.Update(ctx, projectID, alarmID, params, inAccount(accountID)...)
 		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update alarm: %v", err)), nil
