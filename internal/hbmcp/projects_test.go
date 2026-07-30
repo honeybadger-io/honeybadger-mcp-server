@@ -13,767 +13,372 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// Helper function to get text from MCP result
+// getResultText pulls the text out of a tool result. Shared by every tool test.
 func getResultText(result *mcp.CallToolResult) string {
 	if len(result.Content) > 0 {
-		// Check if it's a TextContent type
 		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
 			return textContent.Text
 		}
-		// If that doesn't work, try converting to string directly
 		return fmt.Sprintf("%v", result.Content[0])
 	}
 	return ""
 }
 
+func projectArgs(args map[string]interface{}) mcp.CallToolRequest {
+	return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
+}
+
 func TestHandleListProjects(t *testing.T) {
-	mockResponse := `{
-		"results": [
-			{"id": 1, "name": "Project 1", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []},
-			{"id": 2, "name": "Project 2", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret456", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 2, "email": "user2@example.com", "name": "User 2"}, "sites": [], "teams": [], "users": []}
-		]
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
 		}
-		if r.URL.Path != "/v2/projects" {
-			t.Errorf("expected path /v2/projects, got %s", r.URL.Path)
+		// No account id given, so the credential's own account is used.
+		if want := "/v3/accounts/me/projects"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{
+			"data": [
+				{"id": "Xk9mZp", "account_id": "Ab3kL9", "name": "Production", "active": true,
+				 "token": "tok_1", "fault_count": 12, "unresolved_fault_count": 3},
+				{"id": "Nm8pQx", "account_id": "Ab3kL9", "name": "Staging", "active": false}
+			],
+			"pagination": {"page": 1, "per_page": 25, "total_count": 2, "total_pages": 1}
+		}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{},
-		},
-	}
-
-	result, err := handleListProjects(context.Background(), client, req)
+	result, err := handleListProjects(context.Background(), client, projectArgs(nil))
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
 
-	// Verify the response preserves the envelope shape with lightweight summaries
-	resultText := getResultText(result)
-	var response projectSummaryResponse
-	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Fatalf("Response should be valid JSON project summary response: %v", err)
+	var got projectSummaryResponse
+	if err := json.Unmarshal([]byte(getResultText(result)), &got); err != nil {
+		t.Fatalf("response is not valid JSON: %v", err)
 	}
-
-	if len(response.Results) != 2 {
-		t.Errorf("expected 2 projects, got %d", len(response.Results))
+	if len(got.Results) != 2 {
+		t.Fatalf("got %d projects, want 2", len(got.Results))
 	}
-
-	if response.Results[0].Name != "Project 1" {
-		t.Errorf("expected first project name 'Project 1', got %s", response.Results[0].Name)
+	if got.Results[0].ID != "Xk9mZp" {
+		t.Errorf("first id = %q, want the opaque string id", got.Results[0].ID)
 	}
-
-	if response.Results[1].Name != "Project 2" {
-		t.Errorf("expected second project name 'Project 2', got %s", response.Results[1].Name)
+	if got.Results[0].FaultCount != 12 {
+		t.Errorf("fault_count = %d, want 12", got.Results[0].FaultCount)
 	}
-
-	// Verify that heavy fields are not present in the response by inspecting JSON object keys
-	var raw struct {
-		Results []map[string]json.RawMessage `json:"results"`
-	}
-	if err := json.Unmarshal([]byte(resultText), &raw); err != nil {
-		t.Fatalf("Response should be valid JSON for raw inspection: %v", err)
-	}
-	for i, proj := range raw.Results {
-		for _, excluded := range []string{"environments", "users", "sites", "teams", "owner"} {
-			if _, ok := proj[excluded]; ok {
-				t.Errorf("summary response project %d should not contain %s field", i, excluded)
-			}
-		}
+	// The second project omitted the counts; absent must read as zero, not panic.
+	if got.Results[1].FaultCount != 0 {
+		t.Errorf("absent fault_count = %d, want 0", got.Results[1].FaultCount)
 	}
 }
 
-func TestHandleListProjects_Error(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"errors": "Invalid API token"}`))
-	}))
-	defer server.Close()
+// The summary deliberately drops the large nested arrays that would blow the
+// token budget. get_project is where the full record lives.
+func TestHandleListProjectsOmitsHeavyFields(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusOK, `{"data":[{"id":"Xk9mZp","account_id":"Ab3kL9","name":"P","active":true,
+			"environments":["production","staging"],"sites":[{"id":"s1"}],"teams":[{"id":"t1"}]}]}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("invalid-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{},
-		},
-	}
-
-	result, err := handleListProjects(context.Background(), client, req)
+	result, err := handleListProjects(context.Background(), client, projectArgs(nil))
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to list projects") {
-		t.Error("Error message should contain 'Failed to list projects'")
+	text := getResultText(result)
+	for _, heavy := range []string{"environments", "sites", "teams"} {
+		if strings.Contains(text, heavy) {
+			t.Errorf("summary leaked the %q array", heavy)
+		}
 	}
 }
 
 func TestHandleListProjects_WithAccountID(t *testing.T) {
-	mockResponse := `{
-		"results": [
-			{"id": 1, "name": "Project 1", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}
-		]
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/Ab3kL9/projects"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		expectedPath := "/v2/projects?account_id=K7xmQqN"
-		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
-			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{"data":[]}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"account_id": "K7xmQqN",
-			},
-		},
-	}
-
-	result, err := handleListProjects(context.Background(), client, req)
+	result, err := handleListProjects(context.Background(), client,
+		projectArgs(map[string]interface{}{"account_id": "Ab3kL9"}))
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
-	}
-
-	// Verify the response preserves the envelope shape with lightweight summaries
-	resultText := getResultText(result)
-	var response projectSummaryResponse
-	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Fatalf("Response should be valid JSON project summary response: %v", err)
-	}
-
-	if len(response.Results) != 1 {
-		t.Errorf("expected 1 project, got %d", len(response.Results))
-	}
-
-	if response.Results[0].Name != "Project 1" {
-		t.Errorf("expected project name 'Project 1', got %s", response.Results[0].Name)
-	}
-
-	if response.Results[0].ID != 1 {
-		t.Errorf("expected project ID 1, got %d", response.Results[0].ID)
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
 }
 
-func TestHandleListProjects_ResponseShape(t *testing.T) {
-	mockResponse := `{
-		"results": [
-			{"id": 1, "name": "Project 1", "active": true, "created_at": "2024-01-01T00:00:00Z", "last_notice_at": "2024-06-15T10:30:00Z", "token": "secret123", "fault_count": 5, "unresolved_fault_count": 2, "environments": ["production", "staging"], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [{"id": "s1", "name": "Site 1", "url": "https://example.com", "active": true, "frequency": 5, "match_type": "success", "state": "up"}], "teams": [{"id": 1, "name": "Team 1"}], "users": [{"id": 1, "email": "user@example.com", "name": "User 1"}]}
-		],
-		"links": {"self": "/v2/projects", "next": "/v2/projects?page=2", "prev": ""}
-	}`
+// A credential covering several accounts cannot use the `me` sentinel. The
+// handler must recover by asking which account it belongs to, then retrying.
+func TestHandleListProjectsRecoversFromAmbiguousAccount(t *testing.T) {
+	var paths []string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		switch r.URL.Path {
+		case "/v3/accounts/me/projects":
+			v3JSON(w, http.StatusUnprocessableEntity,
+				`{"error":{"code":"ambiguous_account","message":"\"me\" is ambiguous"}}`)
+		case "/v3/token":
+			v3JSON(w, http.StatusOK, `{"data":{"kind":"oauth","account_id":"Ab3kL9","scopes":["projects:read"]}}`)
+		case "/v3/accounts/Ab3kL9/projects":
+			v3JSON(w, http.StatusOK, `{"data":[{"id":"Xk9mZp","account_id":"Ab3kL9","name":"P","active":true}]}`)
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+	})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{},
-		},
-	}
-
-	result, err := handleListProjects(context.Background(), client, req)
+	result, err := handleListProjects(context.Background(), client, projectArgs(nil))
 	if err != nil {
 		t.Fatalf("handleListProjects() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected non-error result, got error: %s", getResultText(result))
+		t.Fatalf("expected recovery, got %s", getResultText(result))
 	}
+	if len(paths) != 3 || paths[1] != "/v3/token" {
+		t.Errorf("request sequence = %v, want the ambiguous call, introspection, then a retry", paths)
+	}
+}
 
-	resultText := getResultText(result)
-
-	// Parse into raw JSON to verify exact top-level shape
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(resultText), &raw); err != nil {
-		t.Fatalf("response should be a JSON object: %v", err)
-	}
-
-	// Must have "results" and "links" keys
-	if _, ok := raw["results"]; !ok {
-		t.Fatal("response must have 'results' key")
-	}
-	if _, ok := raw["links"]; !ok {
-		t.Fatal("response must have 'links' key")
-	}
-
-	// Verify pagination links are preserved
-	var response projectSummaryResponse
-	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-	if response.Links.Self != "/v2/projects" {
-		t.Errorf("expected links.self '/v2/projects', got %s", response.Links.Self)
-	}
-	if response.Links.Next != "/v2/projects?page=2" {
-		t.Errorf("expected links.next '/v2/projects?page=2', got %s", response.Links.Next)
-	}
-
-	// Verify summary fields are present and correct
-	if len(response.Results) != 1 {
-		t.Fatalf("expected 1 project, got %d", len(response.Results))
-	}
-	p := response.Results[0]
-	if p.ID != 1 {
-		t.Errorf("expected id 1, got %d", p.ID)
-	}
-	if p.FaultCount != 5 {
-		t.Errorf("expected fault_count 5, got %d", p.FaultCount)
-	}
-	if p.UnresolvedFaultCount != 2 {
-		t.Errorf("expected unresolved_fault_count 2, got %d", p.UnresolvedFaultCount)
-	}
-	if p.LastNoticeAt == nil {
-		t.Error("expected last_notice_at to be set")
-	}
-
-	// Verify heavy fields from the API are excluded by checking JSON keys
-	var rawResults struct {
-		Results []map[string]json.RawMessage `json:"results"`
-	}
-	if err := json.Unmarshal([]byte(resultText), &rawResults); err != nil {
-		t.Fatalf("failed to unmarshal resultText for excluded-field check: %v", err)
-	}
-	if len(rawResults.Results) == 0 {
-		t.Fatalf("expected at least 1 result in JSON response")
-	}
-	for _, excluded := range []string{"environments", "sites", "teams", "users", "owner"} {
-		if _, ok := rawResults.Results[0][excluded]; ok {
-			t.Errorf("summary response should not contain %s field", excluded)
+// If introspection also fails, the caller must see the original problem rather
+// than a confusing error about the recovery attempt.
+func TestHandleListProjectsReportsOriginalErrorWhenIntrospectionFails(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v3/token" {
+			v3JSON(w, http.StatusInternalServerError, `{"error":{"code":"service_unavailable","message":"down"}}`)
+			return
 		}
+		v3JSON(w, http.StatusUnprocessableEntity,
+			`{"error":{"code":"ambiguous_account","message":"\"me\" is ambiguous"}}`)
+	})
+
+	result, err := handleListProjects(context.Background(), client, projectArgs(nil))
+	if err != nil {
+		t.Fatalf("handleListProjects() error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected an error result")
+	}
+	if !strings.Contains(getResultText(result), "ambiguous_account") {
+		t.Errorf("error = %q, want the original ambiguous_account", getResultText(result))
+	}
+}
+
+func TestHandleListProjects_Error(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusUnauthorized, `{"error":{"code":"unauthorized","message":"Invalid token"}}`)
+	})
+
+	result, err := handleListProjects(context.Background(), client, projectArgs(nil))
+	if err != nil {
+		t.Fatalf("handleListProjects() error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error result")
+	}
+	if !strings.Contains(getResultText(result), "Failed to list projects") {
+		t.Errorf("error = %q", getResultText(result))
 	}
 }
 
 func TestHandleGetProject(t *testing.T) {
-	mockResponse := `{"id": 123, "name": "Test Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret123", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123" {
-			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"Production","active":true}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"id": 123,
-			},
-		},
-	}
-
-	result, err := handleGetProject(context.Background(), client, req)
+	result, err := handleGetProject(context.Background(), client,
+		projectArgs(map[string]interface{}{"id": "Xk9mZp"}))
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	// Verify the response can be unmarshaled as a project
-	resultText := getResultText(result)
-	var project hbapi.Project
-	if err := json.Unmarshal([]byte(resultText), &project); err != nil {
-		t.Errorf("Response should be valid JSON project: %v", err)
-	}
-
-	if project.ID != 123 {
-		t.Errorf("expected project ID 123, got %d", project.ID)
-	}
-
-	if project.Name != "Test Project" {
-		t.Errorf("expected project name 'Test Project', got %s", project.Name)
-	}
-
-	if !project.Active {
-		t.Error("expected project to be active")
+	if !strings.Contains(getResultText(result), "Production") {
+		t.Errorf("result = %q", getResultText(result))
 	}
 }
 
 func TestHandleGetProject_MissingID(t *testing.T) {
-	client := hbapi.NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{},
-		},
-	}
-
-	result, err := handleGetProject(context.Background(), client, req)
+	result, err := handleGetProject(context.Background(), offlineV3Client(), projectArgs(nil))
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
-
 	if !result.IsError {
-		t.Fatal("expected error result for missing ID")
+		t.Fatal("expected error for missing id")
 	}
-
 	if !strings.Contains(getResultText(result), "id is required") {
-		t.Error("Error message should indicate missing ID parameter")
+		t.Errorf("error = %q", getResultText(result))
 	}
 }
 
-func TestHandleGetProject_InvalidID(t *testing.T) {
-	client := hbapi.NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
+func TestHandleGetProject_NotFound(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusNotFound, `{"error":{"code":"not_found","message":"Resource not found"}}`)
+	})
 
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"id": 0,
-			},
-		},
-	}
-
-	result, err := handleGetProject(context.Background(), client, req)
+	result, err := handleGetProject(context.Background(), client,
+		projectArgs(map[string]interface{}{"id": "nope"}))
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
-
 	if !result.IsError {
-		t.Fatal("expected error result for invalid ID")
-	}
-
-	if !strings.Contains(getResultText(result), "id is required") {
-		t.Error("Error message should indicate invalid ID parameter")
+		t.Fatal("expected error result")
 	}
 }
 
 func TestHandleCreateProject(t *testing.T) {
-	mockResponse := `{"id": 456, "name": "New Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret789", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			t.Errorf("expected POST method, got %s", r.Method)
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
 		}
-		if r.URL.Path != "/v2/projects" {
-			t.Errorf("expected path /v2/projects, got %s", r.URL.Path)
-		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"New","active":true}}`)
+	})
 
-		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
-		}
-
-		project, ok := body["project"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected project object in request body")
-		}
-
-		if project["name"] != "New Project" {
-			t.Errorf("expected project name 'New Project', got %v", project["name"])
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"account_id": "K7xmQqN",
-				"name":       "New Project",
-			},
-		},
-	}
-
-	result, err := handleCreateProject(context.Background(), client, req)
+	result, err := handleCreateProject(context.Background(), client,
+		projectArgs(map[string]interface{}{"name": "New"}))
 	if err != nil {
 		t.Fatalf("handleCreateProject() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	// Verify the response can be unmarshaled as a project
-	resultText := getResultText(result)
-	var project hbapi.Project
-	if err := json.Unmarshal([]byte(resultText), &project); err != nil {
-		t.Errorf("Response should be valid JSON project: %v", err)
-	}
-
-	if project.ID != 456 {
-		t.Errorf("expected project ID 456, got %d", project.ID)
-	}
-
-	if project.Name != "New Project" {
-		t.Errorf("expected project name 'New Project', got %s", project.Name)
-	}
-
-	if !project.Active {
-		t.Error("expected created project to be active")
+	if body["name"] != "New" {
+		t.Errorf("sent body = %v", body)
 	}
 }
 
-func TestHandleCreateProject_ValidationError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		expectedPath := "/v2/projects?account_id=K7xmQqN"
-		if r.URL.Path+"?"+r.URL.RawQuery != expectedPath {
-			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path+"?"+r.URL.RawQuery)
-		}
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`{"errors": "Name has already been taken"}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"account_id": "K7xmQqN",
-				"name":       "Duplicate Name",
-			},
-		},
-	}
-
-	result, err := handleCreateProject(context.Background(), client, req)
+func TestHandleCreateProject_MissingName(t *testing.T) {
+	result, err := handleCreateProject(context.Background(), offlineV3Client(), projectArgs(nil))
 	if err != nil {
 		t.Fatalf("handleCreateProject() error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for validation error")
-	}
-
-	if !strings.Contains(getResultText(result), "Failed to create project") {
-		t.Error("Error message should contain 'Failed to create project'")
+	if !result.IsError || !strings.Contains(getResultText(result), "name is required") {
+		t.Errorf("expected 'name is required', got %q", getResultText(result))
 	}
 }
 
-func TestHandleCreateProject_WithoutAccountID(t *testing.T) {
-	mockResponse := `{"id": 456, "name": "Test Project", "active": true, "created_at": "2024-01-01T00:00:00Z", "token": "secret789", "fault_count": 0, "unresolved_fault_count": 0, "environments": [], "owner": {"id": 1, "email": "user@example.com", "name": "User 1"}, "sites": [], "teams": [], "users": []}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Has("account_id") {
-			t.Errorf("expected no account_id query param, got raw query %q", r.URL.RawQuery)
+// v3's project write schema declares only name. Accepting the other settings and
+// dropping them would report success for a change that never happened, so the
+// request is refused and says which fields are the problem.
+func TestHandleCreateProjectRejectsSettingsV3CannotSend(t *testing.T) {
+	for field, value := range map[string]interface{}{
+		"purge_days":               30,
+		"user_url":                 "http://example.com/users/[user_id]",
+		"resolve_errors_on_deploy": true,
+		"user_search_field":        "context.user_email",
+	} {
+		result, err := handleCreateProject(context.Background(), offlineV3Client(),
+			projectArgs(map[string]interface{}{"name": "New", field: value}))
+		if err != nil {
+			t.Fatalf("%s: handleCreateProject() error = %v", field, err)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"name": "Test Project",
-			},
-		},
-	}
-
-	result, err := handleCreateProject(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateProject() error = %v", err)
-	}
-
-	if result.IsError {
-		t.Fatalf("expected success without account_id, got error: %s", getResultText(result))
-	}
-
-	var project hbapi.Project
-	if err := json.Unmarshal([]byte(getResultText(result)), &project); err != nil {
-		t.Errorf("Response should be valid JSON project: %v", err)
-	}
-	if project.ID != 456 {
-		t.Errorf("expected project ID 456, got %d", project.ID)
+		if !result.IsError {
+			t.Errorf("%s: request accepted; the field would have been silently dropped", field)
+			continue
+		}
+		if !strings.Contains(getResultText(result), field) {
+			t.Errorf("%s: error does not name the field: %q", field, getResultText(result))
+		}
 	}
 }
 
 func TestHandleUpdateProject(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			t.Errorf("expected PUT method, got %s", r.Method)
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123" {
-			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
-		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"Renamed","active":true}}`)
+	})
 
-		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
-		}
-
-		project, ok := body["project"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected project object in request body")
-		}
-
-		if project["name"] != "Updated Project" {
-			t.Errorf("expected project name 'Updated Project', got %v", project["name"])
-		}
-
-		// Update API returns empty body on success
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"id":   123,
-				"name": "Updated Project",
-			},
-		},
-	}
-
-	result, err := handleUpdateProject(context.Background(), client, req)
+	result, err := handleUpdateProject(context.Background(), client,
+		projectArgs(map[string]interface{}{"id": "Xk9mZp", "name": "Renamed"}))
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	// Check that success message is present
-	resultText := getResultText(result)
-	var response map[string]interface{}
-	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if message, ok := response["message"].(string); !ok || !strings.Contains(message, "successfully updated") {
-		t.Error("Success message should be present in response")
-	}
-
-	if success, ok := response["success"].(bool); !ok || !success {
-		t.Error("Response should include success: true")
+	if body["name"] != "Renamed" {
+		t.Errorf("sent body = %v", body)
 	}
 }
 
 func TestHandleUpdateProject_MissingID(t *testing.T) {
-	client := hbapi.NewClient().
-		WithBaseURL("https://api.example.com").
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"name": "Updated Project",
-			},
-		},
-	}
-
-	result, err := handleUpdateProject(context.Background(), client, req)
+	result, err := handleUpdateProject(context.Background(), offlineV3Client(),
+		projectArgs(map[string]interface{}{"name": "Renamed"}))
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result")
-	}
-
-	if !strings.Contains(getResultText(result), "id is required") {
-		t.Errorf("expected missing id error, got %s", getResultText(result))
+	if !result.IsError || !strings.Contains(getResultText(result), "id is required") {
+		t.Errorf("expected 'id is required', got %q", getResultText(result))
 	}
 }
 
-func TestHandleUpdateProject_NoFieldsToUpdate(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			t.Errorf("expected PUT method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123" {
-			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
-		}
-		// Update API returns empty body on success
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"id": 123,
-				// No fields to update - should still work (sends empty struct)
-			},
-		},
-	}
-
-	result, err := handleUpdateProject(context.Background(), client, req)
+func TestHandleUpdateProjectRejectsSettingsV3CannotSend(t *testing.T) {
+	result, err := handleUpdateProject(context.Background(), offlineV3Client(),
+		projectArgs(map[string]interface{}{"id": "Xk9mZp", "name": "N", "purge_days": 30}))
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
-
-	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
-	}
-
-	// Check that success message is present
-	resultText := getResultText(result)
-	var response map[string]interface{}
-	if err := json.Unmarshal([]byte(resultText), &response); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if message, ok := response["message"].(string); !ok || !strings.Contains(message, "successfully updated") {
-		t.Error("Success message should be present in response")
+	if !result.IsError || !strings.Contains(getResultText(result), "purge_days") {
+		t.Errorf("expected the request to be refused naming purge_days, got %q", getResultText(result))
 	}
 }
 
 func TestHandleDeleteProject(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "DELETE" {
-			t.Errorf("expected DELETE method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("method = %s, want DELETE", r.Method)
 		}
-		if r.URL.Path != "/v2/projects/123" {
-			t.Errorf("expected path /v2/projects/123, got %s", r.URL.Path)
+		if want := "/v3/accounts/me/projects/Xk9mZp"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
+		// A delete answers 204 with no body.
 		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"id": 123,
-			},
-		},
-	}
-
-	result, err := handleDeleteProject(context.Background(), client, req)
+	result, err := handleDeleteProject(context.Background(), client,
+		projectArgs(map[string]interface{}{"id": "Xk9mZp"}))
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	// Check success message
-	if !strings.Contains(getResultText(result), "deleted successfully") {
-		t.Error("Success message should indicate project was deleted")
-	}
-
-	// Verify JSON structure
-	var response map[string]interface{}
-	if err := json.Unmarshal([]byte(getResultText(result)), &response); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if success, ok := response["success"].(bool); !ok || !success {
-		t.Error("Response should include success: true")
+	if !strings.Contains(getResultText(result), "Xk9mZp") {
+		t.Errorf("result should name what was deleted, got %q", getResultText(result))
 	}
 }
 
 func TestHandleDeleteProject_Error(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"errors": "Project not found"}`))
-	}))
-	defer server.Close()
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusForbidden,
+			`{"error":{"code":"insufficient_scope","message":"Insufficient scope",
+			  "details":{"required_scope":"projects:write","token_scopes":["projects:read"]}}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"id": 999,
-			},
-		},
-	}
-
-	result, err := handleDeleteProject(context.Background(), client, req)
+	result, err := handleDeleteProject(context.Background(), client,
+		projectArgs(map[string]interface{}{"id": "Xk9mZp"}))
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}
-
 	if !result.IsError {
 		t.Fatal("expected error result")
 	}
-
-	if !strings.Contains(getResultText(result), "Failed to delete project") {
-		t.Error("Error message should contain 'Failed to delete project'")
+	// The scope the credential lacks is the actionable part.
+	if !strings.Contains(getResultText(result), "projects:write") {
+		t.Errorf("error should name the missing scope, got %q", getResultText(result))
 	}
 }
 

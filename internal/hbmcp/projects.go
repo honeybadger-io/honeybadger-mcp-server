@@ -7,11 +7,18 @@ import (
 	"time"
 
 	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// RegisterProjectTools registers all project-related MCP tools
-func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
+// RegisterProjectTools registers all project-related MCP tools.
+//
+// Most run on v3. Three still take the v2 client because v3 has no equivalent
+// endpoint yet — occurrence counts, integrations, and reports. They keep numeric
+// project ids for that reason, while the migrated tools take v3's opaque string
+// ids; the inconsistency is visible on purpose rather than papered over with a
+// conversion that could not work.
+func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V3ClientFactory) {
 	// list_projects tool
 	r.AddTool(
 		mcp.NewTool("list_projects",
@@ -24,7 +31,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListProjects(ctx, clientFor(ctx), req)
+			return handleListProjects(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -35,14 +42,13 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get a single Honeybadger project by ID"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("id",
+			mcp.WithString("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to retrieve"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProject(ctx, clientFor(ctx), req)
+			return handleGetProject(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -84,7 +90,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreateProject(ctx, clientFor(ctx), req)
+			return handleCreateProject(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -95,10 +101,9 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Update an existing Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("id",
+			mcp.WithString("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to update"),
-				mcp.Min(1),
 			),
 			mcp.WithString("name",
 				mcp.Description("The name of the project"),
@@ -126,7 +131,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateProject(ctx, clientFor(ctx), req)
+			return handleUpdateProject(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -137,14 +142,13 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Delete a Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("id",
+			mcp.WithString("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to delete"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteProject(ctx, clientFor(ctx), req)
+			return handleDeleteProject(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -227,7 +231,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 // It omits large nested arrays (sites, teams, users, environments) that can
 // cause the response to exceed MCP token limits. Use get_project for full details.
 type projectSummary struct {
-	ID                   int        `json:"id"`
+	ID                   string     `json:"id"`
 	Name                 string     `json:"name"`
 	Token                string     `json:"token"`
 	Active               bool       `json:"active"`
@@ -244,42 +248,42 @@ type projectSummaryResponse struct {
 	Links   hbapi.PaginationLinks `json:"links"`
 }
 
-func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Extract account_id parameter (optional)
-	var response *hbapi.ProjectsResponse
-	var err error
-
-	accountID := req.GetString("account_id", "")
-	if accountID != "" {
-		response, err = client.Projects.ListByAccountID(ctx, accountID)
-	} else {
-		response, err = client.Projects.ListAll(ctx)
-	}
-
+func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	// account_id is optional: omitted, v3 resolves the account from the
+	// credential. It is only needed for a credential covering several accounts.
+	projects, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) ([]apiv3.Project, error) {
+			return client.Projects.ListAll(ctx, listAllInAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
 
 	// Map to lightweight summaries to reduce token usage.
 	// Full project details are available via get_project.
-	summaries := make([]projectSummary, len(response.Results))
-	for i, p := range response.Results {
+	summaries := make([]projectSummary, len(projects))
+	for i, p := range projects {
 		summaries[i] = projectSummary{
-			ID:                   p.ID,
+			ID:                   p.Id,
 			Name:                 p.Name,
-			Token:                p.Token,
 			Active:               p.Active,
-			CreatedAt:            p.CreatedAt,
-			LastNoticeAt:         p.LastNoticeAt,
-			FaultCount:           p.FaultCount,
-			UnresolvedFaultCount: p.UnresolvedFaultCount,
+			FaultCount:           derefInt(p.FaultCount),
+			UnresolvedFaultCount: derefInt(p.UnresolvedFaultCount),
+		}
+		if p.Token != nil {
+			summaries[i].Token = *p.Token
+		}
+		if p.CreatedAt != nil {
+			summaries[i].CreatedAt = *p.CreatedAt
+		}
+		// A nullable field distinguishes "never" from "not reported"; the summary
+		// only needs the value when there is one.
+		if last, err := p.LastNoticeAt.Get(); err == nil {
+			summaries[i].LastNoticeAt = &last
 		}
 	}
 
-	jsonBytes, err := json.Marshal(projectSummaryResponse{
-		Results: summaries,
-		Links:   response.Links,
-	})
+	jsonBytes, err := json.Marshal(projectSummaryResponse{Results: summaries})
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
@@ -287,13 +291,16 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallT
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id := req.GetInt("id", 0)
-	if id == 0 {
+func handleGetProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetString("id", "")
+	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
 	}
 
-	project, err := client.Projects.Get(ctx, id)
+	project, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.Project, error) {
+			return client.Projects.Get(ctx, id, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
@@ -307,41 +314,19 @@ func handleGetProject(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleCreateProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Optional: the API associates the project with the token's first
-	// accessible account when account_id is absent.
-	accountID := req.GetString("account_id", "")
-
-	// Build project request using typed getters
-	projectReq := hbapi.ProjectRequest{
-		Name: req.GetString("name", ""),
-	}
-
-	if projectReq.Name == "" {
+func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name := req.GetString("name", "")
+	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-
-	// Handle optional parameters
-	if resolveErrors := req.GetString("resolve_errors_on_deploy", ""); resolveErrors != "" {
-		val := req.GetBool("resolve_errors_on_deploy", false)
-		projectReq.ResolveErrorsOnDeploy = &val
+	if msg := rejectUnsupportedProjectSettings(req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
-	if disableLinks := req.GetString("disable_public_links", ""); disableLinks != "" {
-		val := req.GetBool("disable_public_links", false)
-		projectReq.DisablePublicLinks = &val
-	}
-
-	projectReq.UserURL = req.GetString("user_url", "")
-	projectReq.SourceURL = req.GetString("source_url", "")
-
-	if purgeDays := req.GetInt("purge_days", 0); purgeDays > 0 {
-		projectReq.PurgeDays = &purgeDays
-	}
-
-	projectReq.UserSearchField = req.GetString("user_search_field", "")
-
-	project, err := client.Projects.Create(ctx, accountID, projectReq)
+	project, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.Project, error) {
+			return client.Projects.Create(ctx, name, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
@@ -355,38 +340,23 @@ func handleCreateProject(ctx context.Context, client *hbapi.Client, req mcp.Call
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id := req.GetInt("id", 0)
-	if id == 0 {
+func handleUpdateProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetString("id", "")
+	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
 	}
-
-	// Build project request using typed getters - name not required for updates
-	projectReq := hbapi.ProjectRequest{
-		Name: req.GetString("name", ""),
+	name := req.GetString("name", "")
+	if name == "" {
+		return mcp.NewToolResultError("name is required"), nil
+	}
+	if msg := rejectUnsupportedProjectSettings(req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
-	// Handle optional parameters
-	if resolveErrors := req.GetString("resolve_errors_on_deploy", ""); resolveErrors != "" {
-		val := req.GetBool("resolve_errors_on_deploy", false)
-		projectReq.ResolveErrorsOnDeploy = &val
-	}
-
-	if disableLinks := req.GetString("disable_public_links", ""); disableLinks != "" {
-		val := req.GetBool("disable_public_links", false)
-		projectReq.DisablePublicLinks = &val
-	}
-
-	projectReq.UserURL = req.GetString("user_url", "")
-	projectReq.SourceURL = req.GetString("source_url", "")
-
-	if purgeDays := req.GetInt("purge_days", 0); purgeDays > 0 {
-		projectReq.PurgeDays = &purgeDays
-	}
-
-	projectReq.UserSearchField = req.GetString("user_search_field", "")
-
-	result, err := client.Projects.Update(ctx, id, projectReq)
+	result, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (*apiv3.Project, error) {
+			return client.Projects.Update(ctx, id, name, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
@@ -400,19 +370,21 @@ func handleUpdateProject(ctx context.Context, client *hbapi.Client, req mcp.Call
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleDeleteProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id := req.GetInt("id", 0)
-	if id == 0 {
+func handleDeleteProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetString("id", "")
+	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
 	}
 
-	result, err := client.Projects.Delete(ctx, id)
+	_, err := withAccount(ctx, client, req.GetString("account_id", ""),
+		func(accountID string) (any, error) {
+			return nil, client.Projects.Delete(ctx, id, inAccount(accountID)...)
+		})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project: %v", err)), nil
 	}
 
-	// Return JSON response
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(map[string]any{"deleted": true, "id": id})
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}

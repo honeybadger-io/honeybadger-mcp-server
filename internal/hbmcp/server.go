@@ -134,7 +134,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	v3ClientFor := newV3ClientFactory(cfg)
 	r := newToolRegistrar(s)
 	RegisterReferenceTools(r, newReferenceFetcher(cfg.InstructionsURL, logger))
-	RegisterProjectTools(r, clientFor)
+	RegisterProjectTools(r, clientFor, v3ClientFor)
 	RegisterFaultTools(r, clientFor)
 	RegisterInsightsTools(r, v3ClientFor)
 	RegisterStreamTools(r, v3ClientFor)
