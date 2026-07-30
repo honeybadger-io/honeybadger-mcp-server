@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbmcp"
 )
 
 func testKey(t *testing.T) (*rsa.PrivateKey, jwt.Keyfunc) {
@@ -204,5 +205,72 @@ func TestHealthHandler(t *testing.T) {
 func TestPRMPathNotHealthz(t *testing.T) {
 	if WellKnownPRMPath == "/healthz" {
 		t.Fatal("WellKnownPRMPath collides with reserved /healthz")
+	}
+}
+
+// A scoped API token is opaque: it must be accepted and forwarded, because
+// nothing about it can be checked without asking the API.
+func TestValidateMiddlewareAcceptsOpaqueScopedTokens(t *testing.T) {
+	for _, raw := range []string{"hbt_personal123", "hba_account123"} {
+		var gotToken string
+		var gotKind hbmcp.CredentialKind
+		var gotClaims *hbmcp.Claims
+
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotToken = hbmcp.AuthTokenFromContext(r.Context())
+			gotKind = hbmcp.CredentialKindFromContext(r.Context())
+			gotClaims = hbmcp.ClaimsFromContext(r.Context())
+			w.WriteHeader(http.StatusOK)
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+raw)
+		rec := httptest.NewRecorder()
+
+		// A keyfunc that would fail if consulted: an opaque token must never
+		// reach JWT verification.
+		refuse := func(*jwt.Token) (interface{}, error) {
+			t.Fatalf("%s was sent to JWT verification", raw)
+			return nil, nil
+		}
+		ValidateMiddleware("https://mcp.test/prm", refuse, "https://issuer.test", "https://mcp.test", next).
+			ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d, want 200", raw, rec.Code)
+		}
+		if gotToken != raw {
+			t.Errorf("%s: forwarded token = %q", raw, gotToken)
+		}
+		if gotKind.Verifiable() {
+			t.Errorf("%s: kind %q reports itself verifiable", raw, gotKind)
+		}
+		// No claims: inventing them would assert permissions nobody checked.
+		if gotClaims != nil {
+			t.Errorf("%s: claims = %+v, want none", raw, gotClaims)
+		}
+	}
+}
+
+// Anything outside the three documented prefixes is still refused at the edge,
+// so junk does not become upstream traffic.
+func TestValidateMiddlewareRejectsUnknownCredentialShapes(t *testing.T) {
+	for _, raw := range []string{"abc123", "hb_abc", "HBT_abc", "eyJhbGciOiJSUzI1NiJ9.e30.x"} {
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Fatalf("%q reached the handler", raw)
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+raw)
+		rec := httptest.NewRecorder()
+
+		ValidateMiddleware("https://mcp.test/prm", nil, "", "", next).ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%q: status = %d, want 401", raw, rec.Code)
+		}
+		if got := rec.Header().Get("WWW-Authenticate"); !strings.Contains(got, "invalid_token") {
+			t.Errorf("%q: challenge = %q, want invalid_token", raw, got)
+		}
 	}
 }

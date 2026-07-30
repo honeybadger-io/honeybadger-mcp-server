@@ -22,6 +22,23 @@ func PRMHandler(resource string, authServers, scopes []string) http.Handler {
 	})
 }
 
+// ValidateMiddleware authenticates the request's Bearer credential.
+//
+// v3 accepts three kinds and they can be verified to different depths:
+//
+//   - An OAuth access token (hbo_) is a signed JWT, so its signature, issuer,
+//     expiry, and audience are all checked here. The audience check is what stops
+//     a token minted for another resource being replayed at this server
+//     (RFC 8707), so it stays mandatory.
+//   - A scoped API token (hbt_ or hba_) is opaque. Nothing about it can be
+//     verified locally, so it is accepted on its prefix and forwarded for the API
+//     to judge. This server deliberately makes no authorization decision about
+//     it; the API is the authority either way.
+//
+// The trade is explicit: opaque credentials get no audience binding and no local
+// expiry check, so an expired one surfaces as a failure on the first API call
+// rather than as a challenge here.
+//
 // Expired tokens get an error_description so MCP clients trigger their refresh-on-401 path.
 func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer, expectedAudience string, next http.Handler) http.Handler {
 	bootstrap := fmt.Sprintf(`Bearer resource_metadata="%s"`, prmURL)
@@ -35,18 +52,30 @@ func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer, expect
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		claims, err := hbmcp.ParseAccessToken(raw, keyfn, expectedIssuer, expectedAudience)
-		if err != nil {
-			challenge := invalidToken
-			if errors.Is(err, jwt.ErrTokenExpired) {
-				challenge = expiredToken
-			}
-			w.Header().Set("WWW-Authenticate", challenge)
+		kind := hbmcp.ClassifyCredential(raw)
+		if kind == hbmcp.KindUnknown {
+			w.Header().Set("WWW-Authenticate", invalidToken)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+
 		ctx := hbmcp.WithAuthToken(r.Context(), raw)
-		ctx = hbmcp.WithClaims(ctx, claims)
+		ctx = hbmcp.WithCredentialKind(ctx, kind)
+
+		if kind.Verifiable() {
+			claims, err := hbmcp.ParseAccessToken(raw, keyfn, expectedIssuer, expectedAudience)
+			if err != nil {
+				challenge := invalidToken
+				if errors.Is(err, jwt.ErrTokenExpired) {
+					challenge = expiredToken
+				}
+				w.Header().Set("WWW-Authenticate", challenge)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			ctx = hbmcp.WithClaims(ctx, claims)
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

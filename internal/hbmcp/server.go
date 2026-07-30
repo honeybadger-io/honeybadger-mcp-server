@@ -21,14 +21,28 @@ type ClientFactory func(ctx context.Context) *hbapi.Client
 // V3ClientFactory builds a v3 client. Migrated tools take this.
 type V3ClientFactory func(ctx context.Context) *apiv3.Client
 
-// In http mode the token's scope is authoritative; in stdio there's no token,
-// so the startup --read-only flag decides. Missing claims fails closed.
+// EffectiveReadOnly decides whether to hide the writing tools from this request.
+//
+// An OAuth token carries read/write in its claims, so that answer is
+// authoritative and a missing claim fails closed. A scoped API token is opaque:
+// nothing here knows what it permits, so hiding the writing tools would deny an
+// account token the writes it legitimately holds. Those requests see the whole
+// catalog and the API refuses what the credential cannot do — with
+// insufficient_scope naming the missing permission.
+//
+// In stdio mode there is no per-request credential, so the startup --read-only
+// flag decides.
 func EffectiveReadOnly(ctx context.Context, cfg *config.Config) bool {
-	if cfg.TransportMode == config.TransportHTTP {
-		claims := ClaimsFromContext(ctx)
-		return claims == nil || !claims.HasScope("write")
+	if cfg.TransportMode != config.TransportHTTP {
+		return cfg.ReadOnly
 	}
-	return cfg.ReadOnly
+
+	if kind := CredentialKindFromContext(ctx); kind != KindUnknown && !kind.Verifiable() {
+		return false
+	}
+
+	claims := ClaimsFromContext(ctx)
+	return claims == nil || !claims.HasScope("write")
 }
 
 func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
