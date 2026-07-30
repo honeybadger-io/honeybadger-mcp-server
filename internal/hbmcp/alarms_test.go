@@ -4,473 +4,210 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+func alarmArgs(args map[string]interface{}) mcp.CallToolRequest { return mcpRequest(args) }
+
 func TestHandleListAlarms(t *testing.T) {
-	mockResponse := `{
-		"results": [
-			{
-				"id": "abc123",
-				"name": "High Error Rate",
-				"description": "Triggers when error count exceeds threshold",
-				"state": "ok",
-				"query": "filter event_type::str == \"notice\" | stats count()",
-				"stream_ids": ["default"],
-				"evaluation_period": "5m",
-				"trigger_config": {"type": "alert_result_count", "config": {"operator": "gt", "value": 10}},
-				"created_at": "2024-01-01T00:00:00Z",
-				"updated_at": "2024-01-02T00:00:00Z",
-				"url": "https://app.honeybadger.io/projects/123/insights/alarms/abc123",
-				"project_id": 123
-			}
-		],
-		"links": {"self": "", "next": "", "prev": ""}
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/alarms"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123/alarms" {
-			t.Errorf("expected path /v2/projects/123/alarms, got %s", r.URL.Path)
+		// Alarms are unpaginated: one call is the whole collection.
+		if r.URL.RawQuery != "" {
+			t.Errorf("query = %q, want none", r.URL.RawQuery)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{"data":[
+			{"id":"a1","name":"Error spike","project_id":"Xk9mZp"},
+			{"id":"a2","name":"Latency","project_id":"Xk9mZp"}
+		]}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleListAlarms(context.Background(), client, req)
+	result, err := handleListAlarms(context.Background(), client,
+		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
 	if err != nil {
 		t.Fatalf("handleListAlarms() error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
+	if !strings.Contains(getResultText(result), "Error spike") {
+		t.Errorf("result = %q", getResultText(result))
+	}
+}
 
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "abc123") {
-		t.Error("Result should contain alarm ID")
+func TestHandleListAlarms_MissingProjectID(t *testing.T) {
+	result, err := handleListAlarms(context.Background(), offlineV3Client(), alarmArgs(nil))
+	if err != nil {
+		t.Fatalf("error = %v", err)
 	}
-	if !strings.Contains(resultText, "High Error Rate") {
-		t.Error("Result should contain alarm name")
+	if !result.IsError || !strings.Contains(getResultText(result), "project_id is required") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
 func TestHandleGetAlarm(t *testing.T) {
-	mockResponse := `{
-		"id": "abc123",
-		"name": "High Error Rate",
-		"description": "Triggers when error count exceeds threshold",
-		"state": "alarm",
-		"query": "filter event_type::str == \"notice\" | stats count()",
-		"stream_ids": ["default"],
-		"evaluation_period": "5m",
-		"trigger_config": {"type": "alert_result_count", "config": {"operator": "gt", "value": 10}},
-		"last_checked_at": "2024-01-02T12:00:00Z",
-		"next_check_at": "2024-01-02T12:05:00Z",
-		"created_at": "2024-01-01T00:00:00Z",
-		"updated_at": "2024-01-02T00:00:00Z",
-		"url": "https://app.honeybadger.io/projects/123/insights/alarms/abc123",
-		"project_id": 123
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/alarms/a1"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123/alarms/abc123" {
-			t.Errorf("expected path /v2/projects/123/alarms/abc123, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{"data":{"id":"a1","name":"Error spike","project_id":"Xk9mZp"}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"alarm_id":   "abc123",
-			},
-		},
-	}
-
-	result, err := handleGetAlarm(context.Background(), client, req)
+	result, err := handleGetAlarm(context.Background(), client,
+		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "alarm_id": "a1"}))
 	if err != nil {
-		t.Fatalf("handleGetAlarm() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
-	}
-
-	resultText := getResultText(result)
-
-	var alarm hbapi.Alarm
-	if err := json.Unmarshal([]byte(resultText), &alarm); err != nil {
-		t.Fatalf("Response should be valid JSON: %v", err)
-	}
-
-	if alarm.ID != "abc123" {
-		t.Errorf("expected ID abc123, got %s", alarm.ID)
-	}
-
-	if alarm.Name != "High Error Rate" {
-		t.Errorf("expected name 'High Error Rate', got %s", alarm.Name)
-	}
-
-	if alarm.State != "alarm" {
-		t.Errorf("expected state 'alarm', got %s", alarm.State)
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
 }
 
-func TestHandleCreateAlarm(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			t.Errorf("expected POST method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/alarms" {
-			t.Errorf("expected path /v2/projects/123/alarms, got %s", r.URL.Path)
-		}
+func TestHandleGetAlarm_MissingAlarmID(t *testing.T) {
+	result, err := handleGetAlarm(context.Background(), offlineV3Client(),
+		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "alarm_id is required") {
+		t.Errorf("got %q", getResultText(result))
+	}
+}
 
-		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
-		}
-
-		alarm, ok := body["alarm"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected alarm key in request body")
-		}
-		if alarm["name"] != "New Alarm" {
-			t.Errorf("expected name 'New Alarm', got %v", alarm["name"])
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{
-			"id": "new123",
-			"name": "New Alarm",
-			"description": "",
-			"state": "initial",
-			"query": "stats count()",
-			"stream_ids": ["default"],
+// v3's alarm create schema accepts only a name, so an alarm made through it
+// could never fire. Refusing beats leaving a broken alarm in the account.
+func TestHandleCreateAlarmRefusesUntilV3CanExpressOne(t *testing.T) {
+	result, err := handleCreateAlarm(context.Background(), offlineV3Client(),
+		alarmArgs(map[string]interface{}{
+			"project_id":        "Xk9mZp",
+			"name":              "Error spike",
+			"query":             "count() > 100",
 			"evaluation_period": "5m",
-			"trigger_config": {"type": "alert_result_count", "config": {"operator": "gt", "value": 5}},
-			"created_at": "2024-01-01T00:00:00Z",
-			"updated_at": "2024-01-01T00:00:00Z",
-			"url": "https://app.honeybadger.io/projects/123/insights/alarms/new123",
-			"project_id": 123
-		}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":        123,
-				"name":              "New Alarm",
-				"query":             "stats count()",
-				"evaluation_period": "5m",
-				"lookback_lag":      "1m",
-				"trigger_config":    `{"type": "alert_result_count", "config": {"operator": "gt", "value": 5}}`,
-			},
-		},
-	}
-
-	result, err := handleCreateAlarm(context.Background(), client, req)
+			"trigger_config":    `{"threshold":100}`,
+			"lookback_lag":      "1m",
+		}))
 	if err != nil {
-		t.Fatalf("handleCreateAlarm() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
-	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+	if !result.IsError {
+		t.Fatal("create was allowed; it would have made an alarm that never fires")
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "new123") {
-		t.Error("Result should contain new alarm ID")
+	text := getResultText(result)
+	for _, want := range []string{"not available on the v3 API yet", "never fires"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("error should explain why: %q", text)
+		}
 	}
 }
 
-func TestHandleUpdateAlarm(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			t.Errorf("expected PUT method, got %s", r.Method)
+// Renaming is a genuinely useful subset of update, so it is allowed.
+func TestHandleUpdateAlarmRenames(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/alarms/a1"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123/alarms/abc123" {
-			t.Errorf("expected path /v2/projects/123/alarms/abc123, got %s", r.URL.Path)
-		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"a1","name":"Renamed","project_id":"Xk9mZp"}}`)
+	})
 
-		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
-		}
-
-		alarm, ok := body["alarm"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected alarm key in request body")
-		}
-		if alarm["name"] != "Updated Alarm" {
-			t.Errorf("expected name 'Updated Alarm', got %v", alarm["name"])
-		}
-
-		w.WriteHeader(http.StatusNoContent)
+	result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "alarm_id": "a1", "name": "Renamed",
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":        123,
-				"alarm_id":          "abc123",
-				"name":              "Updated Alarm",
-				"query":             "stats count()",
-				"evaluation_period": "10m",
-				"lookback_lag":      "1m",
-				"trigger_config":    `{"type": "alert_result_count", "config": {"operator": "gt", "value": 20}}`,
-			},
-		},
-	}
-
-	result, err := handleUpdateAlarm(context.Background(), client, req)
 	if err != nil {
-		t.Fatalf("handleUpdateAlarm() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
+	if body["name"] != "Renamed" {
+		t.Errorf("sent body = %v", body)
+	}
+}
 
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "successfully updated") {
-		t.Error("Result should contain success message")
+// Touching an alarm's configuration is refused rather than applying only the
+// name and reporting success.
+func TestHandleUpdateAlarmRejectsConfigChanges(t *testing.T) {
+	for field, value := range map[string]interface{}{
+		"query":             "count() > 5",
+		"evaluation_period": "10m",
+		"trigger_config":    `{"threshold":5}`,
+		"lookback_lag":      "2m",
+		"stream_ids":        `["s1"]`,
+		"description":       "watch this",
+	} {
+		result, err := handleUpdateAlarm(context.Background(), offlineV3Client(),
+			alarmArgs(map[string]interface{}{
+				"project_id": "Xk9mZp", "alarm_id": "a1", "name": "N", field: value,
+			}))
+		if err != nil {
+			t.Fatalf("%s: error = %v", field, err)
+		}
+		if !result.IsError {
+			t.Errorf("%s: accepted; only the name would have been applied", field)
+			continue
+		}
+		if !strings.Contains(getResultText(result), field) {
+			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
+		}
 	}
 }
 
 func TestHandleDeleteAlarm(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "DELETE" {
-			t.Errorf("expected DELETE method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/alarms/abc123" {
-			t.Errorf("expected path /v2/projects/123/alarms/abc123, got %s", r.URL.Path)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("method = %s, want DELETE", r.Method)
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"alarm_id":   "abc123",
-			},
-		},
-	}
-
-	result, err := handleDeleteAlarm(context.Background(), client, req)
+	result, err := handleDeleteAlarm(context.Background(), client,
+		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "alarm_id": "a1"}))
 	if err != nil {
-		t.Fatalf("handleDeleteAlarm() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "deleted successfully") {
-		t.Error("Result should contain success message")
+	if !strings.Contains(getResultText(result), "a1") {
+		t.Errorf("result should name what was deleted: %q", getResultText(result))
 	}
 }
 
 func TestHandleGetAlarmHistory(t *testing.T) {
-	mockResponse := `{
-		"triggers": [
-			{
-				"id": "trigger1",
-				"state": "alarm",
-				"result": {"count": 15},
-				"created_at": "2024-01-02T12:00:00Z"
-			},
-			{
-				"id": "trigger2",
-				"state": "ok",
-				"result": {"count": 3},
-				"created_at": "2024-01-02T11:55:00Z"
-			}
-		],
-		"links": {"self": "", "next": "", "prev": ""}
-	}`
+	var query string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/accounts/me/projects/Xk9mZp/alarms/a1/history"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		}
+		query = r.URL.RawQuery
+		// Rows come from the query service, so they stay untyped.
+		v3JSON(w, http.StatusOK, `{"data":[{"state":"triggered","value":91.5}],
+		  "pagination":{"page":2,"total_pages":2}}`)
+	})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/alarms/abc123/history" {
-			t.Errorf("expected path /v2/projects/123/alarms/abc123/history, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
+	result, err := handleGetAlarmHistory(context.Background(), client, alarmArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "alarm_id": "a1", "page": 2,
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"alarm_id":   "abc123",
-			},
-		},
-	}
-
-	result, err := handleGetAlarmHistory(context.Background(), client, req)
 	if err != nil {
-		t.Fatalf("handleGetAlarmHistory() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "trigger1") {
-		t.Error("Result should contain trigger ID")
+	if !strings.Contains(query, "page=2") {
+		t.Errorf("query = %q, want page=2", query)
 	}
-	if !strings.Contains(resultText, "alarm") {
-		t.Error("Result should contain trigger state")
+	// This endpoint takes no per_page.
+	if strings.Contains(query, "per_page") {
+		t.Errorf("query = %q, must not send per_page", query)
 	}
-}
-
-func TestHandleCreateAlarm_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"name":              "Test",
-				"query":             "stats count()",
-				"evaluation_period": "5m",
-				"lookback_lag":      "1m",
-				"trigger_config":    `{}`,
-			},
-		},
-	}
-
-	result, err := handleCreateAlarm(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateAlarm() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing project ID")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
-	}
-}
-
-func TestHandleCreateAlarm_MissingName(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":        123,
-				"query":             "stats count()",
-				"evaluation_period": "5m",
-				"lookback_lag":      "1m",
-				"trigger_config":    `{}`,
-			},
-		},
-	}
-
-	result, err := handleCreateAlarm(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateAlarm() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing name")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "name is required") {
-		t.Error("Error message should mention name is required")
-	}
-}
-
-func TestHandleCreateAlarm_InvalidTriggerConfigJSON(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":        123,
-				"name":              "Test",
-				"query":             "stats count()",
-				"evaluation_period": "5m",
-				"lookback_lag":      "1m",
-				"trigger_config":    "not valid json",
-			},
-		},
-	}
-
-	result, err := handleCreateAlarm(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleCreateAlarm() error = %v", err)
-	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for invalid trigger_config JSON")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to parse trigger_config JSON") {
-		t.Error("Error message should mention failed to parse trigger_config JSON")
+	if !strings.Contains(getResultText(result), "triggered") {
+		t.Errorf("result = %q", getResultText(result))
 	}
 }

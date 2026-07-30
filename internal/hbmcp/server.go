@@ -139,7 +139,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	RegisterInsightsTools(r, v3ClientFor)
 	RegisterStreamTools(r, v3ClientFor)
 	RegisterDashboardTools(r, clientFor)
-	RegisterAlarmTools(r, clientFor)
+	RegisterAlarmTools(r, clientFor, v3ClientFor)
 	RegisterCheckInTools(r, clientFor)
 	registerSearchTool(s, r.catalog, cfg)
 

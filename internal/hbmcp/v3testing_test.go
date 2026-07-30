@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/honeybadger-io/api-go/apiv3"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // newV3TestClient starts a stub v3 API and returns a client pointed at it.
@@ -34,4 +35,9 @@ func v3JSON(w http.ResponseWriter, status int, body string) {
 // that accidentally issues a request fails rather than hitting production.
 func offlineV3Client() *apiv3.Client {
 	return apiv3.NewClient().WithBaseURL("http://127.0.0.1:1").WithBearerToken("hbt_test")
+}
+
+// mcpRequest builds a tool request from an argument map.
+func mcpRequest(args map[string]interface{}) mcp.CallToolRequest {
+	return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
 }
