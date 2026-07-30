@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv2"
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -244,7 +244,7 @@ type projectSummary struct {
 // preserving the same envelope shape as the upstream API response.
 type projectSummaryResponse struct {
 	Results []projectSummary      `json:"results"`
-	Links   hbapi.PaginationLinks `json:"links"`
+	Links   apiv2.PaginationLinks `json:"links"`
 }
 
 func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -487,7 +487,7 @@ func handleGetProjectIntegrations(ctx context.Context, client *apiv3.Client, req
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectReport(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleGetProjectReport(ctx context.Context, client *apiv2.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetInt("project_id", 0)
 	if projectID == 0 {
 		return mcp.NewToolResultError("project_id is required"), nil
@@ -499,22 +499,22 @@ func handleGetProjectReport(ctx context.Context, client *hbapi.Client, req mcp.C
 	}
 
 	// Convert report type - MCP enum constraint should handle validation
-	var reportType hbapi.ProjectReportType
+	var reportType apiv2.ProjectReportType
 	switch reportStr {
 	case "notices_by_class":
-		reportType = hbapi.ProjectNoticesByClass
+		reportType = apiv2.ProjectNoticesByClass
 	case "notices_by_location":
-		reportType = hbapi.ProjectNoticesByLocation
+		reportType = apiv2.ProjectNoticesByLocation
 	case "notices_by_user":
-		reportType = hbapi.ProjectNoticesByUser
+		reportType = apiv2.ProjectNoticesByUser
 	case "notices_per_day":
-		reportType = hbapi.ProjectNoticesPerDay
+		reportType = apiv2.ProjectNoticesPerDay
 	default:
-		reportType = hbapi.ProjectReportType(reportStr) // Let the API handle unknown types
+		reportType = apiv2.ProjectReportType(reportStr) // Let the API handle unknown types
 	}
 
 	// Build options struct using typed getters
-	options := hbapi.ProjectGetReportOptions{
+	options := apiv2.ProjectGetReportOptions{
 		Start:       parseTimestamp(req.GetString("start", "")),
 		Stop:        parseTimestamp(req.GetString("stop", "")),
 		Environment: req.GetString("environment", ""),

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv2"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -362,7 +362,7 @@ func TestHandleGetProjectReport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := hbapi.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	client := apiv2.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Arguments: map[string]interface{}{
@@ -392,7 +392,7 @@ func TestHandleGetProjectReport_InvalidReport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := hbapi.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	client := apiv2.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Arguments: map[string]interface{}{
@@ -438,7 +438,7 @@ func TestHandleGetProjectReport_WithOptions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := hbapi.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
+	client := apiv2.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Arguments: map[string]interface{}{

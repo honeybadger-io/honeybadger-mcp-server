@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv2"
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/logging"
@@ -17,7 +17,7 @@ import (
 // Temporary: it disappears when every tool has moved to V3ClientFactory. Keeping
 // both lets the migration land tool by tool with the build and tests green,
 // rather than breaking every handler at once.
-type ClientFactory func(ctx context.Context) *hbapi.Client
+type ClientFactory func(ctx context.Context) *apiv2.Client
 
 // V3ClientFactory builds a v3 client. Migrated tools take this.
 type V3ClientFactory func(ctx context.Context) *apiv3.Client
@@ -153,14 +153,14 @@ func newClientFactory(cfg *config.Config) ClientFactory {
 	if cfg.TransportMode == config.TransportHTTP {
 		// No fallback to cfg.AuthToken — the 401 middleware must catch
 		// bearer-less requests; a fallback would mask that regression.
-		return func(ctx context.Context) *hbapi.Client {
-			return hbapi.NewClient().
+		return func(ctx context.Context) *apiv2.Client {
+			return apiv2.NewClient().
 				WithBaseURL(cfg.APIURL).
 				WithBearerToken(AuthTokenFromContext(ctx))
 		}
 	}
-	return func(ctx context.Context) *hbapi.Client {
-		return hbapi.NewClient().
+	return func(ctx context.Context) *apiv2.Client {
+		return apiv2.NewClient().
 			WithBaseURL(cfg.APIURL).
 			WithAuthToken(cfg.AuthToken)
 	}
