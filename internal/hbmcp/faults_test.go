@@ -3,6 +3,7 @@ package hbmcp
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -492,8 +493,45 @@ func TestHandleUpdateFaultUnassignsOnNull(t *testing.T) {
 	}
 }
 
-// resolve_on_deploy has no v3 equivalent, and an older client with a cached schema
-// can still send it.
+// resolve_on_deploy returned to the spec as a FaultInput field, so it now goes
+// through the fault update endpoint rather than being refused.
+func TestHandleUpdateFaultSendsResolveOnDeploy(t *testing.T) {
+	var body map[string]any
+	c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"f1","project_id":"Xk9mZp","resolve_on_deploy":true}}`)
+	})
+
+	result, err := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
+		"project_id": "Xk9mZp", "fault_id": "f1", "resolve_on_deploy": true,
+	}))
+	if err != nil {
+		t.Fatalf("handleUpdateFault: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("refused: %s", getResultText(result))
+	}
+	if body["resolve_on_deploy"] != true {
+		t.Errorf("body = %v, want resolve_on_deploy true", body)
+	}
+}
+
+// Setting it alongside resolved is contradictory: resolving now clears any
+// pending resolution, so the deploy flag would be silently discarded.
+func TestHandleUpdateFaultRejectsResolveOnDeployWithResolved(t *testing.T) {
+	c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request reached the server")
+	})
+
+	result, _ := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
+		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, "resolve_on_deploy": true,
+	}))
+	if !result.IsError || !strings.Contains(getResultText(result), "resolve_on_deploy") {
+		t.Errorf("result = %q, want a refusal naming resolve_on_deploy", getResultText(result))
+	}
+}
+
 func TestHandleUpdateFaultRejectsResolveOnDeploy(t *testing.T) {
 	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
 		faultArgs(map[string]interface{}{

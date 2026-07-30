@@ -85,7 +85,6 @@ func derefInt(v *int) int {
 // genuinely cannot do, so accepting it silently would report success for a change
 // that never happened.
 var staleSchemaFields = map[string][]string{
-	"update_fault":       {"resolve_on_deploy"},
 	"list_fault_notices": {"created_after", "created_before"},
 }
 

@@ -96,10 +96,12 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			mcp.WithBoolean("ignored",
 				mcp.Description("Whether the fault is ignored"),
 			),
-			// assignee_id and resolve_on_deploy are intentionally gone: the v3
-			// assign endpoint does not specify its request body, and there is no
-			// resolve-on-deploy endpoint at all. Advertising parameters that
-			// cannot be sent would be worse than dropping them.
+			mcp.WithBoolean("resolve_on_deploy",
+				mcp.Description("Resolve this fault the next time a deploy is recorded. "+
+					"Stored as a pending resolution rather than a change to the fault, so it "+
+					"cannot be combined with resolved or ignored — either of those clears it. "+
+					"Send false to cancel a pending resolution."),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateFault(ctx, v3ClientFor(ctx), req)
@@ -265,10 +267,6 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	if msg := rejectStaleSchemaFields("update_fault", req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
-
 	args := req.GetArguments()
 	resolved, hasResolved, err := optionalBool(args, "resolved")
 	if err != nil {
@@ -287,13 +285,25 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 			return mcp.NewToolResultError("assignee_id must be a user's public ID string or null"), nil
 		}
 	}
-	if !hasResolved && !hasIgnored && !hasAssignee {
+	onDeploy, hasOnDeploy, err := optionalBool(args, "resolve_on_deploy")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	// Resolving or ignoring clears a pending resolution, so asking for both in one
+	// call cannot be honoured: whichever ran second would decide, and the caller
+	// would be told both were applied.
+	if hasOnDeploy && (hasResolved || hasIgnored) {
 		return mcp.NewToolResultError(
-			"at least one of resolved, ignored, or assignee_id is required"), nil
+			"resolve_on_deploy cannot be combined with resolved or ignored — resolving or " +
+				"ignoring a fault clears any pending resolution. Send it in its own call."), nil
+	}
+	if !hasResolved && !hasIgnored && !hasAssignee && !hasOnDeploy {
+		return mcp.NewToolResultError(
+			"at least one of resolved, ignored, assignee_id, or resolve_on_deploy is required"), nil
 	}
 
 	applied := map[string]any{"project_id": projectID, "fault_id": faultID}
-	ids := []string{faultID}
+	sel := apiv3.SelectFaults(faultID)
 
 	_, err = withAccount(ctx, client, req.GetString("account_id", ""),
 		func(accountID string) (any, error) {
@@ -303,7 +313,7 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 				if !resolved {
 					action = client.Faults.Unresolve
 				}
-				if err := action(ctx, projectID, ids, opts...); err != nil {
+				if err := action(ctx, projectID, sel, opts...); err != nil {
 					return nil, err
 				}
 				applied["resolved"] = resolved
@@ -313,7 +323,7 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 				if !ignored {
 					action = client.Faults.Unignore
 				}
-				if err := action(ctx, projectID, ids, opts...); err != nil {
+				if err := action(ctx, projectID, sel, opts...); err != nil {
 					return nil, err
 				}
 				applied["ignored"] = ignored
@@ -331,6 +341,15 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 					}
 					applied["assignee_id"] = nil
 				}
+			}
+			if hasOnDeploy {
+				// Not a fault column but a pending resolution, so it goes through the
+				// fault update endpoint rather than having one of its own.
+				if _, err := client.Faults.Update(ctx, projectID, faultID,
+					apiv3.FaultParams{ResolveOnDeploy: &onDeploy}, opts...); err != nil {
+					return nil, err
+				}
+				applied["resolve_on_deploy"] = onDeploy
 			}
 			return nil, nil
 		})
