@@ -70,10 +70,13 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V
 				mcp.Description("BadgerQL query evaluated on each check. Requires reference topics: alarms, badgerql (fetch via get_reference)."),
 			),
 			mcp.WithString("evaluation_period",
-				mcp.Description("Window each evaluation covers, e.g. '5 minutes'"),
+				mcp.Description("Window each evaluation covers, as a compact duration: "+
+					"'5m', '10m', '1h', '1d'. Spelled-out forms like '5 minutes' are rejected."),
 			),
 			mcp.WithString("lookback_lag",
-				mcp.Description("How far behind now the evaluation window ends, allowing for ingestion delay"),
+				mcp.Description("How far behind now the evaluation window ends, allowing for "+
+					"ingestion delay. Same compact format as evaluation_period ('1m'). Required "+
+					"in practice: the API refuses a create with a blank lookback_lag."),
 			),
 			mcp.WithString("trigger_config",
 				mcp.Description(`JSON object describing what turns the alarm on, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}. Operators are named (gt, lt) rather than symbolic. Without a trigger the alarm is created but never fires. The alarms reference topic has the full list of types.`),

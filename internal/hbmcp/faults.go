@@ -444,7 +444,7 @@ func handleListFaultAffectedUsers(ctx context.Context, client *apiv3.Client, req
 	}
 
 	users, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (map[string]any, error) {
+		func(accountID string) ([]apiv3.AffectedUser, error) {
 			return client.Faults.AffectedUsers(ctx, projectID, faultID, append(opts, inAccount(accountID)...)...)
 		})
 	if err != nil {
