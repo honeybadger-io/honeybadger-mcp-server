@@ -10,13 +10,25 @@ MCP_PORT       ?= 9090
 MCP_PUBLIC_URL ?= http://localhost:$(MCP_PORT)
 MCP_URL        ?= $(MCP_PUBLIC_URL)/mcp
 
-.PHONY: build test docker docker-local docker-run claude-mcp-add claude-mcp-remove
+.PHONY: build test verify-module docker docker-local docker-run claude-mcp-add claude-mcp-remove
 
 build:
 	go build -o honeybadger-mcp-server ./cmd/honeybadger-mcp-server
 
 test:
 	go test ./...
+
+# Build the way Docker does: no workspace, no go.mod writes.
+#
+# ../go.work covers this module and api-go, so a local build resolves api-go's
+# dependencies through the workspace and never records them here. Docker copies
+# the two module directories and no go.work, so it falls back to module mode and
+# fails on go.sum entries that were never added. This catches that on the host,
+# where the error is one line instead of a failed image build.
+#
+# The fix when it fails is GOWORK=off go mod tidy.
+verify-module:
+	GOWORK=off go build -mod=readonly ./...
 
 docker-run:
 	docker run --rm --network=host \
@@ -42,6 +54,6 @@ docker:
 
 # Image built against the local api-go checkout (whatever branch it has
 # checked out) instead of the go.mod release.
-docker-local:
+docker-local: verify-module
 	docker buildx build -f Dockerfile.local --build-context apigo=$(APIGO_DIR) \
 		-t $(IMAGE):$(TAG) --load .
