@@ -63,7 +63,14 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	sink := newSink(cfg)
 	analyticsOn := sink != analytics.NewNopSink()
 	if !analyticsOn {
-		logger.Info("Usage analytics disabled", "reason", "no HONEYBADGER_API_KEY or non-http transport")
+		// Name the actual reason: "no key" and "wrong transport" send an
+		// operator to very different places, and a key set for the
+		// customer's own app makes the generic message actively misleading.
+		reason := "HONEYBADGER_API_KEY not set"
+		if cfg.TransportMode != config.TransportHTTP {
+			reason = "transport is not http"
+		}
+		logger.Info("Usage analytics disabled", "reason", reason)
 	}
 
 	hooks := &server.Hooks{}
