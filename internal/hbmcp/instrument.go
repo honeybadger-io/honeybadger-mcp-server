@@ -25,16 +25,31 @@ type instrumenter struct {
 	sink    analytics.Sink
 	cfg     *config.Config
 	version string
+	enabled bool
 }
 
 func newInstrumenter(sink analytics.Sink, cfg *config.Config, version string) *instrumenter {
-	return &instrumenter{sink: sink, cfg: cfg, version: version}
+	return &instrumenter{
+		sink:    sink,
+		cfg:     cfg,
+		version: version,
+		enabled: !analytics.IsNop(sink),
+	}
 }
 
 // wrap decorates a tool handler with usage analytics. It takes the whole
 // mcp.Tool so the argument allowlist is built once at registration rather than
 // on every call.
+//
+// With analytics off it returns the handler untouched. Wrapping and discarding
+// the result would still add a context value, a timer, and a panic
+// intercept/re-panic per call — and that last one rewrites the stack
+// server.WithRecovery sees. stdio runs the original handler, unchanged.
 func (i *instrumenter) wrap(tool mcp.Tool, h server.ToolHandlerFunc) server.ToolHandlerFunc {
+	if !i.enabled {
+		return h
+	}
+
 	name := tool.Name
 	allowed := allowedArgNames(tool)
 

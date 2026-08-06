@@ -48,15 +48,27 @@ type Event struct {
     Data map[string]any
 }
 
+type Notice struct {
+    Err         error
+    Fingerprint string
+    Context     map[string]any
+}
+
 type Sink interface {
-    Emit(Event)                          // returns nothing by design
-    Notify(err error, extra ...any) string // returns the correlation token
+    Emit(Event)
+    Notify(Notice) string
+    Flush()
 }
 ```
 
 `Emit` returns nothing by design — a caller must not be able to fail a tool call by
 emitting. `Notify` returns the token because that is the only place it is obtainable
 (`honeybadger-go@v0.9.0/client.go:92`).
+
+`Notify` takes a `Notice` struct rather than honeybadger-go's variadic
+`extra ...any`, so every library type stays inside this package and `hbmcp` never
+imports honeybadger-go — the mirror of "analytics knows nothing about MCP". `Flush` is
+on the interface so the shutdown path does not need a handle on the client.
 
 These are one interface rather than two because both methods are backed by the same
 `*honeybadger.Client`. That one returns a value and the other does not is a property
@@ -87,6 +99,12 @@ func (i *instrumenter) wrap(tool mcp.Tool, h server.ToolHandlerFunc) server.Tool
 and returns the handler's result unchanged. It takes the whole `mcp.Tool` rather than
 just the name so it can build the argument allowlist from `tool.InputSchema.Properties`
 once at registration.
+
+**With analytics off, `wrap` returns the handler untouched.** Wrapping and discarding
+the result would still cost a context value, a timer, and a panic intercept per call —
+and the intercept re-panics, which rewrites the stack `server.WithRecovery` sees. Since
+stdio is supposed to be unchanged, the decorator has to be absent there, not merely
+inert.
 
 `toolRegistrar` holds an `instrumenter` and applies the decorator in `AddTool`
 (`internal/hbmcp/tool_search.go:30`). `registerSearchTool` receives the same
@@ -385,7 +403,7 @@ customer's data to their own project.
 | Area | Approach |
 |---|---|
 | `instrumenter.wrap` | Recording fake emitter; table test over every outcome; argument-name allowlisting, sorting, and `unknown_arg_count`; identity extraction; absent optional claims; panic observed and re-panicked. |
-| Activation invariant | stdio + `HONEYBADGER_API_KEY` set yields `nopSink` and constructs no client. |
+| Activation invariant | stdio + `HONEYBADGER_API_KEY` set yields `nopSink` and builds no telemetry client. Importing honeybadger-go always constructs its package-level `DefaultClient`; the invariant is that nothing routes through it. |
 | Upstream recorder | `httptest` server returning 200 / 4xx / 5xx / connection failure; assert outcome classification, sticky failure, and that the replacement client preserves the 30s timeout. |
 | `hbSink` | Point `Configuration.Endpoint` at an `httptest.Server` with `Sync: true` and assert the posted NDJSON. Note: `Configuration.Backend` is *not* usable for this — `Backend.Event` takes `[]*eventPayload`, an unexported type, so no external package can implement the interface. |
 | Claims | Extend `claims_test.go` for the new fields, plus a regression test that a token lacking `account_id` / `client_id` / `project_id` still validates. |

@@ -45,3 +45,10 @@ func (nopSink) Flush()               {}
 // nopSink is an empty struct, so two NewNopSink() values compare equal —
 // callers rely on that to assert the activation gate held.
 func NewNopSink() Sink { return nopSink{} }
+
+// IsNop reports whether a Sink discards everything. Callers use it to skip
+// work entirely rather than doing it and throwing the result away.
+func IsNop(s Sink) bool {
+	_, ok := s.(nopSink)
+	return ok
+}

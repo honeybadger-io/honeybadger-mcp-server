@@ -235,6 +235,54 @@ func TestWrap_PanicIsRecordedAndRepanics(t *testing.T) {
 	}
 }
 
+// With analytics off the handler must come back untouched — no context value,
+// no timer, and above all no panic intercept, which would otherwise rewrite
+// the stack server.WithRecovery sees in stdio.
+func TestWrap_DisabledReturnsHandlerUntouched(t *testing.T) {
+	inst := newInstrumenter(analytics.NewNopSink(), &config.Config{}, "test")
+	called := false
+	h := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		called = true
+		if rec := upstreamRecordFromContext(ctx); rec != nil {
+			t.Error("upstream record was added to the context with analytics off")
+		}
+		return mcp.NewToolResultText("ok"), nil
+	}
+
+	wrapped := inst.wrap(testTool(), h)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Name = "list_faults"
+	if _, err := wrapped(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Error("handler was not invoked")
+	}
+}
+
+// The panic must propagate with no interception at all when analytics is off.
+func TestWrap_DisabledDoesNotInterceptPanics(t *testing.T) {
+	inst := newInstrumenter(analytics.NewNopSink(), &config.Config{}, "test")
+	wrapped := inst.wrap(testTool(),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			panic("kaboom")
+		})
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("panic did not propagate")
+		}
+		if r != "kaboom" {
+			t.Errorf("panic value = %v, want the original \"kaboom\"", r)
+		}
+	}()
+	req := mcp.CallToolRequest{}
+	req.Params.Name = "list_faults"
+	_, _ = wrapped(context.Background(), req)
+}
+
 func TestWrap_ResultAndErrorPassThroughUnchanged(t *testing.T) {
 	sink := &recordingSink{}
 	want := mcp.NewToolResultText("payload")

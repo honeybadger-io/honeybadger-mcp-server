@@ -61,7 +61,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	logger := logging.SetupLogger(cfg.LogLevel)
 
 	sink := newSink(cfg)
-	analyticsOn := sink != analytics.NewNopSink()
+	analyticsOn := !analytics.IsNop(sink)
 	if !analyticsOn {
 		// Name the actual reason: "no key" and "wrong transport" send an
 		// operator to very different places, and a key set for the

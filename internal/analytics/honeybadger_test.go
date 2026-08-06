@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	honeybadger "github.com/honeybadger-io/honeybadger-go"
 )
@@ -39,7 +40,14 @@ func TestHoneybadgerSink_EmitPostsEvent(t *testing.T) {
 		"outcome": "ok",
 	}})
 
-	c := <-got
+	// Bounded: an unbuffered receive would hang until the whole test binary
+	// times out if the request is never sent, hiding the real failure.
+	var c captured
+	select {
+	case c = <-got:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the event request; none was sent")
+	}
 	if c.path != "/v1/events" {
 		t.Errorf("path = %q, want /v1/events", c.path)
 	}
