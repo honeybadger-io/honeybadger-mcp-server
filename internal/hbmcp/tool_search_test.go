@@ -174,6 +174,7 @@ func TestSearchCatalog_MultiWord(t *testing.T) {
 		{Name: "create_check_in", Description: "Create a check-in for a project", ReadOnly: false},
 		{Name: "query_insights", Description: "Execute a BadgerQL query against Insights data", ReadOnly: true},
 		{Name: "get_fault_counts", Description: "Return occurrence totals over a time range", ReadOnly: true},
+		{Name: "list_streams", Description: "List Insights streams, including read-only internal ones", ReadOnly: true},
 	}
 
 	tests := []struct {
@@ -218,9 +219,26 @@ func TestSearchCatalog_MultiWord(t *testing.T) {
 			names: []string{},
 		},
 		{
+			// "read-only" appears only in list_streams' description, and
+			// neither word appears in its name.
 			name:  "hyphenated description matches spaced query",
-			query: "check in",
-			names: []string{"create_check_in"},
+			query: "read only",
+			names: []string{"list_streams"},
+		},
+		{
+			name:  "underscored query matches underscored name",
+			query: "list_faults",
+			names: []string{"list_faults"},
+		},
+		{
+			name:  "hyphenated query matches underscored name",
+			query: "list-faults",
+			names: []string{"list_faults"},
+		},
+		{
+			name:  "hyphenated query matches hyphenated description",
+			query: "read-only",
+			names: []string{"list_streams"},
 		},
 		{
 			name:  "extra whitespace is ignored",
