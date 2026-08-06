@@ -2,6 +2,7 @@ package hbmcp
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -51,6 +52,89 @@ func TestRecordingTransport_RecordsTransportError(t *testing.T) {
 	}
 	if !transportErr {
 		t.Error("transportErr = false, want true")
+	}
+}
+
+// RoundTrip returns when headers arrive; api-go decodes the body afterwards.
+// A connection dropped mid-body is an outage, not a clean 200.
+func TestRecordingTransport_RecordsBodyReadFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "1000")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("truncated"))
+		// Returning without writing the promised bytes makes the client's
+		// body read fail with ErrUnexpectedEOF.
+	}))
+	defer srv.Close()
+
+	ctx, rec := withUpstreamRecord(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := newRecordingHTTPClient().Do(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+	if _, err := io.ReadAll(resp.Body); err == nil {
+		t.Fatal("expected a body read error")
+	}
+
+	called, _, transportErr, _ := rec.snapshot()
+	if !called {
+		t.Fatal("called = false, want true")
+	}
+	if !transportErr {
+		t.Error("transportErr = false; a truncated body was recorded as a clean 200")
+	}
+}
+
+// A fully-read body keeps the status and extends the recorded duration to
+// cover transfer, rather than stopping at the header.
+func TestRecordingTransport_SuccessfulBodyKeepsStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	ctx, rec := withUpstreamRecord(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := newRecordingHTTPClient().Do(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+	if _, err := io.ReadAll(resp.Body); err != nil {
+		t.Fatalf("unexpected read error: %v", err)
+	}
+
+	_, status, transportErr, _ := rec.snapshot()
+	if status != http.StatusOK {
+		t.Errorf("status = %d, want 200", status)
+	}
+	if transportErr {
+		t.Error("transportErr = true on a clean read")
+	}
+}
+
+// A 5xx recorded at header time must survive the body being read to EOF.
+func TestRecordingTransport_ServerErrorSurvivesBodyRead(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"boom"}`))
+	}))
+	defer srv.Close()
+
+	ctx, rec := withUpstreamRecord(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := newRecordingHTTPClient().Do(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.ReadAll(resp.Body)
+
+	_, status, _, _ := rec.snapshot()
+	if status != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 to survive the body read", status)
 	}
 }
 

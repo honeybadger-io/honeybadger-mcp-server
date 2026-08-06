@@ -65,7 +65,7 @@ func newDocsServer(t *testing.T, hits *map[string]*atomic.Int64, fail *atomic.Bo
 }
 
 func testFetcher(baseURL string) *referenceFetcher {
-	return newReferenceFetcher(baseURL+"/instructions", slog.New(slog.DiscardHandler))
+	return newReferenceFetcher(baseURL+"/instructions", slog.New(slog.DiscardHandler), nil)
 }
 
 func referenceRequest(topics ...string) mcp.CallToolRequest {

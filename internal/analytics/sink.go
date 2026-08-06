@@ -35,7 +35,12 @@ func (nopSink) Notify(Notice) string { return "" }
 func (nopSink) Flush()               {}
 
 // NewNopSink returns a Sink that discards everything. Used whenever analytics
-// is not activated, so no honeybadger client is ever constructed.
+// is not activated, so no *telemetry* client is constructed and nothing is
+// ever sent.
+//
+// Note that importing honeybadger-go unavoidably constructs its package-level
+// DefaultClient, seeded from ambient HONEYBADGER_API_KEY. Nothing here routes
+// through it — that is the invariant worth guarding, not "no client exists".
 //
 // nopSink is an empty struct, so two NewNopSink() values compare equal —
 // callers rely on that to assert the activation gate held.

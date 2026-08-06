@@ -2,6 +2,8 @@ package hbmcp
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -73,10 +75,41 @@ func (t *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 	}
 	if err != nil {
 		rec.record(0, true, time.Since(start))
-	} else {
-		rec.record(resp.StatusCode, false, time.Since(start))
+		return resp, err
 	}
-	return resp, err
+	rec.record(resp.StatusCode, false, time.Since(start))
+	// RoundTrip returns as soon as headers arrive, but api-go reads and
+	// decodes the body afterwards (api-go@v0.8.0/client.go:136). A connection
+	// dropped mid-body is an outage that would otherwise be recorded as a
+	// clean 200 and misclassified as a caller error, so the body is wrapped
+	// to catch it — and to fold transfer time into upstream_ms.
+	resp.Body = &recordingBody{
+		ReadCloser: resp.Body,
+		rec:        rec,
+		status:     resp.StatusCode,
+		start:      start,
+	}
+	return resp, nil
+}
+
+type recordingBody struct {
+	io.ReadCloser
+	rec    *upstreamRecord
+	status int
+	start  time.Time
+}
+
+func (b *recordingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	switch {
+	case err == nil:
+	case errors.Is(err, io.EOF):
+		// Complete read: same outcome, but now with the full elapsed time.
+		b.rec.record(b.status, false, time.Since(b.start))
+	default:
+		b.rec.record(b.status, true, time.Since(b.start))
+	}
+	return n, err
 }
 
 // newRecordingHTTPClient builds the client handed to api-go via
@@ -86,6 +119,16 @@ func (t *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 func newRecordingHTTPClient() *http.Client {
 	return &http.Client{
 		Timeout:   apiClientTimeout,
-		Transport: &recordingTransport{base: http.DefaultTransport},
+		Transport: newRecordingTransport(true),
 	}
+}
+
+// newRecordingTransport returns nil when analytics is off. net/http treats a
+// nil Transport as http.DefaultTransport, so callers get exactly the
+// behaviour they had before analytics existed.
+func newRecordingTransport(on bool) http.RoundTripper {
+	if !on {
+		return nil
+	}
+	return &recordingTransport{base: http.DefaultTransport}
 }
