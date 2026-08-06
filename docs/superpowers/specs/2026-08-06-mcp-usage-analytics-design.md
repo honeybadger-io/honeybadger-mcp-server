@@ -48,46 +48,49 @@ type Event struct {
     Data map[string]any
 }
 
-type Emitter interface {
-    Emit(Event)
+type Sink interface {
+    Emit(Event)                          // returns nothing by design
+    Notify(err error, extra ...any) string // returns the correlation token
 }
 ```
 
 `Emit` returns nothing by design — a caller must not be able to fail a tool call by
-emitting. Two implementations: `hbEmitter` wrapping a honeybadger-go client, and
-`nopEmitter`.
+emitting. `Notify` returns the token because that is the only place it is obtainable
+(`honeybadger-go@v0.9.0/client.go:92`).
+
+These are one interface rather than two because both methods are backed by the same
+`*honeybadger.Client`. That one returns a value and the other does not is a property
+of the methods, not a reason for separate types. Two implementations: `hbSink`
+wrapping a honeybadger-go client, and `nopSink`.
 
 Because the interface is this small, `hbmcp` tests use a recording fake and never
 touch the network.
 
-### `instrumented` decorator (in `hbmcp`)
+### `instrumenter` decorator (in `hbmcp`)
 
-The decorator needs more than an emitter: `EffectiveReadOnly` requires `cfg`
-(`internal/hbmcp/server.go:17`), the event carries the build version, and the
-`internal_error` path needs the notifier. So it is a method on a small struct built
-once at server construction, not a free function with a long parameter list:
+The decorator needs more than a sink: `EffectiveReadOnly` requires `cfg`
+(`internal/hbmcp/server.go:17`) and the event carries the build version. So it is a
+method on a small struct built once at server construction, not a free function with a
+long parameter list:
 
 ```go
 type instrumenter struct {
-    em      analytics.Emitter
-    notify  analytics.Notifier // no-op when analytics is off
+    sink    analytics.Sink // nopSink when analytics is off
     cfg     *config.Config
     version string
 }
 
-func (i *instrumenter) wrap(name string, h server.ToolHandlerFunc) server.ToolHandlerFunc
+func (i *instrumenter) wrap(tool mcp.Tool, h server.ToolHandlerFunc) server.ToolHandlerFunc
 ```
 
 `wrap` times the call, classifies the outcome, reads identity from the context, emits,
-and returns the handler's result unchanged. `Notifier` is a second one-method
-interface (`Notify(error, ...any) string`, returning the correlation token) so that
-`Emitter` can keep returning nothing while the `internal_error` path still gets a
-token — the token is only obtainable from `Client.Notify`
-(`honeybadger-go@v0.9.0/client.go:92`).
+and returns the handler's result unchanged. It takes the whole `mcp.Tool` rather than
+just the name so it can build the argument allowlist from `tool.InputSchema.Properties`
+once at registration.
 
-`toolRegistrar` holds an `Emitter` and applies the decorator in `AddTool`
-(`internal/hbmcp/tool_search.go:30`). `registerSearchTool` receives the same emitter
-and wraps its own handler at its own registration site.
+`toolRegistrar` holds an `instrumenter` and applies the decorator in `AddTool`
+(`internal/hbmcp/tool_search.go:30`). `registerSearchTool` receives the same
+`instrumenter` and wraps its own handler at its own registration site.
 
 **`search_tools` registration is deliberately left as-is.** It is registered directly
 against the server (`internal/hbmcp/server.go:86`) because it takes the completed
@@ -95,30 +98,48 @@ catalog by value and must run after every other registration. It also excludes i
 from what it searches — note the asymmetry with `server.go:88`, where the landing-page
 catalog is `append(r.catalog, searchToolInfo)`, *with* `search_tools`.
 
-Keeping `instrumented` a standalone function means none of that has to be disturbed.
+Keeping the decorator independent of the registrar means none of that has to be
+disturbed — `registerSearchTool` simply calls `wrap` itself.
 An earlier draft justified this by claiming that routing `search_tools` through the
 registrar would introduce a slice-aliasing bug; that was wrong. The handler's copied
 slice header keeps its own length, so appending `searchToolInfo` to `r.catalog`
 afterwards remains invisible to it either way, and the must-run-last ordering
 constraint is inherent to needing a complete catalog rather than something the
-registrar would create. The real argument is simply that a standalone decorator
-requires no restructuring of registration at all.
+registrar would create. The real argument is simply that a decorator applied at each
+registration site requires no restructuring of registration at all.
 
 ### Upstream recorder
 
-A `http.RoundTripper` that wraps the api-go client's transport and records each
+A `http.RoundTripper` that wraps the api-go client's transport and records the
 upstream call's status, error, and duration into a per-call record held in the
 context. See "Outcome classification" for why this exists — briefly, handler return
 values cannot distinguish an API outage from a rejected call, and the transport can.
+
+The record is deliberately flat — `{status int, transportErr bool, durationMs int64}`
+— because **every handler makes exactly one upstream call.** Verified across all 33:
+the files with more call expressions than handlers are either/or branches
+(`projects.go:254/256`, `projects.go:437/440`), and api-go performs a single
+`httpClient.Do` with no retry logic (`api-go@v0.8.0/client.go:122`).
+
+The one concession to a future fan-out handler is that a recorded failure is sticky:
+a later success cannot overwrite an earlier failure. That is two lines and removes the
+only way this could misclassify silently, which is cheaper than either a worst-outcome
+ranking lattice or a comment asking future authors to be careful.
 
 Attached in `newClientFactory` (`internal/hbmcp/server.go:90`) via
 `hbapi.Client.WithHTTPClient` (`api-go@v0.8.0/client.go:82`). When analytics is off,
 no record is placed in the context and the recorder is not attached, so the stdio path
 is byte-for-byte unchanged.
 
+**`WithHTTPClient` replaces api-go's default client**, which carries
+`Timeout: 30 * time.Second` (`api-go@v0.8.0/client.go:39-41`). The replacement must
+set the same timeout explicitly; supplying a bare `&http.Client{}` would silently
+remove the upstream timeout and let a hung API call pin a request indefinitely.
+
 ### Wiring in `NewServerWithCatalog`
 
-The emitter is selected once at construction. See "Activation invariant" below.
+The `Sink` is selected once at construction and handed to the `instrumenter`. See
+"Activation invariant" below.
 
 ## Event schema
 
@@ -134,14 +155,12 @@ One event type, `mcp.tool_call`, emitted once per handler invocation.
 | `user_id` | `sub` claim | hashid |
 | `account_id` | `account_id` claim | hashid, optional |
 | `client_id` | `client_id` claim | OAuth app uid, optional |
-| `project_id` | `project_id` claim | optional |
+| `project_scoped` | presence of `project_id` claim | boolean, not the ID itself |
 | `read_only` | `EffectiveReadOnly(ctx, cfg)` | effective scope, not the startup flag |
-| `upstream_status` | recording RoundTripper | worst status across upstream calls, when any were made |
-| `upstream_ms` | recording RoundTripper | summed time in upstream calls |
+| `upstream_status` | recording RoundTripper | HTTP status from the API, when a call was made |
+| `upstream_ms` | recording RoundTripper | time spent in the upstream call |
 | `server_version` | build version | |
 | `error_id` | notice token | `internal_error` only, omitted when empty |
-| `client_name` / `client_version` | MCP `initialize` | best-effort, often absent |
-| `session_id` | `ClientSessionFromContext` | best-effort, often absent |
 
 ### Argument capture
 
@@ -206,9 +225,9 @@ Two extra fields fall out of the recorder and are worth keeping:
 | `upstream_status` | HTTP status from the API, when a call was made. Makes 429s and 5xx directly visible. |
 | `upstream_ms` | Time spent in the upstream call, so slow tools can be attributed to the API rather than to us. |
 
-A handler may make more than one upstream call. The record keeps the *worst* outcome
-(transport error > 5xx > 4xx > 2xx) and the *sum* of `upstream_ms`, so a partial
-failure is never masked by a later success.
+Every handler makes exactly one upstream call, so no aggregation is needed — see
+"Upstream recorder" for the verification and for the sticky-failure rule that keeps a
+hypothetical future fan-out handler from misclassifying.
 
 ## Identity
 
@@ -222,21 +241,28 @@ The Honeybadger AS mints these claims
 `sub` is `User.encode_id` and `account_id` is `Account.encode_id` — both hashids
 (`hashid-rails`), so those two are already opaque and there is nothing for us to hash.
 
-**`project_id` is the exception: it is emitted raw** (`doorkeeper.rb:126`), with no
-`encode_id`. It is a bare database ID, so the blanket claim "no raw database IDs" does
-not hold. It is still not PII, but it is a different class of identifier from the
-other two, and it is recorded in the spec as such rather than glossed over. If we
-would rather not put raw IDs in the analytics stream at all, dropping the field costs
-us only the scoped-vs-account token split.
+**`project_id` is the exception: the AS emits it raw** (`doorkeeper.rb:126`), with no
+`encode_id`. Rather than put a bare database ID in the analytics stream, we record
+only its *presence* as `project_scoped`. Because the payload is `.compact`ed, presence
+of the claim is exactly the scoped-vs-account distinction — the only thing the field
+was wanted for — so this loses no stated capability while removing the raw-ID
+exception entirely. `Claims` therefore does not carry `ProjectID`.
 
-`client_id` is the OAuth application uid, and identifies the connecting client app
-more reliably than MCP's `initialize` clientInfo — it travels in the token, so it
-survives stateless mode, where clientInfo is empty. It is *not* universal, however:
+`client_id` is the OAuth application uid, and is the sole client dimension. It travels
+in the token, so it survives stateless mode. It is *not* universal, however:
 `opts[:application]&.uid` is safe-navigated and the payload is `.compact`ed
 (`doorkeeper.rb:123,128`), so tokens minted without an application omit it entirely.
-Primary client dimension, but nullable like the rest.
 
-`Claims` gains `Subject`, `AccountID`, `ClientID`, and `ProjectID`.
+**MCP `initialize` clientInfo and `session_id` are deliberately not captured.** The
+hosted server runs stateless by default (`cmd/honeybadger-mcp-server/main.go:72`,
+`--stateless` defaults to `true` and is recommended for horizontal scaling), and
+stateless requests get a fresh session with no persisted client info
+(`mcp-go@v0.55.1/server/streamable_http.go:1587-1595`). Those fields would be empty in
+substantially all production events, so capturing them buys nothing and costs session
+plumbing plus its tests. If the hosted deploy ever moves to stateful and client-name
+breakdown becomes useful, they can be added back cheaply.
+
+`Claims` gains `Subject`, `AccountID`, `ClientID`, and `ProjectScoped`.
 
 **The payload ends in `.compact`**, so `account_id`, `project_id`, and `client_id` are
 genuinely absent on some tokens. Parsing must treat each as optional, and their
@@ -294,7 +320,7 @@ but it is a trade, not a free win.
 | `HONEYBADGER_API_KEY` | Analytics/error destination. Bound via viper alongside the existing `BindEnv` calls (`cmd/honeybadger-mcp-server/main.go:137-147`). |
 | `HONEYBADGER_ENV` | Passed as `Configuration.Env`. The library returns `""` when unset, so we substitute `production` ourselves — staging traffic must not pollute the data. |
 
-`Config` gains `HoneybadgerAPIKey`. When the key is unset, the emitter is `nopEmitter`
+`Config` gains `HoneybadgerAPIKey`. When the key is unset, the sink is `nopSink`
 and startup logs one INFO line stating analytics is off, so a misconfigured deploy is
 visible rather than silently mute.
 
@@ -316,7 +342,7 @@ The transport gate is what actually separates our traffic from theirs, so it is
 specified as a tested invariant:
 
 1. The emitter is real only when `TransportMode == HTTP` **and** the key is non-empty.
-   stdio always gets `nopEmitter`, whatever the key contains.
+   stdio always gets `nopSink`, whatever the key contains.
 2. Package-level `honeybadger.Notify` / `Event` / `Configure` are never referenced.
    Only our own client instance, constructed inside the gate. Note that importing
    honeybadger-go always constructs `DefaultClient` at package-var init
@@ -359,17 +385,16 @@ customer's data to their own project.
 | Area | Approach |
 |---|---|
 | `instrumenter.wrap` | Recording fake emitter; table test over every outcome; argument-name allowlisting, sorting, and `unknown_arg_count`; identity extraction; absent optional claims; panic observed and re-panicked. |
-| Activation invariant | stdio + `HONEYBADGER_API_KEY` set yields `nopEmitter` and constructs no client. |
-| Upstream recorder | `httptest` server returning 200 / 4xx / 5xx / connection failure; assert outcome classification, worst-outcome selection across multiple calls, and summed `upstream_ms`. |
-| `hbEmitter` | honeybadger-go's `Configuration.Backend` is injectable; a fake backend asserts payload shape without network. |
+| Activation invariant | stdio + `HONEYBADGER_API_KEY` set yields `nopSink` and constructs no client. |
+| Upstream recorder | `httptest` server returning 200 / 4xx / 5xx / connection failure; assert outcome classification, sticky failure, and that the replacement client preserves the 30s timeout. |
+| `hbSink` | honeybadger-go's `Configuration.Backend` is injectable; a fake backend asserts payload shape without network. |
 | Claims | Extend `claims_test.go` for the new fields, plus a regression test that a token lacking `account_id` / `client_id` / `project_id` still validates. |
-| Existing suite | Default `nopEmitter` keeps every existing test green without a key. |
+| Existing suite | Default `nopSink` keeps every existing test green without a key. |
 
 ## Open items
 
-One judgment call, deliberately left open: whether to emit `project_id` at all, given
-it is the one identifier the AS does not encode. Dropping it costs only the
-scoped-vs-account token split. Everything else is resolved.
+None. The `project_id` question is resolved by recording `project_scoped` instead of
+the raw ID.
 
 ## Review history
 
@@ -385,7 +410,23 @@ above rather than quietly removed:
   failures as `IsError: true, nil`. This drove the addition of the upstream recorder.
 - `arg_names` was neither cardinality-bounded nor guaranteed PII-free, since argument
   keys are caller-controlled and unvalidated. Hence the schema allowlist.
-- `project_id` is raw, contradicting the original blanket privacy claim.
+- `project_id` is raw, contradicting the original blanket privacy claim. Resolved in
+  the simplification pass by recording `project_scoped` instead.
 - The `sync.Once` emission-failure warning was unimplementable against an async
   worker.
 - Fingerprint grouping was overstated, and its real tradeoff was unstated.
+
+A subsequent simplification pass then cut the following, with no loss against the
+three goals:
+
+- `client_name`, `client_version`, and `session_id` — the hosted server runs stateless
+  by default (`main.go:72`), so all three would be empty in substantially every
+  production event. `client_id` from the JWT carries client attribution instead.
+- The separate `Notifier` interface, merged into `Sink`.
+- Raw `project_id`, replaced by the `project_scoped` boolean.
+- The worst-outcome ranking lattice and `upstream_ms` summing, replaced by a flat
+  record with a sticky-failure rule, after verifying that every handler makes exactly
+  one upstream call.
+
+The pass also surfaced an omission: `WithHTTPClient` replaces api-go's default client
+and would silently drop its 30-second timeout.
