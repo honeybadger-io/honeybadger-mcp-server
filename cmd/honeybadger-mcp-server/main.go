@@ -257,7 +257,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		"log_level", cfg.LogLevel,
 		"api_url", cfg.APIURL)
 
-	mcpServer, toolCatalog := hbmcp.NewServerWithCatalog(cfg, version)
+	mcpServer, toolCatalog, sink := hbmcp.NewServerWithCatalog(cfg, version)
 
 	// Both WithStateLess and WithStateful are no-ops when their arg is false.
 	sessionOpt := server.WithStateLess(true)
@@ -369,6 +369,9 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		if err := mcpHandler.Shutdown(shutdownCtx); err != nil {
 			logger.Error("MCP shutdown error", "error", err)
 		}
+		// Events are batched in a background worker; without this the last
+		// batch is lost on every deploy. No-op when analytics is off.
+		sink.Flush()
 		// End streaming request contexts so Shutdown's drain returns
 		// promptly instead of timing out and TCP-resetting live streams.
 		cancelBase()

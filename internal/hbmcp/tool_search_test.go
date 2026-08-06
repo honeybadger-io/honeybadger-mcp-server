@@ -13,7 +13,7 @@ import (
 
 func TestToolRegistrar_AddTool(t *testing.T) {
 	s := server.NewMCPServer("test", "1.0.0")
-	r := newToolRegistrar(s)
+	r := newToolRegistrar(s, testNopInstrumenter())
 
 	r.AddTool(
 		mcp.NewTool("test_tool",
@@ -43,7 +43,7 @@ func TestToolRegistrar_AddTool(t *testing.T) {
 
 func TestToolRegistrar_AddTool_NonReadOnly(t *testing.T) {
 	s := server.NewMCPServer("test", "1.0.0")
-	r := newToolRegistrar(s)
+	r := newToolRegistrar(s, testNopInstrumenter())
 
 	r.AddTool(
 		mcp.NewTool("write_tool",
@@ -66,7 +66,7 @@ func TestToolRegistrar_AddTool_NonReadOnly(t *testing.T) {
 
 func TestToolRegistrar_MultipleTools(t *testing.T) {
 	s := server.NewMCPServer("test", "1.0.0")
-	r := newToolRegistrar(s)
+	r := newToolRegistrar(s, testNopInstrumenter())
 
 	r.AddTool(
 		mcp.NewTool("tool_a", mcp.WithDescription("Tool A"), mcp.WithReadOnlyHintAnnotation(true)),
@@ -202,7 +202,7 @@ func TestRegisterSearchTool(t *testing.T) {
 	}
 
 	s := server.NewMCPServer("test", "1.0.0")
-	registerSearchTool(s, catalog, &config.Config{ReadOnly: false, TransportMode: config.TransportStdio})
+	registerSearchTool(s, catalog, &config.Config{ReadOnly: false, TransportMode: config.TransportStdio}, testNopInstrumenter())
 
 	// Verify search_tools is registered by calling it through HandleMessage
 	callMsg := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_tools","arguments":{"query":"list"}}}`
@@ -228,7 +228,7 @@ func TestRegisterSearchTool_NoMatches(t *testing.T) {
 	}
 
 	s := server.NewMCPServer("test", "1.0.0")
-	registerSearchTool(s, catalog, &config.Config{ReadOnly: false, TransportMode: config.TransportStdio})
+	registerSearchTool(s, catalog, &config.Config{ReadOnly: false, TransportMode: config.TransportStdio}, testNopInstrumenter())
 
 	callMsg := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_tools","arguments":{"query":"nonexistent"}}}`
 	resp := s.HandleMessage(context.Background(), []byte(callMsg))
@@ -252,7 +252,7 @@ func TestRegisterSearchTool_ReadOnlyMode(t *testing.T) {
 	}
 
 	s := server.NewMCPServer("test", "1.0.0")
-	registerSearchTool(s, catalog, &config.Config{ReadOnly: true, TransportMode: config.TransportStdio})
+	registerSearchTool(s, catalog, &config.Config{ReadOnly: true, TransportMode: config.TransportStdio}, testNopInstrumenter())
 
 	// Search for "project" - should only return read-only tools
 	callMsg := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_tools","arguments":{"query":"project"}}}`

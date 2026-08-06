@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/analytics"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -119,7 +120,7 @@ func TestNewServerWithCatalog(t *testing.T) {
 		LogLevel:  "info",
 	}
 
-	server, catalog := NewServerWithCatalog(cfg, "test")
+	server, catalog, _ := NewServerWithCatalog(cfg, "test")
 	if server == nil {
 		t.Fatal("NewServerWithCatalog returned nil server")
 	}
@@ -326,5 +327,49 @@ func TestFilterReadOnlyTools_SpecificTools(t *testing.T) {
 				t.Errorf("Non-readonly tool should not be in result: %s", nonReadonlyTool)
 			}
 		}
+	}
+}
+
+// The activation gate is the only thing separating our telemetry from a
+// customer's own project: honeybadger-go seeds its DefaultClient from ambient
+// HONEYBADGER_API_KEY, so in stdio a self-hosting customer's key is our
+// configured key. stdio must never get a live sink.
+func TestNewSink_StdioNeverActivates(t *testing.T) {
+	t.Setenv("HONEYBADGER_API_KEY", "a-customers-own-key")
+	cfg := &config.Config{
+		TransportMode:     config.TransportStdio,
+		HoneybadgerAPIKey: "a-customers-own-key",
+	}
+	if sink := newSink(cfg); sink != analytics.NewNopSink() {
+		t.Errorf("stdio produced %T, want the no-op sink", sink)
+	}
+}
+
+func TestNewSink_HTTPWithoutKeyIsNoop(t *testing.T) {
+	cfg := &config.Config{TransportMode: config.TransportHTTP}
+	if sink := newSink(cfg); sink != analytics.NewNopSink() {
+		t.Errorf("http without a key produced %T, want the no-op sink", sink)
+	}
+}
+
+func TestNewSink_HTTPWithKeyActivates(t *testing.T) {
+	cfg := &config.Config{
+		TransportMode:     config.TransportHTTP,
+		HoneybadgerAPIKey: "our-key",
+	}
+	if sink := newSink(cfg); sink == analytics.NewNopSink() {
+		t.Error("http with a key produced the no-op sink, want a live sink")
+	}
+}
+
+func TestNewServerWithCatalog_StdioReturnsNopSink(t *testing.T) {
+	cfg := &config.Config{
+		AuthToken:         "t",
+		TransportMode:     config.TransportStdio,
+		HoneybadgerAPIKey: "a-customers-own-key",
+	}
+	_, _, sink := NewServerWithCatalog(cfg, "test")
+	if sink != analytics.NewNopSink() {
+		t.Errorf("stdio server got %T, want the no-op sink", sink)
 	}
 }

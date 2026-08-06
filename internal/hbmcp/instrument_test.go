@@ -38,6 +38,12 @@ func testInstrumenter(sink analytics.Sink) *instrumenter {
 	return newInstrumenter(sink, &config.Config{TransportMode: config.TransportHTTP}, "1.2.3")
 }
 
+// testNopInstrumenter is for tests that exercise registration but do not care
+// about analytics; wrapping with a no-op sink must be transparent.
+func testNopInstrumenter() *instrumenter {
+	return newInstrumenter(analytics.NewNopSink(), &config.Config{}, "test")
+}
+
 func callWrapped(t *testing.T, sink *recordingSink, args map[string]any, h server.ToolHandlerFunc) analytics.Event {
 	t.Helper()
 	wrapped := testInstrumenter(sink).wrap(testTool(), h)

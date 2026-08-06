@@ -4,6 +4,7 @@ import (
 	"context"
 
 	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/analytics"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/logging"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -33,15 +34,37 @@ func filterReadOnlyTools(tools []mcp.Tool) []mcp.Tool {
 }
 
 func NewServer(cfg *config.Config, version string) *server.MCPServer {
-	s, _ := NewServerWithCatalog(cfg, version)
+	s, _, _ := NewServerWithCatalog(cfg, version)
 	return s
+}
+
+// newSink is the activation gate. Analytics runs only on the hosted HTTP
+// transport with a key we configured. stdio always gets the no-op sink,
+// whatever HONEYBADGER_API_KEY contains — in stdio that key belongs to the
+// customer running the binary, and sending our telemetry to their project
+// would pollute their data and consume their quota.
+func newSink(cfg *config.Config) analytics.Sink {
+	if cfg.TransportMode != config.TransportHTTP || cfg.HoneybadgerAPIKey == "" {
+		return analytics.NewNopSink()
+	}
+	env := cfg.HoneybadgerEnv
+	if env == "" {
+		env = "production"
+	}
+	return analytics.NewHoneybadgerSink(cfg.HoneybadgerAPIKey, env)
 }
 
 // NewServerWithCatalog also returns the full tool catalog (including
 // search_tools) so callers like the HTTP landing page can list the
 // server's tools without an MCP session.
-func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer, []ToolInfo) {
+func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer, []ToolInfo, analytics.Sink) {
 	logger := logging.SetupLogger(cfg.LogLevel)
+
+	sink := newSink(cfg)
+	analyticsOn := sink != analytics.NewNopSink()
+	if !analyticsOn {
+		logger.Info("Usage analytics disabled", "reason", "no HONEYBADGER_API_KEY or non-http transport")
+	}
 
 	hooks := &server.Hooks{}
 	hooks.AddOnRegisterSession(func(ctx context.Context, session server.ClientSession) {
@@ -73,8 +96,9 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 
 	s := server.NewMCPServer("honeybadger-mcp-server", version, serverOptions...)
 
-	clientFor := newClientFactory(cfg)
-	r := newToolRegistrar(s)
+	inst := newInstrumenter(sink, cfg, version)
+	clientFor := newClientFactory(cfg, analyticsOn)
+	r := newToolRegistrar(s, inst)
 	RegisterReferenceTools(r, newReferenceFetcher(cfg.InstructionsURL, logger))
 	RegisterProjectTools(r, clientFor)
 	RegisterFaultTools(r, clientFor)
@@ -83,19 +107,23 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	RegisterDashboardTools(r, clientFor)
 	RegisterAlarmTools(r, clientFor)
 	RegisterCheckInTools(r, clientFor)
-	registerSearchTool(s, r.catalog, cfg)
+	registerSearchTool(s, r.catalog, cfg, inst)
 
-	return s, append(r.catalog, searchToolInfo)
+	return s, append(r.catalog, searchToolInfo), sink
 }
 
-func newClientFactory(cfg *config.Config) ClientFactory {
+func newClientFactory(cfg *config.Config, analyticsOn bool) ClientFactory {
 	if cfg.TransportMode == config.TransportHTTP {
 		// No fallback to cfg.AuthToken — the 401 middleware must catch
 		// bearer-less requests; a fallback would mask that regression.
 		return func(ctx context.Context) *hbapi.Client {
-			return hbapi.NewClient().
+			c := hbapi.NewClient().
 				WithBaseURL(cfg.APIURL).
 				WithBearerToken(AuthTokenFromContext(ctx))
+			if analyticsOn {
+				c = c.WithHTTPClient(newRecordingHTTPClient())
+			}
+			return c
 		}
 	}
 	return func(ctx context.Context) *hbapi.Client {
