@@ -117,3 +117,18 @@ func TestLoad(t *testing.T) {
 		})
 	}
 }
+
+// Analytics is off unless something explicitly turns it on. Load must not
+// pick these up from anywhere; main.go sets them from viper.
+func TestConfig_AnalyticsFieldsDefaultEmpty(t *testing.T) {
+	cfg, err := Load("token", "https://api.example.com", "", "info", false, TransportStdio)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.HoneybadgerAPIKey != "" {
+		t.Errorf("HoneybadgerAPIKey = %q, want empty by default", cfg.HoneybadgerAPIKey)
+	}
+	if cfg.HoneybadgerEnv != "" {
+		t.Errorf("HoneybadgerEnv = %q, want empty by default", cfg.HoneybadgerEnv)
+	}
+}

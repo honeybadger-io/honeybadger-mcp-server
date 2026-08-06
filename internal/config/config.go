@@ -21,6 +21,11 @@ type Config struct {
 	LogLevel        string
 	ReadOnly        bool
 	TransportMode   string
+	// Analytics destination. An empty key disables analytics entirely; see
+	// hbmcp.newSink for the activation gate. Set by the caller after Load
+	// rather than passed in, to avoid an eighth positional parameter.
+	HoneybadgerAPIKey string
+	HoneybadgerEnv    string
 }
 
 func (c *Config) Validate() error {
