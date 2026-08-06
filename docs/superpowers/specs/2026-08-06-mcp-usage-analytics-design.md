@@ -387,7 +387,7 @@ customer's data to their own project.
 | `instrumenter.wrap` | Recording fake emitter; table test over every outcome; argument-name allowlisting, sorting, and `unknown_arg_count`; identity extraction; absent optional claims; panic observed and re-panicked. |
 | Activation invariant | stdio + `HONEYBADGER_API_KEY` set yields `nopSink` and constructs no client. |
 | Upstream recorder | `httptest` server returning 200 / 4xx / 5xx / connection failure; assert outcome classification, sticky failure, and that the replacement client preserves the 30s timeout. |
-| `hbSink` | honeybadger-go's `Configuration.Backend` is injectable; a fake backend asserts payload shape without network. |
+| `hbSink` | Point `Configuration.Endpoint` at an `httptest.Server` with `Sync: true` and assert the posted NDJSON. Note: `Configuration.Backend` is *not* usable for this — `Backend.Event` takes `[]*eventPayload`, an unexported type, so no external package can implement the interface. |
 | Claims | Extend `claims_test.go` for the new fields, plus a regression test that a token lacking `account_id` / `client_id` / `project_id` still validates. |
 | Existing suite | Default `nopSink` keeps every existing test green without a key. |
 
