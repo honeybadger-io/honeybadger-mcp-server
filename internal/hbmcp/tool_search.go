@@ -44,11 +44,20 @@ func normalizeSearchText(s string) string {
 	return searchNormalizer.Replace(strings.ToLower(s))
 }
 
-// searchCatalog matches every whitespace-separated term in query against the
-// tool's name and description combined. All terms must match (AND), in any
-// order; each term is still a substring match, so "project" finds "projects".
+// searchTerms splits a query into the normalized terms it searches for. A
+// query that carries no terms at all — empty, whitespace, or nothing but
+// separators — yields none, which both callers treat as "no query".
+func searchTerms(query string) []string {
+	return strings.Fields(normalizeSearchText(query))
+}
+
+// searchCatalog matches every term in query against the tool's name and
+// description combined. All terms must match (AND), in any order; each term is
+// still a substring match, so "project" finds "projects". A query with no
+// terms matches nothing (it does not mean "every tool"); registerSearchTool
+// rejects such a query before it gets here.
 func searchCatalog(catalog []ToolInfo, query string) []ToolInfo {
-	terms := strings.Fields(normalizeSearchText(query))
+	terms := searchTerms(query)
 	if len(terms) == 0 {
 		return nil
 	}
@@ -92,7 +101,7 @@ func registerSearchTool(s *server.MCPServer, catalog []ToolInfo, cfg *config.Con
 			query := req.GetString("query", "")
 			// Separators normalize to spaces, so a query of "_" carries no
 			// search terms even though it survives TrimSpace.
-			if len(strings.Fields(normalizeSearchText(query))) == 0 {
+			if len(searchTerms(query)) == 0 {
 				return mcp.NewToolResultError("query is required"), nil
 			}
 

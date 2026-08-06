@@ -275,13 +275,17 @@ func TestSearchCatalog_MultiWord(t *testing.T) {
 func TestSearchCatalog_MultiWordAgainstRealCatalog(t *testing.T) {
 	_, catalog := NewServerWithCatalog(&config.Config{TransportMode: config.TransportStdio}, "test")
 
-	cases := map[string]string{
-		"list faults":  "list_faults",
-		"create alarm": "create_alarm",
-		"check in":     "list_check_ins",
+	cases := []struct {
+		query string
+		want  string
+	}{
+		{query: "list faults", want: "list_faults"},
+		{query: "create alarm", want: "create_alarm"},
+		{query: "check in", want: "list_check_ins"},
 	}
 
-	for query, want := range cases {
+	for _, c := range cases {
+		query, want := c.query, c.want
 		results := searchCatalog(catalog, query)
 		found := false
 		for _, r := range results {
@@ -408,13 +412,17 @@ func TestRegisterSearchTool_BlankQueries(t *testing.T) {
 		{Name: "list_projects", Description: "List all Honeybadger projects", ReadOnly: true},
 	}
 
-	queries := map[string]string{
-		"empty":           "",
-		"whitespace only": "   ",
-		"separator only":  "_",
+	queries := []struct {
+		name  string
+		query string
+	}{
+		{name: "empty", query: ""},
+		{name: "whitespace only", query: "   "},
+		{name: "separator only", query: "_"},
 	}
 
-	for name, query := range queries {
+	for _, q := range queries {
+		name, query := q.name, q.query
 		t.Run(name, func(t *testing.T) {
 			s := server.NewMCPServer("test", "1.0.0")
 			registerSearchTool(s, catalog, &config.Config{ReadOnly: false, TransportMode: config.TransportStdio})
