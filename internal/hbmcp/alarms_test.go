@@ -14,7 +14,7 @@ func alarmArgs(args map[string]interface{}) mcp.CallToolRequest { return mcpRequ
 
 func TestHandleListAlarms(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/alarms"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/alarms"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		// Alarms are unpaginated: one call is the whole collection.
@@ -52,7 +52,7 @@ func TestHandleListAlarms_MissingProjectID(t *testing.T) {
 
 func TestHandleGetAlarm(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/alarms/a1"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/alarms/a1"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":{"id":"a1","name":"Error spike","project_id":"Xk9mZp"}}`)
@@ -147,7 +147,7 @@ func TestHandleCreateAlarmRejectsInvalidTriggerJSON(t *testing.T) {
 func TestHandleUpdateAlarmRenames(t *testing.T) {
 	var body map[string]any
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/alarms/a1"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/alarms/a1"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
@@ -220,7 +220,7 @@ func TestHandleDeleteAlarm(t *testing.T) {
 func TestHandleGetAlarmHistory(t *testing.T) {
 	var query string
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/alarms/a1/history"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/alarms/a1/history"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		query = r.URL.RawQuery

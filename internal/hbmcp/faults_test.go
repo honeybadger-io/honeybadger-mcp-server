@@ -18,11 +18,11 @@ func faultArgs(args map[string]interface{}) mcp.CallToolRequest {
 
 func TestHandleListFaults(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/faults"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/faults"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{
-			"data": [{"id":"f1","project_id":"Xk9mZp","klass":"RuntimeError","message":"boom","notices_count":42}],
+			"data": [{"id":1,"project_id":"Xk9mZp","klass":"RuntimeError","message":"boom","notices_count":42}],
 			"pagination": {"page":1,"per_page":25,"total_count":1,"total_pages":1}
 		}`)
 	})
@@ -111,15 +111,15 @@ func TestHandleListFaults_Error(t *testing.T) {
 
 func TestHandleGetFault(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/faults/f1"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/faults/1"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK,
-			`{"data":{"id":"f1","project_id":"Xk9mZp","klass":"RuntimeError","action":null}}`)
+			`{"data":{"id":1,"project_id":"Xk9mZp","klass":"RuntimeError","action":null}}`)
 	})
 
 	result, err := handleGetFault(context.Background(), client,
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "f1"}))
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": 1}))
 	if err != nil {
 		t.Fatalf("handleGetFault() error = %v", err)
 	}
@@ -155,7 +155,7 @@ func TestHandleGetFault_Error(t *testing.T) {
 	})
 
 	result, err := handleGetFault(context.Background(), client,
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "nope"}))
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": 999}))
 	if err != nil {
 		t.Fatalf("handleGetFault() error = %v", err)
 	}
@@ -176,7 +176,7 @@ func TestHandleUpdateFaultResolve(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true,
+		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -184,11 +184,11 @@ func TestHandleUpdateFaultResolve(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-	if len(paths) != 1 || paths[0] != "/v3/accounts/me/projects/Xk9mZp/faults/resolve" {
+	if len(paths) != 1 || paths[0] != "/v3/projects/Xk9mZp/faults/resolve" {
 		t.Errorf("paths = %v", paths)
 	}
 	ids, _ := body["fault_ids"].([]any)
-	if len(ids) != 1 || ids[0] != "f1" {
+	if len(ids) != 1 || ids[0] != float64(1) {
 		t.Errorf("fault_ids = %v", body["fault_ids"])
 	}
 }
@@ -202,14 +202,14 @@ func TestHandleUpdateFaultUnresolveAndUnignore(t *testing.T) {
 	})
 
 	_, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": false, "ignored": false,
+		"project_id": "Xk9mZp", "fault_id": 1, "resolved": false, "ignored": false,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
 	want := []string{
-		"/v3/accounts/me/projects/Xk9mZp/faults/unresolve",
-		"/v3/accounts/me/projects/Xk9mZp/faults/unignore",
+		"/v3/projects/Xk9mZp/faults/unresolve",
+		"/v3/projects/Xk9mZp/faults/unignore",
 	}
 	if len(paths) != 2 || paths[0] != want[0] || paths[1] != want[1] {
 		t.Errorf("paths = %v, want %v", paths, want)
@@ -223,7 +223,7 @@ func TestHandleUpdateFaultBothFlags(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, "ignored": true,
+		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true, "ignored": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -243,7 +243,7 @@ func TestHandleUpdateFaultBothFlags(t *testing.T) {
 func TestHandleUpdateFaultRejectsNonBoolean(t *testing.T) {
 	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
 		faultArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "fault_id": "f1", "resolved": "yes",
+			"project_id": "Xk9mZp", "fault_id": 1, "resolved": "yes",
 		}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -255,7 +255,7 @@ func TestHandleUpdateFaultRejectsNonBoolean(t *testing.T) {
 
 func TestHandleUpdateFault_NoFields(t *testing.T) {
 	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "f1"}))
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": 1}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
@@ -272,7 +272,7 @@ func TestHandleUpdateFault_Error(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true,
+		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -287,7 +287,7 @@ func TestHandleUpdateFault_Error(t *testing.T) {
 
 func TestHandleListFaultNotices(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/faults/f1/notices"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/faults/1/notices"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		if got := r.URL.Query().Get("limit"); got != "5" {
@@ -295,13 +295,13 @@ func TestHandleListFaultNotices(t *testing.T) {
 		}
 		// Notice ids are UUIDs, unlike every other v3 resource.
 		v3JSON(w, http.StatusOK, `{
-			"data":[{"id":"11111111-1111-4111-8111-111111111111","fault_id":"f1","project_id":"Xk9mZp"}],
+			"data":[{"id":"11111111-1111-4111-8111-111111111111","fault_id":1,"project_id":"Xk9mZp"}],
 			"pagination":{"has_older":false,"has_newer":false,"limit":5}
 		}`)
 	})
 
 	result, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": "f1", "limit": 5,
+		"project_id": "Xk9mZp", "fault_id": 1, "limit": 5,
 	}))
 	if err != nil {
 		t.Fatalf("handleListFaultNotices() error = %v", err)
@@ -316,7 +316,7 @@ func TestHandleListFaultNoticesRejectsTimestampFilters(t *testing.T) {
 	for _, field := range []string{"created_after", "created_before"} {
 		result, err := handleListFaultNotices(context.Background(), offlineV3Client(),
 			faultArgs(map[string]interface{}{
-				"project_id": "Xk9mZp", "fault_id": "f1", field: "2026-01-01T00:00:00Z",
+				"project_id": "Xk9mZp", "fault_id": 1, field: "2026-01-01T00:00:00Z",
 			}))
 		if err != nil {
 			t.Fatalf("%s: error = %v", field, err)
@@ -339,14 +339,14 @@ func TestHandleListFaultNotices_MissingIDs(t *testing.T) {
 
 func TestHandleListFaultAffectedUsers(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/faults/f1/affected_users"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/faults/1/affected_users"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":[{"user":"a@example.com","count":3}]}`)
 	})
 
 	result, err := handleListFaultAffectedUsers(context.Background(), client,
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "f1"}))
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": 1}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -374,7 +374,7 @@ func TestHandleGetFaultCounts(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-	if want := "/v3/accounts/me/projects/Xk9mZp/faults/summary"; gotPath != want {
+	if want := "/v3/projects/Xk9mZp/faults/summary"; gotPath != want {
 		t.Errorf("path = %q, want %q", gotPath, want)
 	}
 	if gotQuery != "is:unresolved" {
@@ -456,7 +456,7 @@ func TestHandleUpdateFaultAssigns(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": "f1", "assignee_id": "usr_1",
+		"project_id": "Xk9mZp", "fault_id": 1, "assignee_id": "usr_1",
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -464,7 +464,7 @@ func TestHandleUpdateFaultAssigns(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-	if len(paths) != 1 || paths[0] != "/v3/accounts/me/projects/Xk9mZp/faults/f1/assign" {
+	if len(paths) != 1 || paths[0] != "/v3/projects/Xk9mZp/faults/1/assign" {
 		t.Errorf("paths = %v", paths)
 	}
 	if bodies[0]["assignee_id"] != "usr_1" {
@@ -481,14 +481,14 @@ func TestHandleUpdateFaultUnassignsOnNull(t *testing.T) {
 	})
 
 	if _, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": "f1", "assignee_id": nil,
+		"project_id": "Xk9mZp", "fault_id": 1, "assignee_id": nil,
 	})); err != nil {
 		t.Fatalf("error = %v", err)
 	}
 	if method != http.MethodDelete {
 		t.Errorf("method = %q, want DELETE for an unassign", method)
 	}
-	if path != "/v3/accounts/me/projects/Xk9mZp/faults/f1/assign" {
+	if path != "/v3/projects/Xk9mZp/faults/1/assign" {
 		t.Errorf("path = %q", path)
 	}
 }
@@ -500,11 +500,11 @@ func TestHandleUpdateFaultSendsResolveOnDeploy(t *testing.T) {
 	c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(raw, &body)
-		v3JSON(w, http.StatusOK, `{"data":{"id":"f1","project_id":"Xk9mZp","resolve_on_deploy":true}}`)
+		v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolve_on_deploy":true}}`)
 	})
 
 	result, err := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "fault_id": "f1", "resolve_on_deploy": true,
+		"project_id": "Xk9mZp", "fault_id": 1, "resolve_on_deploy": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault: %v", err)
@@ -522,11 +522,11 @@ func TestHandleUpdateFaultSendsResolveOnDeploy(t *testing.T) {
 // pending resolution that does not exist.
 func TestHandleUpdateFaultReportsDiscardedResolveOnDeploy(t *testing.T) {
 	c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		v3JSON(w, http.StatusOK, `{"data":{"id":"f1","project_id":"Xk9mZp","resolved":true}}`)
+		v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolved":true}}`)
 	})
 
 	result, err := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "fault_id": "f1", "resolve_on_deploy": true,
+		"project_id": "Xk9mZp", "fault_id": 1, "resolve_on_deploy": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault: %v", err)
@@ -550,13 +550,13 @@ func TestHandleUpdateFaultAllowsCoherentResolveOnDeployCombinations(t *testing.T
 	} {
 		c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPatch || r.Method == http.MethodPut {
-				v3JSON(w, http.StatusOK, `{"data":{"id":"f1","project_id":"Xk9mZp","resolve_on_deploy":false}}`)
+				v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolve_on_deploy":false}}`)
 				return
 			}
 			w.WriteHeader(http.StatusOK)
 		})
 
-		full := map[string]any{"project_id": "Xk9mZp", "fault_id": "f1"}
+		full := map[string]any{"project_id": "Xk9mZp", "fault_id": 1}
 		for k, v := range args {
 			full[k] = v
 		}
@@ -575,7 +575,7 @@ func TestHandleUpdateFaultRejectsResolveOnDeployWithResolvedTrue(t *testing.T) {
 	})
 
 	result, _ := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "fault_id": "f1", "resolved": true, "resolve_on_deploy": true,
+		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true, "resolve_on_deploy": true,
 	}))
 	if !result.IsError || !strings.Contains(getResultText(result), "resolve_on_deploy") {
 		t.Errorf("result = %q, want a refusal naming resolve_on_deploy", getResultText(result))
@@ -592,7 +592,7 @@ func TestHandleListFaultAffectedUsersSendsSearch(t *testing.T) {
 
 	if _, err := handleListFaultAffectedUsers(context.Background(), client,
 		faultArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "fault_id": "f1", "q": "alice",
+			"project_id": "Xk9mZp", "fault_id": 1, "q": "alice",
 		})); err != nil {
 		t.Fatalf("error = %v", err)
 	}

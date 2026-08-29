@@ -14,7 +14,7 @@ func checkInArgs(args map[string]interface{}) mcp.CallToolRequest { return mcpRe
 
 func TestHandleListCheckIns(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/check_ins"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/check_ins"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":[{"id":"c1","name":"Nightly","slug":"nightly"}],
@@ -36,7 +36,7 @@ func TestHandleListCheckIns(t *testing.T) {
 
 func TestHandleGetCheckIn(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/check_ins/c1"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/check_ins/c1"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":{"id":"c1","name":"Nightly"}}`)

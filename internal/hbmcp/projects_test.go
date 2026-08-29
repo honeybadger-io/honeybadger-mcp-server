@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"strings"
+"strings"
 	"testing"
 
-	"github.com/honeybadger-io/api-go/apiv2"
-	"github.com/mark3labs/mcp-go/mcp"
+"github.com/mark3labs/mcp-go/mcp"
 )
 
 // getResultText pulls the text out of a tool result. Shared by every tool test.
@@ -34,7 +32,7 @@ func TestHandleListProjects(t *testing.T) {
 			t.Errorf("expected GET, got %s", r.Method)
 		}
 		// No account id given, so the credential's own account is used.
-		if want := "/v3/accounts/me/projects"; r.URL.Path != want {
+		if want := "/v3/projects"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{
@@ -94,79 +92,6 @@ func TestHandleListProjectsOmitsHeavyFields(t *testing.T) {
 	}
 }
 
-func TestHandleListProjects_WithAccountID(t *testing.T) {
-	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/Ab3kL9/projects"; r.URL.Path != want {
-			t.Errorf("path = %q, want %q", r.URL.Path, want)
-		}
-		v3JSON(w, http.StatusOK, `{"data":[]}`)
-	})
-
-	result, err := handleListProjects(context.Background(), client,
-		projectArgs(map[string]interface{}{"account_id": "Ab3kL9"}))
-	if err != nil {
-		t.Fatalf("handleListProjects() error = %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("expected success, got %s", getResultText(result))
-	}
-}
-
-// A credential covering several accounts cannot use the `me` sentinel. The
-// handler must recover by asking which account it belongs to, then retrying.
-func TestHandleListProjectsRecoversFromAmbiguousAccount(t *testing.T) {
-	var paths []string
-	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		paths = append(paths, r.URL.Path)
-		switch r.URL.Path {
-		case "/v3/accounts/me/projects":
-			v3JSON(w, http.StatusUnprocessableEntity,
-				`{"error":{"code":"ambiguous_account","message":"\"me\" is ambiguous"}}`)
-		case "/v3/token":
-			v3JSON(w, http.StatusOK, `{"data":{"kind":"oauth","account_id":"Ab3kL9","scopes":["projects:read"]}}`)
-		case "/v3/accounts/Ab3kL9/projects":
-			v3JSON(w, http.StatusOK, `{"data":[{"id":"Xk9mZp","account_id":"Ab3kL9","name":"P","active":true}]}`)
-		default:
-			t.Errorf("unexpected path %q", r.URL.Path)
-		}
-	})
-
-	result, err := handleListProjects(context.Background(), client, projectArgs(nil))
-	if err != nil {
-		t.Fatalf("handleListProjects() error = %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("expected recovery, got %s", getResultText(result))
-	}
-	if len(paths) != 3 || paths[1] != "/v3/token" {
-		t.Errorf("request sequence = %v, want the ambiguous call, introspection, then a retry", paths)
-	}
-}
-
-// If introspection also fails, the caller must see the original problem rather
-// than a confusing error about the recovery attempt.
-func TestHandleListProjectsReportsOriginalErrorWhenIntrospectionFails(t *testing.T) {
-	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v3/token" {
-			v3JSON(w, http.StatusInternalServerError, `{"error":{"code":"service_unavailable","message":"down"}}`)
-			return
-		}
-		v3JSON(w, http.StatusUnprocessableEntity,
-			`{"error":{"code":"ambiguous_account","message":"\"me\" is ambiguous"}}`)
-	})
-
-	result, err := handleListProjects(context.Background(), client, projectArgs(nil))
-	if err != nil {
-		t.Fatalf("handleListProjects() error = %v", err)
-	}
-	if !result.IsError {
-		t.Fatal("expected an error result")
-	}
-	if !strings.Contains(getResultText(result), "ambiguous_account") {
-		t.Errorf("error = %q, want the original ambiguous_account", getResultText(result))
-	}
-}
-
 func TestHandleListProjects_Error(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		v3JSON(w, http.StatusUnauthorized, `{"error":{"code":"unauthorized","message":"Invalid token"}}`)
@@ -186,7 +111,7 @@ func TestHandleListProjects_Error(t *testing.T) {
 
 func TestHandleGetProject(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"Production","active":true}}`)
@@ -269,7 +194,7 @@ func TestHandleCreateProject_MissingName(t *testing.T) {
 func TestHandleUpdateProject(t *testing.T) {
 	var body map[string]any
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
@@ -305,7 +230,7 @@ func TestHandleDeleteProject(t *testing.T) {
 		if r.Method != http.MethodDelete {
 			t.Errorf("method = %s, want DELETE", r.Method)
 		}
-		if want := "/v3/accounts/me/projects/Xk9mZp"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		// A delete answers 204 with no body.
@@ -343,120 +268,6 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 	// The scope the credential lacks is the actionable part.
 	if !strings.Contains(getResultText(result), "projects:write") {
 		t.Errorf("error should name the missing scope, got %q", getResultText(result))
-	}
-}
-
-func TestHandleGetProjectReport(t *testing.T) {
-	mockResponse := `[["RuntimeError", 8347], ["SocketError", 4651]]`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/reports/notices_by_class" {
-			t.Errorf("expected path /v2/projects/123/reports/notices_by_class, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := apiv2.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": float64(123),
-				"report":     "notices_by_class",
-			},
-		},
-	}
-
-	result, err := handleGetProjectReport(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetProjectReport() error = %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
-	}
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "RuntimeError") {
-		t.Error("Result should contain RuntimeError")
-	}
-}
-
-func TestHandleGetProjectReport_InvalidReport(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"errors": "Invalid report type"}`))
-	}))
-	defer server.Close()
-
-	client := apiv2.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": float64(123),
-				"report":     "invalid_report_type",
-			},
-		},
-	}
-
-	result, err := handleGetProjectReport(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetProjectReport() error = %v", err)
-	}
-	if !result.IsError {
-		t.Fatal("expected error result for invalid report type")
-	}
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to get project report") {
-		t.Error("Error message should contain 'Failed to get project report'")
-	}
-}
-
-func TestHandleGetProjectReport_WithOptions(t *testing.T) {
-	mockResponse := `[["inquiries#create", 2904]]`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v2/projects/456/reports/notices_by_location" {
-			t.Errorf("expected path /v2/projects/456/reports/notices_by_location, got %s", r.URL.Path)
-		}
-		query := r.URL.Query()
-		if query.Get("start") != "2023-01-01T00:00:00Z" {
-			t.Errorf("expected start=2023-01-01T00:00:00Z, got %s", query.Get("start"))
-		}
-		if query.Get("stop") != "2023-01-31T23:59:59Z" {
-			t.Errorf("expected stop=2023-01-31T23:59:59Z, got %s", query.Get("stop"))
-		}
-		if query.Get("environment") != "production" {
-			t.Errorf("expected environment=production, got %s", query.Get("environment"))
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	client := apiv2.NewClient().WithBaseURL(server.URL).WithAuthToken("test-token")
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":  float64(456),
-				"report":      "notices_by_location",
-				"start":       "2023-01-01T00:00:00Z",
-				"stop":        "2023-01-31T23:59:59Z",
-				"environment": "production",
-			},
-		},
-	}
-
-	result, err := handleGetProjectReport(context.Background(), client, req)
-	if err != nil {
-		t.Fatalf("handleGetProjectReport() error = %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
 	}
 }
 

@@ -32,8 +32,8 @@ func TestHandleQueryInsights(t *testing.T) {
 		if r.Method != "POST" {
 			t.Errorf("expected POST method, got %s", r.Method)
 		}
-		if r.URL.Path != "/v3/accounts/me/projects/Xk9mZp/insights/queries" {
-			t.Errorf("expected path /v3/accounts/me/projects/Xk9mZp/insights/queries, got %s", r.URL.Path)
+		if r.URL.Path != "/v3/projects/Xk9mZp/insights/queries" {
+			t.Errorf("expected path /v3/projects/Xk9mZp/insights/queries, got %s", r.URL.Path)
 		}
 		v3JSON(w, http.StatusOK, mockResponse)
 	})

@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/honeybadger-io/api-go/apiv2"
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/logging"
@@ -12,14 +11,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ClientFactory builds a v2 client. Tools still on v2 take this.
-//
-// Temporary: it disappears when every tool has moved to V3ClientFactory. Keeping
-// both lets the migration land tool by tool with the build and tests green,
-// rather than breaking every handler at once.
-type ClientFactory func(ctx context.Context) *apiv2.Client
-
-// V3ClientFactory builds a v3 client. Migrated tools take this.
+// V3ClientFactory builds a v3 client for each request.
 type V3ClientFactory func(ctx context.Context) *apiv3.Client
 
 // EffectiveReadOnly decides whether to hide the writing tools from this request.
@@ -130,40 +122,21 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 
 	s := server.NewMCPServer("honeybadger-mcp-server", version, serverOptions...)
 
-	// Both factories exist until the last four tools have a v3 endpoint to call:
-	// get_fault_counts, get_project_occurrence_counts, get_project_integrations,
-	// and get_project_report. See api-go's openapi/GAPS.md.
-	clientFor := newClientFactory(cfg)
 	v3ClientFor := newV3ClientFactory(cfg)
 	r := newToolRegistrar(s)
 	RegisterReferenceTools(r, newReferenceFetcher(cfg.InstructionsURL, logger))
-	RegisterProjectTools(r, clientFor, v3ClientFor)
+	RegisterProjectTools(r, v3ClientFor)
 	RegisterFaultTools(r, v3ClientFor)
 	RegisterInsightsTools(r, v3ClientFor)
 	RegisterStreamTools(r, v3ClientFor)
-	RegisterDashboardTools(r, clientFor, v3ClientFor)
-	RegisterAlarmTools(r, clientFor, v3ClientFor)
-	RegisterCheckInTools(r, clientFor, v3ClientFor)
+	RegisterDashboardTools(r, v3ClientFor)
+	RegisterAlarmTools(r, v3ClientFor)
+	RegisterCheckInTools(r, v3ClientFor)
+	RegisterIntegrationTools(r, v3ClientFor)
+	RegisterProjectKeyTools(r, v3ClientFor)
 	registerSearchTool(s, r.catalog, cfg)
 
 	return s, append(r.catalog, searchToolInfo)
-}
-
-func newClientFactory(cfg *config.Config) ClientFactory {
-	if cfg.TransportMode == config.TransportHTTP {
-		// No fallback to cfg.AuthToken — the 401 middleware must catch
-		// bearer-less requests; a fallback would mask that regression.
-		return func(ctx context.Context) *apiv2.Client {
-			return apiv2.NewClient().
-				WithBaseURL(cfg.APIURL).
-				WithBearerToken(AuthTokenFromContext(ctx))
-		}
-	}
-	return func(ctx context.Context) *apiv2.Client {
-		return apiv2.NewClient().
-			WithBaseURL(cfg.APIURL).
-			WithAuthToken(cfg.AuthToken)
-	}
 }
 
 // newV3ClientFactory builds the per-request v3 client.

@@ -54,6 +54,16 @@ var toolOperations = map[string][]string{
 	"update_alarm":      {"updateAlarm"},
 	"delete_alarm":      {"deleteAlarm"},
 
+	"get_integration":    {"getIntegration"},
+	"create_integration": {"createIntegration"},
+	"update_integration": {"updateIntegration"},
+	"delete_integration": {"deleteIntegration"},
+
+	"list_project_keys":  {"listProjectKeys"},
+	"create_project_key": {"createProjectKey"},
+	"update_project_key": {"updateProjectKey"},
+	"delete_project_key": {"deleteProjectKey"},
+
 	"query_insights": {"runInsightsQuery"},
 	"list_streams":   {"listStreams"},
 
@@ -66,11 +76,8 @@ var toolOperations = map[string][]string{
 	// pending.
 	"get_fault_counts":              {"getFaultSummary"},
 	"get_project_occurrence_counts": {"getProjectOccurrences", "listAccountOccurrences"},
-	"get_project_integrations":      {"listChannels"},
+	"get_project_integrations":      {"listIntegrations"},
 
-	// The last tool without a v3 endpoint. Mapped to the closest read that does
-	// exist, so a credential holding no project read scope is not offered it.
-	"get_project_report": {"getProjectStats"},
 }
 
 // toolRequiredScopes returns the scopes a tool needs, derived from the spec.

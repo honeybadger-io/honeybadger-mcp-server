@@ -1,8 +1,6 @@
 package hbmcp
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,65 +8,6 @@ import (
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
-
-// withAccount runs an operation, and if v3 refuses because "me" is ambiguous,
-// finds out which account the credential belongs to and runs it again.
-//
-// The answer comes from the request's cached introspection when there is one, so
-// recovery normally costs no extra API call at all.
-//
-// Stateless by construction: the resolved id lives in this call and is gone when
-// it returns. Nothing is cached on the client or carried between requests, which
-// is what a hosted server needs — but it also means a credential covering several
-// accounts pays the extra round trip every time. Passing account_id explicitly avoids
-// it.
-//
-// The whole operation is retried rather than a single request, so a paginated
-// walk resolves once instead of per page.
-func withAccount[T any](
-	ctx context.Context,
-	client *apiv3.Client,
-	requested string,
-	call func(accountID string) (T, error),
-) (T, error) {
-	result, err := call(requested) // "" lets apiv3 send the `me` sentinel
-	if !errors.Is(err, apiv3.ErrAmbiguousAccount) {
-		return result, err
-	}
-
-	// The http middleware has usually already introspected this credential and
-	// cached the result, so prefer that over asking again — otherwise every
-	// ambiguous-account call costs an extra /v3/token round trip that the cache
-	// exists to avoid.
-	if info := TokenInfoFromContext(ctx); info != nil && info.AccountID != "" {
-		return call(info.AccountID)
-	}
-
-	// No cached description: stdio has no middleware to attach one.
-	info, introspectErr := client.Tokens.Get(ctx)
-	if introspectErr != nil || info.AccountID == "" {
-		// Report what the caller asked about, not the recovery attempt.
-		return result, err
-	}
-	return call(info.AccountID)
-}
-
-// inAccount turns an optional account id into request options.
-func inAccount(accountID string) []apiv3.Option {
-	if accountID == "" {
-		return nil
-	}
-	return []apiv3.Option{apiv3.InAccount(accountID)}
-}
-
-// listAllInAccount is inAccount for the ListAll methods, which take the narrower
-// option type.
-func listAllInAccount(accountID string) []apiv3.ListAllOption {
-	if accountID == "" {
-		return nil
-	}
-	return []apiv3.ListAllOption{apiv3.InAccount(accountID)}
-}
 
 func derefInt(v *int) int {
 	if v == nil {
@@ -100,14 +39,14 @@ func rejectStaleSchemaFields(tool string, req mcp.CallToolRequest) string {
 }
 
 // requireProjectAndFault reads the two ids every fault tool needs.
-func requireProjectAndFault(req mcp.CallToolRequest) (projectID, faultID, errMsg string) {
+func requireProjectAndFault(req mcp.CallToolRequest) (projectID string, faultID int, errMsg string) {
 	projectID = req.GetString("project_id", "")
 	if projectID == "" {
-		return "", "", "project_id is required"
+		return "", 0, "project_id is required"
 	}
-	faultID = req.GetString("fault_id", "")
-	if faultID == "" {
-		return "", "", "fault_id is required"
+	faultID = req.GetInt("fault_id", 0)
+	if faultID == 0 {
+		return "", 0, "fault_id is required"
 	}
 	return projectID, faultID, ""
 }

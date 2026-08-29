@@ -11,7 +11,7 @@ import (
 
 // RegisterDashboardTools registers all dashboard-related MCP tools
 // RegisterDashboardTools registers the dashboard tools, all on v3.
-func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V3ClientFactory) {
+func RegisterDashboardTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_dashboards tool
 	r.AddTool(
 		mcp.NewTool("list_dashboards",
@@ -136,10 +136,7 @@ func handleListDashboards(ctx context.Context, client *apiv3.Client, req mcp.Cal
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) ([]apiv3.Dashboard, error) {
-			return client.Dashboards.ListAll(ctx, projectID, listAllInAccount(accountID)...)
-		})
+	response, err := client.Dashboards.ListAll(ctx, projectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list dashboards: %v", err)), nil
 	}
@@ -163,10 +160,7 @@ func handleGetDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallT
 		return mcp.NewToolResultError("dashboard_id is required"), nil
 	}
 
-	dashboard, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Dashboard, error) {
-			return client.Dashboards.Get(ctx, projectID, dashboardID, inAccount(accountID)...)
-		})
+	dashboard, err := client.Dashboards.Get(ctx, projectID, dashboardID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get dashboard: %v", err)), nil
 	}
@@ -215,10 +209,7 @@ func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 		return mcp.NewToolResultError(msg), nil
 	}
 
-	dashboard, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Dashboard, error) {
-			return client.Dashboards.Create(ctx, projectID, params, inAccount(accountID)...)
-		})
+	dashboard, err := client.Dashboards.Create(ctx, projectID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create dashboard: %v", err)), nil
 	}
@@ -256,10 +247,7 @@ func handleUpdateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 				"first with get_dashboard and send its widgets back, changed or unchanged."), nil
 	}
 
-	dashboard, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Dashboard, error) {
-			return client.Dashboards.Update(ctx, projectID, dashboardID, params, inAccount(accountID)...)
-		})
+	dashboard, err := client.Dashboards.Update(ctx, projectID, dashboardID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update dashboard: %v", err)), nil
 	}
@@ -282,10 +270,7 @@ func handleDeleteDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 		return mcp.NewToolResultError("dashboard_id is required"), nil
 	}
 
-	_, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (any, error) {
-			return nil, client.Dashboards.Delete(ctx, projectID, dashboardID, inAccount(accountID)...)
-		})
+	err := client.Dashboards.Delete(ctx, projectID, dashboardID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete dashboard: %v", err)), nil
 	}

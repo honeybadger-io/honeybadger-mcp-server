@@ -86,8 +86,7 @@ func TestToolRequiredScopes(t *testing.T) {
 	}
 }
 
-// Only the tools that genuinely reach no API are scope-free. get_project_report
-// is not one of them — it calls v2, so it needs a read scope like any other read.
+// Only the tools that genuinely reach no API are scope-free.
 func TestScopeFreeToolsAlwaysSurvive(t *testing.T) {
 	tools := []mcp.Tool{{Name: "get_reference"}, {Name: "search_tools"}}
 	kept := filterByScopes(tools, nil)
@@ -101,7 +100,7 @@ func TestScopeFreeToolsAlwaysSurvive(t *testing.T) {
 func TestPendingMigrationToolsStillRequireScopes(t *testing.T) {
 	for _, tool := range []string{
 		"get_fault_counts", "get_project_occurrence_counts",
-		"get_project_report", "get_project_integrations",
+		"get_project_integrations",
 	} {
 		if got, _ := toolRequiredScopes(tool); len(got) == 0 {
 			t.Errorf("%s requires no scope; it reads data and should need one", tool)

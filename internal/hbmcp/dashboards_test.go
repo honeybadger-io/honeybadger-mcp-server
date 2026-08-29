@@ -14,7 +14,7 @@ func dashboardArgs(args map[string]interface{}) mcp.CallToolRequest { return mcp
 
 func TestHandleListDashboards(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/dashboards"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/dashboards"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":[{"id":"d1","title":"Ops","project_id":"Xk9mZp"}],
@@ -36,7 +36,7 @@ func TestHandleListDashboards(t *testing.T) {
 
 func TestHandleGetDashboard(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if want := "/v3/accounts/me/projects/Xk9mZp/dashboards/d1"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/dashboards/d1"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp"}}`)

@@ -65,7 +65,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
 			),
-			mcp.WithString("fault_id",
+			mcp.WithNumber("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to retrieve"),
 			),
@@ -89,7 +89,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
 			),
-			mcp.WithString("fault_id",
+			mcp.WithNumber("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to update"),
 			),
@@ -131,7 +131,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
 			),
-			mcp.WithString("fault_id",
+			mcp.WithNumber("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to get notices for"),
 			),
@@ -163,7 +163,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
 			),
-			mcp.WithString("fault_id",
+			mcp.WithNumber("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to get affected users for"),
 			),
@@ -224,10 +224,7 @@ func handleListFaults(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 		opts = append(opts, apiv3.Page(max(page, 1), perPage))
 	}
 
-	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.ListResponse[apiv3.Fault], error) {
-			return client.Faults.List(ctx, projectID, append(opts, inAccount(accountID)...)...)
-		})
+	response, err := client.Faults.List(ctx, projectID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list faults: %v", err)), nil
 	}
@@ -247,10 +244,7 @@ func handleGetFault(ctx context.Context, client *apiv3.Client, req mcp.CallToolR
 		return mcp.NewToolResultError(msg), nil
 	}
 
-	fault, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Fault, error) {
-			return client.Faults.Get(ctx, projectID, faultID, inAccount(accountID)...)
-		})
+	fault, err := client.Faults.Get(ctx, projectID, faultID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get fault: %v", err)), nil
 	}
@@ -319,65 +313,56 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	applied := map[string]any{"project_id": projectID, "fault_id": faultID}
 	sel := apiv3.SelectFaults(faultID)
 
-	_, err = withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (any, error) {
-			opts := inAccount(accountID)
-			if hasResolved {
-				action := client.Faults.Resolve
-				if !resolved {
-					action = client.Faults.Unresolve
-				}
-				if err := action(ctx, projectID, sel, opts...); err != nil {
-					return nil, err
-				}
-				applied["resolved"] = resolved
+	if hasResolved {
+		action := client.Faults.Resolve
+		if !resolved {
+			action = client.Faults.Unresolve
+		}
+		if err = action(ctx, projectID, sel); err == nil {
+			applied["resolved"] = resolved
+		}
+	}
+	if err == nil && hasIgnored {
+		action := client.Faults.Ignore
+		if !ignored {
+			action = client.Faults.Unignore
+		}
+		if err = action(ctx, projectID, sel); err == nil {
+			applied["ignored"] = ignored
+		}
+	}
+	if err == nil && hasAssignee {
+		if id, ok := assignee.(string); ok && id != "" {
+			if err = client.Faults.Assign(ctx, projectID, faultID, id); err == nil {
+				applied["assignee_id"] = id
 			}
-			if hasIgnored {
-				action := client.Faults.Ignore
-				if !ignored {
-					action = client.Faults.Unignore
-				}
-				if err := action(ctx, projectID, sel, opts...); err != nil {
-					return nil, err
-				}
-				applied["ignored"] = ignored
+		} else {
+			// Null or empty unassigns, through its own endpoint.
+			if err = client.Faults.Unassign(ctx, projectID, faultID); err == nil {
+				applied["assignee_id"] = nil
 			}
-			if hasAssignee {
-				if id, ok := assignee.(string); ok && id != "" {
-					if err := client.Faults.Assign(ctx, projectID, faultID, id, opts...); err != nil {
-						return nil, err
-					}
-					applied["assignee_id"] = id
-				} else {
-					// Null or empty unassigns, through its own endpoint.
-					if err := client.Faults.Unassign(ctx, projectID, faultID, opts...); err != nil {
-						return nil, err
-					}
-					applied["assignee_id"] = nil
-				}
+		}
+	}
+	if err == nil && hasOnDeploy {
+		// Not a fault column but a pending resolution, so it goes through the
+		// fault update endpoint rather than having one of its own.
+		var fault *apiv3.Fault
+		fault, err = client.Faults.Update(ctx, projectID, faultID,
+			apiv3.FaultParams{ResolveOnDeploy: &onDeploy})
+		if err == nil {
+			// The request succeeds even when the value was discarded: a fault that
+			// is already resolved or ignored has no pending resolution to store, and
+			// an inactive project omits the field entirely. Report the echo rather
+			// than the request, so the tool never claims a change that did not
+			// happen.
+			applied["resolve_on_deploy"] = fault.ResolveOnDeploy
+			if fault.ResolveOnDeploy == nil || *fault.ResolveOnDeploy != onDeploy {
+				applied["resolve_on_deploy_note"] = "The API did not store this value. A " +
+					"fault that is already resolved or ignored has no pending resolution to " +
+					"set, and an inactive project does not report the field."
 			}
-			if hasOnDeploy {
-				// Not a fault column but a pending resolution, so it goes through the
-				// fault update endpoint rather than having one of its own.
-				fault, err := client.Faults.Update(ctx, projectID, faultID,
-					apiv3.FaultParams{ResolveOnDeploy: &onDeploy}, opts...)
-				if err != nil {
-					return nil, err
-				}
-				// The request succeeds even when the value was discarded: a fault that
-				// is already resolved or ignored has no pending resolution to store, and
-				// an inactive project omits the field entirely. Report the echo rather
-				// than the request, so the tool never claims a change that did not
-				// happen.
-				applied["resolve_on_deploy"] = fault.ResolveOnDeploy
-				if fault.ResolveOnDeploy == nil || *fault.ResolveOnDeploy != onDeploy {
-					applied["resolve_on_deploy_note"] = "The API did not store this value. A " +
-						"fault that is already resolved or ignored has no pending resolution to " +
-						"set, and an inactive project does not report the field."
-				}
-			}
-			return nil, nil
-		})
+		}
+	}
 	if err != nil {
 		// Each flag is its own request in v3, so the first can succeed and the
 		// second fail. Saying only "failed" would leave the caller believing
@@ -417,10 +402,7 @@ func handleListFaultNotices(ctx context.Context, client *apiv3.Client, req mcp.C
 		opts = append(opts, apiv3.Limit(limit))
 	}
 
-	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.ListResponse[apiv3.Notice], error) {
-			return client.Faults.ListNotices(ctx, projectID, faultID, append(opts, inAccount(accountID)...)...)
-		})
+	response, err := client.Faults.ListNotices(ctx, projectID, faultID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list fault notices: %v", err)), nil
 	}
@@ -443,10 +425,7 @@ func handleListFaultAffectedUsers(ctx context.Context, client *apiv3.Client, req
 		opts = append(opts, apiv3.Search(q))
 	}
 
-	users, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) ([]apiv3.AffectedUser, error) {
-			return client.Faults.AffectedUsers(ctx, projectID, faultID, append(opts, inAccount(accountID)...)...)
-		})
+	users, err := client.Faults.AffectedUsers(ctx, projectID, faultID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list fault affected users: %v", err)), nil
 	}
@@ -472,10 +451,7 @@ func handleGetFaultCounts(ctx context.Context, client *apiv3.Client, req mcp.Cal
 	}
 	opts = append(opts, timeFilters(req)...)
 
-	counts, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (map[string]any, error) {
-			return client.Faults.Summary(ctx, projectID, append(opts, inAccount(accountID)...)...)
-		})
+	counts, err := client.Faults.Summary(ctx, projectID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get fault counts: %v", err)), nil
 	}

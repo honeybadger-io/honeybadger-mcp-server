@@ -35,10 +35,7 @@ func handleListStreams(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	streams, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) ([]apiv3.Stream, error) {
-			return client.Insights.ListAllStreams(ctx, projectID, listAllInAccount(accountID)...)
-		})
+	streams, err := client.Insights.ListAllStreams(ctx, projectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list streams: %v", err)), nil
 	}

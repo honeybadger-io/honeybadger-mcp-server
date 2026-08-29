@@ -36,7 +36,7 @@ func TestHandleListStreams(t *testing.T) {
 		if r.Method != "GET" {
 			t.Errorf("expected GET method, got %s", r.Method)
 		}
-		if want := "/v3/accounts/me/projects/Xk9mZp/streams"; r.URL.Path != want {
+		if want := "/v3/projects/Xk9mZp/streams"; r.URL.Path != want {
 			t.Errorf("expected path %s, got %s", want, r.URL.Path)
 		}
 		v3JSON(w, http.StatusOK, mockResponse)

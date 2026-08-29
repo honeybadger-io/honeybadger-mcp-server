@@ -12,13 +12,7 @@ import (
 )
 
 // RegisterProjectTools registers all project-related MCP tools.
-//
-// Most run on v3. Three still take the v2 client because v3 has no equivalent
-// endpoint yet — occurrence counts, integrations, and reports. They keep numeric
-// project ids for that reason, while the migrated tools take v3's opaque string
-// ids; the inconsistency is visible on purpose rather than papered over with a
-// conversion that could not work.
-func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V3ClientFactory) {
+func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_projects tool
 	r.AddTool(
 		mcp.NewTool("list_projects",
@@ -180,7 +174,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 	r.AddTool(
 		mcp.NewTool("get_project_integrations",
 			mcp.WithTitleAnnotation("Get Project Integrations"),
-			mcp.WithDescription("Get a list of integrations (notification channels) for a Honeybadger project. Returns each channel's type, events, sites and check-ins; the per-integration options and filters v2 reported are not part of the v3 channel model."),
+			mcp.WithDescription("List notification integrations for a Honeybadger project. To interpret integration types and config fields, fetch reference topic: integrations (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id",
@@ -193,37 +187,6 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor
 		},
 	)
 
-	// get_project_report tool
-	r.AddTool(
-		mcp.NewTool("get_project_report",
-			mcp.WithTitleAnnotation("Get Project Report"),
-			mcp.WithDescription("Get report data for a Honeybadger project. NOTE: this tool still runs on the v2 API, which has no v3 equivalent yet, so it needs the legacy numeric project id — not the opaque id list_projects returns. If you do not already have that numeric id, this tool cannot be used."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to get report data for"),
-				mcp.Min(1),
-			),
-			mcp.WithString("report",
-				mcp.Required(),
-				mcp.Description("The type of report to get: 'notices_by_class', 'notices_by_location', 'notices_by_user', or 'notices_per_day'"),
-				mcp.Enum("notices_by_class", "notices_by_location", "notices_by_user", "notices_per_day"),
-			),
-			mcp.WithString("start",
-				mcp.Description("Start date/time in ISO 8601 format for the beginning of the reporting period"),
-			),
-			mcp.WithString("stop",
-				mcp.Description("Stop date/time in ISO 8601 format for the end of the reporting period"),
-			),
-			mcp.WithString("environment",
-				mcp.Description("Optional environment name to filter results"),
-			),
-		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectReport(ctx, clientFor(ctx), req)
-		},
-	)
 }
 
 // projectSummary is a lightweight representation of a project for list results.
@@ -248,12 +211,7 @@ type projectSummaryResponse struct {
 }
 
 func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// account_id is optional: omitted, v3 resolves the account from the
-	// credential. It is only needed for a credential covering several accounts.
-	projects, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) ([]apiv3.Project, error) {
-			return client.Projects.ListAll(ctx, listAllInAccount(accountID)...)
-		})
+	projects, err := client.Projects.ListAll(ctx)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
@@ -296,10 +254,7 @@ func handleGetProject(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 		return mcp.NewToolResultError("id is required"), nil
 	}
 
-	project, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Project, error) {
-			return client.Projects.Get(ctx, id, inAccount(accountID)...)
-		})
+	project, err := client.Projects.Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
@@ -359,10 +314,7 @@ func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	}
 	params := projectParamsFrom(req, name)
 
-	project, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Project, error) {
-			return client.Projects.Create(ctx, params, inAccount(accountID)...)
-		})
+	project, err := client.Projects.Create(ctx, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
@@ -391,10 +343,7 @@ func handleUpdateProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	}
 	params := projectParamsFrom(req, name)
 
-	result, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Project, error) {
-			return client.Projects.Update(ctx, id, params, inAccount(accountID)...)
-		})
+	result, err := client.Projects.Update(ctx, id, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
@@ -414,10 +363,7 @@ func handleDeleteProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 		return mcp.NewToolResultError("id is required"), nil
 	}
 
-	_, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (any, error) {
-			return nil, client.Projects.Delete(ctx, id, inAccount(accountID)...)
-		})
+	err := client.Projects.Delete(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project: %v", err)), nil
 	}
@@ -440,14 +386,16 @@ func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client,
 	// Omitting the project reports across the whole account, which is what v2's
 	// all-projects variant did — though it is account-scoped rather than global,
 	// and returns a series per project rather than one object.
-	counts, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (any, error) {
-			o.AccountID = accountID
-			if projectID == "" {
-				return client.Projects.AccountOccurrences(ctx, o)
-			}
-			return client.Projects.Occurrences(ctx, projectID, o)
-		})
+	o.AccountID = req.GetString("account_id", "")
+	var (
+		counts any
+		err    error
+	)
+	if projectID == "" {
+		counts, err = client.Projects.AccountOccurrences(ctx, o)
+	} else {
+		counts, err = client.Projects.Occurrences(ctx, projectID, o)
+	}
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get occurrence counts: %v", err)), nil
 	}
@@ -459,77 +407,21 @@ func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client,
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// handleGetProjectIntegrations lists a project's notification channels.
-//
-// v2 called these integrations and v3 calls them channels. Treating them as the
-// same thing is an inference rather than a documented equivalence — the shapes
-// match, and v2's own client comment reads "integrations (channels)" — but it has
-// not been confirmed. The alternative was leaving this tool on v2, where it needs
-// a numeric project id nothing can discover any more, so it would not work at all.
 func handleGetProjectIntegrations(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	channels, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) ([]apiv3.Channel, error) {
-			return client.Channels.ListAll(ctx, projectID, listAllInAccount(accountID)...)
-		})
+	integrations, err := client.Integrations.ListAll(ctx, projectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project integrations: %v", err)), nil
 	}
 
-	jsonBytes, err := json.Marshal(channels)
+	jsonBytes, err := json.Marshal(integrations)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectReport(ctx context.Context, client *apiv2.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
-	}
-
-	reportStr := req.GetString("report", "")
-	if reportStr == "" {
-		return mcp.NewToolResultError("report is required"), nil
-	}
-
-	// Convert report type - MCP enum constraint should handle validation
-	var reportType apiv2.ProjectReportType
-	switch reportStr {
-	case "notices_by_class":
-		reportType = apiv2.ProjectNoticesByClass
-	case "notices_by_location":
-		reportType = apiv2.ProjectNoticesByLocation
-	case "notices_by_user":
-		reportType = apiv2.ProjectNoticesByUser
-	case "notices_per_day":
-		reportType = apiv2.ProjectNoticesPerDay
-	default:
-		reportType = apiv2.ProjectReportType(reportStr) // Let the API handle unknown types
-	}
-
-	// Build options struct using typed getters
-	options := apiv2.ProjectGetReportOptions{
-		Start:       parseTimestamp(req.GetString("start", "")),
-		Stop:        parseTimestamp(req.GetString("stop", "")),
-		Environment: req.GetString("environment", ""),
-	}
-
-	report, err := client.Projects.GetReport(ctx, projectID, reportType, options)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project report: %v", err)), nil
-	}
-
-	// Return JSON response
-	jsonBytes, err := json.Marshal(report)
-	if err != nil {
-		return mcp.NewToolResultError("Failed to marshal response"), nil
-	}
-
-	return mcp.NewToolResultText(string(jsonBytes)), nil
-}

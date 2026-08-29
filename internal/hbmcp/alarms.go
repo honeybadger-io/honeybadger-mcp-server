@@ -11,7 +11,7 @@ import (
 
 // RegisterAlarmTools registers all alarm-related MCP tools
 // RegisterAlarmTools registers the alarm tools, all on v3.
-func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V3ClientFactory) {
+func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_alarms tool
 	r.AddTool(
 		mcp.NewTool("list_alarms",
@@ -172,10 +172,7 @@ func handleListAlarms(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.ListResponse[apiv3.Alarm], error) {
-			return client.Alarms.List(ctx, projectID, inAccount(accountID)...)
-		})
+	response, err := client.Alarms.List(ctx, projectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list alarms: %v", err)), nil
 	}
@@ -199,10 +196,7 @@ func handleGetAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolR
 		return mcp.NewToolResultError("alarm_id is required"), nil
 	}
 
-	alarm, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Alarm, error) {
-			return client.Alarms.Get(ctx, projectID, alarmID, inAccount(accountID)...)
-		})
+	alarm, err := client.Alarms.Get(ctx, projectID, alarmID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get alarm: %v", err)), nil
 	}
@@ -272,10 +266,7 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		}
 	}
 
-	alarm, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Alarm, error) {
-			return client.Alarms.Create(ctx, projectID, params, inAccount(accountID)...)
-		})
+	alarm, err := client.Alarms.Create(ctx, projectID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create alarm: %v", err)), nil
 	}
@@ -320,10 +311,7 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		return mcp.NewToolResultError("at least one of name or description is required"), nil
 	}
 
-	alarm, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.Alarm, error) {
-			return client.Alarms.Update(ctx, projectID, alarmID, params, inAccount(accountID)...)
-		})
+	alarm, err := client.Alarms.Update(ctx, projectID, alarmID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update alarm: %v", err)), nil
 	}
@@ -346,10 +334,7 @@ func handleDeleteAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		return mcp.NewToolResultError("alarm_id is required"), nil
 	}
 
-	_, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (any, error) {
-			return nil, client.Alarms.Delete(ctx, projectID, alarmID, inAccount(accountID)...)
-		})
+	err := client.Alarms.Delete(ctx, projectID, alarmID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete alarm: %v", err)), nil
 	}
@@ -388,10 +373,7 @@ func handleGetAlarmHistory(ctx context.Context, client *apiv3.Client, req mcp.Ca
 		page = 1
 	}
 
-	response, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) ([]apiv3.AlarmHistoryEntry, error) {
-			return client.Alarms.ListHistory(ctx, projectID, alarmID, append(opts, inAccount(accountID)...)...)
-		})
+	response, err := client.Alarms.ListHistory(ctx, projectID, alarmID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get alarm history: %v", err)), nil
 	}

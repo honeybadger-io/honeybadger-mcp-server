@@ -11,7 +11,7 @@ import (
 
 // RegisterCheckInTools registers all check-in-related MCP tools
 // RegisterCheckInTools registers the check-in tools, all on v3.
-func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory, v3ClientFor V3ClientFactory) {
+func RegisterCheckInTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_check_ins tool
 	r.AddTool(
 		mcp.NewTool("list_check_ins",
@@ -159,10 +159,7 @@ func handleListCheckIns(ctx context.Context, client *apiv3.Client, req mcp.CallT
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	checkIns, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) ([]apiv3.CheckIn, error) {
-			return client.CheckIns.ListAll(ctx, projectID, listAllInAccount(accountID)...)
-		})
+	checkIns, err := client.CheckIns.ListAll(ctx, projectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list check-ins: %v", err)), nil
 	}
@@ -186,10 +183,7 @@ func handleGetCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
 
-	checkIn, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.CheckIn, error) {
-			return client.CheckIns.Get(ctx, projectID, checkInID, inAccount(accountID)...)
-		})
+	checkIn, err := client.CheckIns.Get(ctx, projectID, checkInID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get check-in: %v", err)), nil
 	}
@@ -230,10 +224,7 @@ func handleCreateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 		return mcp.NewToolResultError("cron_schedule is required when schedule_type is cron"), nil
 	}
 
-	checkIn, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.CheckIn, error) {
-			return client.CheckIns.Create(ctx, projectID, params, inAccount(accountID)...)
-		})
+	checkIn, err := client.CheckIns.Create(ctx, projectID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create check-in: %v", err)), nil
 	}
@@ -264,10 +255,7 @@ func handleUpdateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 				"so the current name must be sent even when changing something else"), nil
 	}
 
-	checkIn, err := withAccount(ctx, client, req.GetString("account_id", ""),
-		func(accountID string) (*apiv3.CheckIn, error) {
-			return client.CheckIns.Update(ctx, projectID, checkInID, params, inAccount(accountID)...)
-		})
+	checkIn, err := client.CheckIns.Update(ctx, projectID, checkInID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update check-in: %v", err)), nil
 	}
