@@ -227,8 +227,8 @@ func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallT
 			FaultCount:           derefInt(p.FaultCount),
 			UnresolvedFaultCount: derefInt(p.UnresolvedFaultCount),
 		}
-		if p.Token != nil {
-			summaries[i].Token = *p.Token
+		if tok, err := p.Token.Get(); err == nil {
+			summaries[i].Token = tok
 		}
 		if p.CreatedAt != nil {
 			summaries[i].CreatedAt = *p.CreatedAt
