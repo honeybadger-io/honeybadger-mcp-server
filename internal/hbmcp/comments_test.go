@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
+	"unicode"
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 func TestListFaultCommentsEmpty(t *testing.T) {
@@ -141,6 +144,52 @@ func TestFaultCommentTools(t *testing.T) {
 							t.Fatalf("result = %+v, err = %v", result, err)
 						}
 					})
+				}
+			}
+		})
+	}
+}
+
+func TestFaultCommentBodySchema(t *testing.T) {
+	s := server.NewMCPServer("test", "test")
+	RegisterCommentTools(newToolRegistrar(s), nil)
+	for _, name := range []string{"create_fault_comment", "update_fault_comment"} {
+		t.Run(name, func(t *testing.T) {
+			tool := s.GetTool(name)
+			if tool == nil {
+				t.Fatal("tool not registered")
+			}
+			prop := tool.Tool.InputSchema.Properties["body"].(map[string]any)
+			pattern, ok := prop["pattern"].(string)
+			if !ok {
+				t.Fatal("body schema must advertise a non-blank pattern")
+			}
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cases := []struct {
+				body  string
+				valid bool
+			}{
+				{"", false},
+				{" \t\n\r ", false},
+				{"\u00a0\u2003\u202f\u3000", false},
+				{"Comment", true},
+				{"  First line\nSecond line  ", true},
+				{"\u00a0Hello\u3000", true},
+				{"\u200b", true},
+				{"\ufeff", true},
+			}
+			for _, tc := range cases {
+				if got := re.MatchString(tc.body); got != tc.valid {
+					t.Errorf("body %q: pattern accepts = %v, want %v", tc.body, got, tc.valid)
+				}
+			}
+			// Cover every whitespace rune recognized by the handler.
+			for r := rune(0); r <= unicode.MaxRune; r++ {
+				if unicode.IsSpace(r) && re.MatchString(string(r)) {
+					t.Errorf("pattern accepts whitespace U+%04X", r)
 				}
 			}
 		})

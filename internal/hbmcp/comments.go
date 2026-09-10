@@ -10,6 +10,11 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// nonBlankCommentPattern requires a character outside the Unicode whitespace set
+// used by strings.TrimSpace. An explicit set avoids differences in \s across
+// JSON Schema clients and Go regular expressions.
+const nonBlankCommentPattern = "[^\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"
+
 // RegisterCommentTools registers all fault-comment-related MCP tools.
 func RegisterCommentTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
@@ -47,7 +52,7 @@ func RegisterCommentTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithInteger("project_id", mcp.Required(), mcp.Description("The ID of the project containing the fault"), mcp.Min(1)),
 			mcp.WithInteger("fault_id", mcp.Required(), mcp.Description("The ID of the fault containing the comments"), mcp.Min(1)),
-			mcp.WithString("body", mcp.Required(), mcp.Description("The comment text (must not be blank)"), mcp.MinLength(1)),
+			mcp.WithString("body", mcp.Required(), mcp.Description("The comment text (must not be blank)"), mcp.MinLength(1), mcp.Pattern(nonBlankCommentPattern)),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleCreateFaultComment(ctx, clientFor(ctx), req)
@@ -62,7 +67,7 @@ func RegisterCommentTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithInteger("project_id", mcp.Required(), mcp.Description("The ID of the project containing the fault"), mcp.Min(1)),
 			mcp.WithInteger("fault_id", mcp.Required(), mcp.Description("The ID of the fault containing the comments"), mcp.Min(1)),
 			mcp.WithInteger("comment_id", mcp.Required(), mcp.Description("The ID of the comment"), mcp.Min(1)),
-			mcp.WithString("body", mcp.Required(), mcp.Description("The comment text (must not be blank)"), mcp.MinLength(1)),
+			mcp.WithString("body", mcp.Required(), mcp.Description("The comment text (must not be blank)"), mcp.MinLength(1), mcp.Pattern(nonBlankCommentPattern)),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateFaultComment(ctx, clientFor(ctx), req)
