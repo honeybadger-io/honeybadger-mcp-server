@@ -307,6 +307,35 @@ read-only: true
   - `fault_id` : The ID of the fault to get affected users for (number, required)
   - `q` : Search string to filter affected users (string, optional)
 
+### Fault Comments
+
+- **list_fault_comments** - List comments on a fault. Returns the first page of comments; pagination is not currently supported.
+  - `project_id` : The ID of the project containing the fault (integer, required)
+  - `fault_id` : The ID of the fault (integer, required)
+
+- **get_fault_comment** - Get a single comment on a fault by ID.
+  - `project_id` : The ID of the project containing the fault (integer, required)
+  - `fault_id` : The ID of the fault (integer, required)
+  - `comment_id` : The ID of the comment (integer, required)
+
+- **create_fault_comment** - Add a comment to a fault.
+  - `project_id` : The ID of the project containing the fault (integer, required)
+  - `fault_id` : The ID of the fault (integer, required)
+  - `body` : Non-blank comment text (string, required)
+
+- **update_fault_comment** - Replace the body of an existing fault comment.
+  - `project_id` : The ID of the project containing the fault (integer, required)
+  - `fault_id` : The ID of the fault (integer, required)
+  - `comment_id` : The ID of the comment (integer, required)
+  - `body` : Non-blank comment text (string, required)
+
+- **delete_fault_comment** - Delete an existing comment from a fault.
+  - `project_id` : The ID of the project containing the fault (integer, required)
+  - `fault_id` : The ID of the fault (integer, required)
+  - `comment_id` : The ID of the comment (integer, required)
+
+Creating, updating, and deleting comments require write access (`--read-only=false` in stdio mode or the `write` scope in HTTP mode).
+
 ### Insights
 
 - **query_insights** - Execute a BadgerQL query against Insights data
