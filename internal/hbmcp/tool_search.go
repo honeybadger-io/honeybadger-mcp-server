@@ -36,12 +36,43 @@ func (r *toolRegistrar) AddTool(tool mcp.Tool, handler server.ToolHandlerFunc) {
 	})
 }
 
+// searchNormalizer folds the separators used in tool names ("list_faults") and
+// in prose ("check-in") down to spaces so a query typed either way matches.
+var searchNormalizer = strings.NewReplacer("_", " ", "-", " ")
+
+func normalizeSearchText(s string) string {
+	return searchNormalizer.Replace(strings.ToLower(s))
+}
+
+// searchTerms splits a query into the normalized terms it searches for. A
+// query that carries no terms at all — empty, whitespace, or nothing but
+// separators — yields none, which both callers treat as "no query".
+func searchTerms(query string) []string {
+	return strings.Fields(normalizeSearchText(query))
+}
+
+// searchCatalog matches every term in query against the tool's name and
+// description combined. All terms must match (AND), in any order; each term is
+// still a substring match, so "project" finds "projects". A query with no
+// terms matches nothing (it does not mean "every tool"); registerSearchTool
+// rejects such a query before it gets here.
 func searchCatalog(catalog []ToolInfo, query string) []ToolInfo {
-	q := strings.ToLower(query)
+	terms := searchTerms(query)
+	if len(terms) == 0 {
+		return nil
+	}
+
 	var results []ToolInfo
 	for _, t := range catalog {
-		if strings.Contains(strings.ToLower(t.Name), q) ||
-			strings.Contains(strings.ToLower(t.Description), q) {
+		haystack := normalizeSearchText(t.Name + " " + t.Description)
+		matched := true
+		for _, term := range terms {
+			if !strings.Contains(haystack, term) {
+				matched = false
+				break
+			}
+		}
+		if matched {
 			results = append(results, t)
 		}
 	}
@@ -50,7 +81,7 @@ func searchCatalog(catalog []ToolInfo, query string) []ToolInfo {
 
 var searchToolInfo = ToolInfo{
 	Name:        "search_tools",
-	Description: "Search available Honeybadger tools by name or description. Use this to discover tools before calling them.",
+	Description: "Search available Honeybadger tools by name or description. Multi-word queries match tools containing all of the words, in any order. Use this to discover tools before calling them.",
 	ReadOnly:    true,
 }
 
@@ -63,12 +94,14 @@ func registerSearchTool(s *server.MCPServer, catalog []ToolInfo, cfg *config.Con
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("query",
 				mcp.Required(),
-				mcp.Description("Search query to match against tool names and descriptions"),
+				mcp.Description("Search query to match against tool names and descriptions. Multiple words are all required, in any order (e.g. \"list faults\")"),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			query := strings.TrimSpace(req.GetString("query", ""))
-			if query == "" {
+			query := req.GetString("query", "")
+			// Separators normalize to spaces, so a query of "_" carries no
+			// search terms even though it survives TrimSpace.
+			if len(searchTerms(query)) == 0 {
 				return mcp.NewToolResultError("query is required"), nil
 			}
 

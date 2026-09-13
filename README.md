@@ -3,7 +3,57 @@
 An MCP (Model Context Protocol) server for [Honeybadger](https://www.honeybadger.io), providing structured
 access to Honeybadger's API through the MCP protocol.
 
+## Hosted server
+
+The quickest way to connect your AI assistant to Honeybadger is our hosted MCP server. There's nothing to
+install and no API token to manage — your client authorizes in the browser the first time it connects.
+
+| Region       | Endpoint                            |
+| ------------ | ----------------------------------- |
+| US (default) | `https://mcp.honeybadger.io/mcp`    |
+| EU           | `https://eu-mcp.honeybadger.io/mcp` |
+
+Each endpoint only accepts accounts from its own region. See [data residency](https://docs.honeybadger.io/resources/data-residency/)
+if you're not sure which one you're on. The examples below use the US endpoint — swap in the EU one if that's
+where your account lives.
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http honeybadger "https://mcp.honeybadger.io/mcp"
+```
+
+**Cursor, Windsurf, and Claude Desktop** — put this in `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`,
+or your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "honeybadger": {
+      "url": "https://mcp.honeybadger.io/mcp"
+    }
+  }
+}
+```
+
+**VS Code:**
+
+```bash
+code --add-mcp '{"name":"honeybadger","type":"http","url":"https://mcp.honeybadger.io/mcp"}'
+```
+
+When you authorize, you choose which account to grant access to and whether the connection gets read-write or
+read-only access. Read-only connections have the write tools filtered out entirely.
+
+- **Setup and authorization docs:** https://docs.honeybadger.io/resources/mcp/
+- **Live list of the hosted server's tools:** https://mcp.honeybadger.io
+- **Tool parameters:** [documented below](#tools)
+
 ## Installation
+
+Prefer to run the server yourself? The rest of this README covers the self-hosted binary and Docker image,
+which connect over stdio with a personal auth token. If the hosted server above works for you, you can stop
+reading here.
 
 First, pull the Docker image:
 
@@ -451,7 +501,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 ### Tool Search
 
 - **search_tools** - Search available Honeybadger tools by name or description. Use this to discover tools before calling them. In read-only mode, only read-only tools are returned.
-  - `query` : Search query to match against tool names and descriptions (string, required)
+  - `query` : Search query to match against tool names and descriptions (string, required). Multi-word queries return the tools matching _all_ of the words, in any order, and underscores and hyphens are treated as spaces — so `list faults`, `faults list`, and `list_faults` all find `list_faults`. Each word is matched as a substring, so `project` also matches `projects`.
 
 ## Development
 
