@@ -6,6 +6,8 @@ APIGO_DIR ?= ../api-go
 HONEYBADGER_URL ?= https://app.honeybadger.io
 DOCS_URL        ?= https://docs.honeybadger.io
 MCP_NAME       ?= honeybadger-dev
+# user scope makes the server visible to Claude Code in every directory.
+MCP_SCOPE      ?= user
 MCP_PORT       ?= 9090
 MCP_PUBLIC_URL ?= http://localhost:$(MCP_PORT)
 MCP_URL        ?= $(MCP_PUBLIC_URL)/mcp
@@ -31,10 +33,10 @@ docker-run:
 # Register the locally-running http host with Claude Code (uses OAuth against
 # whatever MCP_AUTHORIZATION_SERVER_URL the container was started with).
 claude-mcp-add:
-	claude mcp add --transport http $(MCP_NAME) $(MCP_URL)
+	claude mcp add --scope $(MCP_SCOPE) --transport http $(MCP_NAME) $(MCP_URL)
 
 claude-mcp-remove:
-	claude mcp remove $(MCP_NAME)
+	claude mcp remove --scope $(MCP_SCOPE) $(MCP_NAME)
 
 # Image with release dependencies, as the production pipeline builds it.
 docker:
