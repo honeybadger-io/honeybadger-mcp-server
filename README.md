@@ -213,6 +213,8 @@ read-only: true
 
 ## Tools
 
+Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller.
+
 ### Reference
 
 - **get_reference** - Returns Honeybadger reference documentation for LLMs, organized into non-overlapping topics: `badgerql` (query language), `queries` (Insights query fundamentals), `charts` (visualization views, `chart_config`), `dashboards` (widget schema, grid layout), `alarms` (`trigger_config` schema, states, patterns), and `errors` (fault/notice model, error search syntax). Topics are fetched from the [docs site](https://docs.honeybadger.io/resources/llms/instructions/) and cached in memory. Tool descriptions declare which topics they require.
@@ -248,6 +250,7 @@ read-only: true
 
 - **delete_project** - Delete a Honeybadger project _(requires `read-only=false`)_
   - `id` : The ID of the project to delete (number, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 - **get_project_occurrence_counts** - Get occurrence counts for all projects or a specific project
   - `project_id` : Project ID to get occurrence counts for a specific project (number, optional)
@@ -333,6 +336,7 @@ read-only: true
   - `project_id` : The ID of the project containing the fault (integer, required)
   - `fault_id` : The ID of the fault (integer, required)
   - `comment_id` : The ID of the comment (integer, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 Creating, updating, and deleting comments require write access (`--read-only=false` in stdio mode or the `write` scope in HTTP mode).
 
@@ -375,6 +379,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 - **delete_dashboard** - Delete an Insights dashboard _(requires `read-only=false`)_
   - `project_id` : The ID of the project the dashboard belongs to (number, required)
   - `dashboard_id` : The ID of the dashboard to delete (string, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 ### Alarms
 
@@ -409,6 +414,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 - **delete_alarm** - Delete an Insights alarm _(requires `read-only=false`)_
   - `project_id` : The ID of the project the alarm belongs to (number, required)
   - `alarm_id` : The ID of the alarm to delete (string, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 - **get_alarm_history** - Get the trigger history for an Insights alarm
   - `project_id` : The ID of the project the alarm belongs to (number, required)
@@ -447,6 +453,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 - **delete_check_in** - Delete a check-in and its reporting history _(requires `read-only=false`)_
   - `project_id` : The ID of the project the check-in belongs to (number, required)
   - `check_in_id` : The ID of the check-in to delete (string, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 ### Tool Search
 

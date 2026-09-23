@@ -278,6 +278,7 @@ func TestHandleDeleteDashboard(t *testing.T) {
 			Arguments: map[string]interface{}{
 				"project_id":   123,
 				"dashboard_id": "abc123",
+				"confirm":      validConfirm("delete_dashboard", 123, "abc123"),
 			},
 		},
 	}

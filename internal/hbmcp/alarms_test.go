@@ -302,6 +302,7 @@ func TestHandleDeleteAlarm(t *testing.T) {
 			Arguments: map[string]interface{}{
 				"project_id": 123,
 				"alarm_id":   "abc123",
+				"confirm":    validConfirm("delete_alarm", 123, "abc123"),
 			},
 		},
 	}

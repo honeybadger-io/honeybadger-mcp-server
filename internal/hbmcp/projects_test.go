@@ -714,7 +714,8 @@ func TestHandleDeleteProject(t *testing.T) {
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Arguments: map[string]interface{}{
-				"id": 123,
+				"id":      123,
+				"confirm": validConfirm("delete_project", 123),
 			},
 		},
 	}
@@ -758,7 +759,8 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Arguments: map[string]interface{}{
-				"id": 999,
+				"id":      999,
+				"confirm": validConfirm("delete_project", 999),
 			},
 		},
 	}

@@ -317,6 +317,7 @@ func TestHandleDeleteCheckIn(t *testing.T) {
 			Arguments: map[string]interface{}{
 				"project_id":  123,
 				"check_in_id": "abc123",
+				"confirm":     validConfirm("delete_check_in", 123, "abc123"),
 			},
 		},
 	}

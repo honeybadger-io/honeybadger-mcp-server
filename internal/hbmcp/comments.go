@@ -76,12 +76,13 @@ func RegisterCommentTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_fault_comment",
 			mcp.WithTitleAnnotation("Delete Fault Comment"),
-			mcp.WithDescription("Delete an existing comment from a fault."),
+			mcp.WithDescription("Delete an existing comment from a fault."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithInteger("project_id", mcp.Required(), mcp.Description("The ID of the project containing the fault"), mcp.Min(1)),
 			mcp.WithInteger("fault_id", mcp.Required(), mcp.Description("The ID of the fault containing the comments"), mcp.Min(1)),
 			mcp.WithInteger("comment_id", mcp.Required(), mcp.Description("The ID of the comment"), mcp.Min(1)),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteFaultComment(ctx, clientFor(ctx), req)
@@ -198,6 +199,14 @@ func handleDeleteFaultComment(ctx context.Context, client *hbapi.Client, req mcp
 	commentID, ok := requireID(args, "comment_id")
 	if !ok {
 		return mcp.NewToolResultError("comment_id must be a positive integer"), nil
+	}
+	if !deletionConfirmed(ctx, req, "delete_fault_comment", projectID, faultID, commentID) {
+		comment, err := client.Comments.Get(ctx, projectID, faultID, commentID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up fault comment: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete comment %d by %s on fault %d: %q", commentID, comment.Author, faultID, excerpt(comment.Body, 80))
+		return deletionPreview(ctx, req, "delete_fault_comment", summary, projectID, faultID, commentID), nil
 	}
 	err := client.Comments.Delete(ctx, projectID, faultID, commentID)
 	if err != nil {

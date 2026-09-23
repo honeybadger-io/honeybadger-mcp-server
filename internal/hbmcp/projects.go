@@ -134,7 +134,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_project",
 			mcp.WithTitleAnnotation("Delete Project"),
-			mcp.WithDescription("Delete a Honeybadger project"),
+			mcp.WithDescription("Delete a Honeybadger project and all of its data."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("id",
@@ -142,6 +142,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 				mcp.Description("The ID of the project to delete"),
 				mcp.Min(1),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteProject(ctx, clientFor(ctx), req)
@@ -401,9 +402,18 @@ func handleUpdateProject(ctx context.Context, client *hbapi.Client, req mcp.Call
 }
 
 func handleDeleteProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id := req.GetInt("id", 0)
-	if id == 0 {
-		return mcp.NewToolResultError("id is required"), nil
+	id, ok := requireID(req.GetArguments(), "id")
+	if !ok {
+		return mcp.NewToolResultError("id must be a positive integer"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_project", id) {
+		project, err := client.Projects.Get(ctx, id)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up project: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete project %q (id %d) and all of its data", project.Name, id)
+		return deletionPreview(ctx, req, "delete_project", summary, id), nil
 	}
 
 	result, err := client.Projects.Delete(ctx, id)
