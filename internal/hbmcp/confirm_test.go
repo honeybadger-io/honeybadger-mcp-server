@@ -12,63 +12,81 @@ import (
 	"time"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/confirmtoken"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // validConfirm mints the token a stdio caller would receive from a preview.
 func validConfirm(tool string, ids ...any) string {
-	return mintConfirmToken(processConfirmKey, tool, ids, time.Now().Add(confirmTTL))
+	return processSigner.Mint("", tool, ids, time.Now())
 }
 
-func TestConfirmToken(t *testing.T) {
-	key := []byte("caller-token")
-	now := time.Now()
-	good := mintConfirmToken(key, "delete_project", []any{123}, now.Add(confirmTTL))
+var confirmTokenPattern = regexp.MustCompile(`confirm set to "([^"]+)"`)
 
-	if !validConfirmToken(key, good, "delete_project", []any{123}, now) {
-		t.Fatal("freshly minted token rejected")
-	}
+// fakeAPI answers every GET with a resource named "Thing" and counts requests.
+type fakeAPI struct {
+	*httptest.Server
+	mu      sync.Mutex
+	gets    int
+	deletes int
+}
 
-	exp, mac, _ := strings.Cut(good, ".")
-	rejects := map[string]struct {
-		key   []byte
-		token string
-		tool  string
-		ids   []any
-		now   time.Time
-	}{
-		"expired":       {key, good, "delete_project", []any{123}, now.Add(confirmTTL + time.Second)},
-		"other tool":    {key, good, "delete_dashboard", []any{123}, now},
-		"other id":      {key, good, "delete_project", []any{124}, now},
-		"other caller":  {[]byte("someone-else"), good, "delete_project", []any{123}, now},
-		"extended exp":  {key, "zzzzzzz." + mac, "delete_project", []any{123}, now},
-		"tampered mac":  {key, exp + "." + strings.Repeat("A", len(mac)), "delete_project", []any{123}, now},
-		"no separator":  {key, exp + mac, "delete_project", []any{123}, now},
-		"garbage":       {key, "not-a-token", "delete_project", []any{123}, now},
-		"id split move": {key, mintConfirmToken(key, "delete_fault_comment", []any{1, 23, 4}, now.Add(time.Minute)), "delete_fault_comment", []any{12, 3, 4}, now},
-	}
-	for name, tc := range rejects {
-		t.Run(name, func(t *testing.T) {
-			if validConfirmToken(tc.key, tc.token, tc.tool, tc.ids, tc.now) {
-				t.Error("token accepted")
-			}
-		})
+func newFakeAPI(t *testing.T) *fakeAPI {
+	f := &fakeAPI{}
+	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if r.Method == http.MethodDelete {
+			f.deletes++
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		f.gets++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"Thing","title":"Thing","author":"Thing","body":"Looked into it"}`))
+	}))
+	t.Cleanup(f.Close)
+	return f
+}
+
+func (f *fakeAPI) counts() (gets, deletes int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.gets, f.deletes
+}
+
+func rpc(t *testing.T, s *server.MCPServer, ctx context.Context, method string, params, out any) {
+	t.Helper()
+	msg, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+	resp, _ := json.Marshal(s.HandleMessage(ctx, msg))
+	if err := json.Unmarshal(resp, out); err != nil {
+		t.Fatalf("%s: %v", method, err)
 	}
 }
 
-func TestConfirmKeyBindsHTTPCaller(t *testing.T) {
-	alice := WithAuthToken(context.Background(), "alice-token")
-	bob := WithAuthToken(context.Background(), "bob-token")
-	token := mintConfirmToken(confirmKey(alice), "delete_project", []any{1}, time.Now().Add(time.Minute))
+func callTool(t *testing.T, s *server.MCPServer, ctx context.Context, name string, args map[string]any) (text string, isError bool) {
+	t.Helper()
+	var out struct {
+		Result struct {
+			IsError bool `json:"isError"`
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	rpc(t, s, ctx, "tools/call", map[string]any{"name": name, "arguments": args}, &out)
+	if len(out.Result.Content) == 0 {
+		t.Fatalf("%s returned no content", name)
+	}
+	return out.Result.Content[0].Text, out.Result.IsError
+}
 
-	if !validConfirmToken(confirmKey(alice), token, "delete_project", []any{1}, time.Now()) {
-		t.Fatal("token rejected for the caller it was minted for")
+func withArg(args map[string]any, key string, value any) map[string]any {
+	out := map[string]any{key: value}
+	for k, v := range args {
+		out[k] = v
 	}
-	if validConfirmToken(confirmKey(bob), token, "delete_project", []any{1}, time.Now()) {
-		t.Error("token accepted for a different caller")
-	}
-	if validConfirmToken(confirmKey(context.Background()), token, "delete_project", []any{1}, time.Now()) {
-		t.Error("http token accepted by the stdio key")
-	}
+	return out
 }
 
 // Every delete_* tool must go through deletionConfirmed/deletionPreview. A new
@@ -82,59 +100,14 @@ func TestDeleteToolsRequireConfirmation(t *testing.T) {
 		"delete_fault_comment": {"project_id": 123, "fault_id": 456, "comment_id": 789},
 	}
 
-	var mu sync.Mutex
-	deletes := 0
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete {
-			mu.Lock()
-			deletes++
-			mu.Unlock()
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"name":"Thing","title":"Thing","author":"Ann","body":"Looked into it"}`))
-	}))
-	defer api.Close()
-
+	api := newFakeAPI(t)
 	s := NewServer(&config.Config{
 		AuthToken:     "test-token",
 		APIURL:        api.URL,
 		LogLevel:      "error",
 		TransportMode: config.TransportStdio,
 	}, "test")
-
-	rpc := func(t *testing.T, method string, params any, out any) {
-		t.Helper()
-		msg, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
-		resp, _ := json.Marshal(s.HandleMessage(context.Background(), msg))
-		if err := json.Unmarshal(resp, out); err != nil {
-			t.Fatalf("%s: %v", method, err)
-		}
-	}
-	type callResult struct {
-		Result struct {
-			IsError bool `json:"isError"`
-			Content []struct {
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"result"`
-	}
-	call := func(t *testing.T, name string, args map[string]any) (string, bool) {
-		t.Helper()
-		var out callResult
-		rpc(t, "tools/call", map[string]any{"name": name, "arguments": args}, &out)
-		if len(out.Result.Content) == 0 {
-			t.Fatalf("%s returned no content", name)
-		}
-		return out.Result.Content[0].Text, out.Result.IsError
-	}
-	deleteCount := func() int {
-		mu.Lock()
-		defer mu.Unlock()
-		return deletes
-	}
-	tokenPattern := regexp.MustCompile(`confirm set to "([^"]+)"`)
+	ctx := context.Background()
 
 	var list struct {
 		Result struct {
@@ -146,7 +119,7 @@ func TestDeleteToolsRequireConfirmation(t *testing.T) {
 			} `json:"tools"`
 		} `json:"result"`
 	}
-	rpc(t, "tools/list", map[string]any{}, &list)
+	rpc(t, s, ctx, "tools/list", map[string]any{}, &list)
 
 	seen := 0
 	for _, tool := range list.Result.Tools {
@@ -162,37 +135,84 @@ func TestDeleteToolsRequireConfirmation(t *testing.T) {
 			if !ok {
 				t.Fatal("add this tool to deleteToolArgs")
 			}
-			before := deleteCount()
+			gets0, deletes0 := api.counts()
 
-			text, isErr := call(t, tool.Name, args)
-			if isErr || !strings.HasPrefix(text, "Not deleted.") || deleteCount() != before {
-				t.Fatalf("unconfirmed call must preview without deleting; isError=%v deletes=%d text=%q", isErr, deleteCount()-before, text)
+			text, isErr := callTool(t, s, ctx, tool.Name, args)
+			gets, deletes := api.counts()
+			if isErr || !strings.HasPrefix(text, "Not deleted.") || deletes != deletes0 {
+				t.Fatalf("unconfirmed call must preview without deleting; isError=%v deletes=%d text=%q", isErr, deletes-deletes0, text)
 			}
-			m := tokenPattern.FindStringSubmatch(text)
+			if gets != gets0+1 || !strings.Contains(text, "Thing") {
+				t.Fatalf("preview must describe the looked-up resource; gets=%d text=%q", gets-gets0, text)
+			}
+			m := confirmTokenPattern.FindStringSubmatch(text)
 			if m == nil {
 				t.Fatalf("preview has no token: %q", text)
 			}
 
-			bad := map[string]any{"confirm": "bogus"}
-			for k, v := range args {
-				bad[k] = v
-			}
-			text, _ = call(t, tool.Name, bad)
-			if !strings.Contains(text, "invalid or expired") || deleteCount() != before {
-				t.Fatalf("bad token must not delete; deletes=%d text=%q", deleteCount()-before, text)
+			text, _ = callTool(t, s, ctx, tool.Name, withArg(args, "confirm", "bogus"))
+			if _, deletes = api.counts(); !strings.Contains(text, "invalid or expired") || deletes != deletes0 {
+				t.Fatalf("bad token must not delete; deletes=%d text=%q", deletes-deletes0, text)
 			}
 
-			good := map[string]any{"confirm": m[1]}
-			for k, v := range args {
-				good[k] = v
-			}
-			text, isErr = call(t, tool.Name, good)
-			if isErr || deleteCount() != before+1 {
-				t.Fatalf("confirmed call must delete once; isError=%v deletes=%d text=%q", isErr, deleteCount()-before, text)
+			gets0, _ = api.counts()
+			text, isErr = callTool(t, s, ctx, tool.Name, withArg(args, "confirm", m[1]))
+			gets, deletes = api.counts()
+			if isErr || deletes != deletes0+1 || gets != gets0 {
+				t.Fatalf("confirmed call must delete once without a lookup; isError=%v deletes=%d gets=%d text=%q", isErr, deletes-deletes0, gets-gets0, text)
 			}
 		})
 	}
 	if seen != len(deleteToolArgs) {
 		t.Errorf("found %d delete_* tools, deleteToolArgs lists %d", seen, len(deleteToolArgs))
 	}
+}
+
+func TestHTTPDeleteConfirmation(t *testing.T) {
+	api := newFakeAPI(t)
+	s := NewServer(&config.Config{
+		APIURL:        api.URL,
+		LogLevel:      "error",
+		TransportMode: config.TransportHTTP,
+		ConfirmSecret: "0123456789abcdef0123456789abcdef",
+	}, "test")
+	caller := func(bearer, subject string) context.Context {
+		ctx := WithAuthToken(context.Background(), bearer)
+		return WithClaims(ctx, &Claims{Subject: subject, Scopes: []string{"write"}})
+	}
+	args := map[string]any{"project_id": 123, "check_in_id": "chk1"}
+	ids := []any{123, "chk1"}
+	deletesSince := func(before int) int {
+		_, d := api.counts()
+		return d - before
+	}
+
+	t.Run("client-minted token", func(t *testing.T) {
+		_, before := api.counts()
+		forged := confirmtoken.New([]byte("alice-bearer")).Mint("alice", "delete_check_in", ids, time.Now())
+		if text, _ := callTool(t, s, caller("alice-bearer", "alice"), "delete_check_in", withArg(args, "confirm", forged)); deletesSince(before) != 0 {
+			t.Fatalf("token signed with the caller's bearer deleted: %q", text)
+		}
+	})
+
+	text, _ := callTool(t, s, caller("alice-bearer", "alice"), "delete_check_in", args)
+	m := confirmTokenPattern.FindStringSubmatch(text)
+	if m == nil {
+		t.Fatalf("preview has no token: %q", text)
+	}
+
+	t.Run("other caller", func(t *testing.T) {
+		_, before := api.counts()
+		if text, _ := callTool(t, s, caller("bob-bearer", "bob"), "delete_check_in", withArg(args, "confirm", m[1])); deletesSince(before) != 0 {
+			t.Fatalf("alice's token deleted for bob: %q", text)
+		}
+	})
+
+	t.Run("refreshed bearer", func(t *testing.T) {
+		_, before := api.counts()
+		text, isErr := callTool(t, s, caller("alice-refreshed-bearer", "alice"), "delete_check_in", withArg(args, "confirm", m[1]))
+		if isErr || deletesSince(before) != 1 {
+			t.Fatalf("token rejected after alice's bearer refreshed: %q", text)
+		}
+	})
 }

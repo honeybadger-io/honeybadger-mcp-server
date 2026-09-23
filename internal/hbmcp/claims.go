@@ -10,7 +10,8 @@ import (
 const tokenPrefix = "hbo_"
 
 type Claims struct {
-	Scopes []string
+	Subject string
+	Scopes  []string
 }
 
 func (c *Claims) HasScope(scope string) bool {
@@ -47,5 +48,6 @@ func ParseAccessToken(raw string, keyfunc jwt.Keyfunc, expectedIssuer, expectedA
 	}
 	mc, _ := tok.Claims.(jwt.MapClaims)
 	scope, _ := mc["scope"].(string)
-	return &Claims{Scopes: strings.Fields(scope)}, nil
+	sub, _ := mc.GetSubject()
+	return &Claims{Subject: sub, Scopes: strings.Fields(scope)}, nil
 }

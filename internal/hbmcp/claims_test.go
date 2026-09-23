@@ -39,11 +39,16 @@ func baseClaims() jwt.MapClaims {
 
 func TestParseAccessToken_Success(t *testing.T) {
 	key, kf := testKey(t)
-	raw := signedToken(t, key, baseClaims())
+	claims := baseClaims()
+	claims["sub"] = "42"
+	raw := signedToken(t, key, claims)
 
 	got, err := ParseAccessToken(raw, kf, "http://localhost:3001", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Subject != "42" {
+		t.Errorf("Subject = %q, want 42", got.Subject)
 	}
 	if !got.HasScope("read") || !got.HasScope("write") {
 		t.Errorf("Scopes = %v", got.Scopes)
