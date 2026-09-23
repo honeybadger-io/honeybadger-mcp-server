@@ -166,6 +166,7 @@ And then configure your MCP client to run the server directly:
 | `LOG_LEVEL`                       | no       | info                       | Log verbosity (debug, info, warn, error)                                |
 | `HONEYBADGER_API_URL`             | no       | https://app.honeybadger.io | Override the base URL for Honeybadger's API                             |
 | `HONEYBADGER_INSTRUCTIONS_URL`    | no       | https://docs.honeybadger.io/resources/llms/instructions | Override the base URL the LLM reference topics are fetched from |
+| `MCP_CONFIRM_SECRET`              | HTTP mode only | —                    | Signs delete confirmation tokens. At least 32 characters, and identical on every instance behind a load balancer. The server won't start in HTTP mode without it; stdio mode doesn't use it |
 
 **Important**: The server runs in **read-only mode by default** for security. This means only read operations (like `list_projects`, `get_project`, `list_faults`) are available. Write operations such as `create_project`, `update_project`, and `delete_project` are excluded to prevent accidental modifications.
 

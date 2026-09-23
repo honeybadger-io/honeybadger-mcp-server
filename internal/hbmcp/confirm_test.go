@@ -82,10 +82,11 @@ func callTool(t *testing.T, s *server.MCPServer, ctx context.Context, name strin
 }
 
 func withArg(args map[string]any, key string, value any) map[string]any {
-	out := map[string]any{key: value}
+	out := make(map[string]any, len(args)+1)
 	for k, v := range args {
 		out[k] = v
 	}
+	out[key] = value
 	return out
 }
 
@@ -136,6 +137,17 @@ func TestDeleteToolsRequireConfirmation(t *testing.T) {
 				t.Fatal("add this tool to deleteToolArgs")
 			}
 			gets0, deletes0 := api.counts()
+
+			// A truncated 123.9 would preview and delete a different resource.
+			for key, value := range args {
+				if _, numeric := value.(int); !numeric {
+					continue
+				}
+				text, isErr := callTool(t, s, ctx, tool.Name, withArg(args, key, 123.9))
+				if gets, deletes := api.counts(); !isErr || gets != gets0 || deletes != deletes0 {
+					t.Fatalf("fractional %s must be rejected before any API call; isError=%v text=%q", key, isErr, text)
+				}
+			}
 
 			text, isErr := callTool(t, s, ctx, tool.Name, args)
 			gets, deletes := api.counts()

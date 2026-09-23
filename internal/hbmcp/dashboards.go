@@ -266,9 +266,9 @@ func handleUpdateDashboard(ctx context.Context, client *hbapi.Client, req mcp.Ca
 }
 
 func handleDeleteDashboard(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
+	projectID, ok := requireID(req.GetArguments(), "project_id")
+	if !ok {
+		return mcp.NewToolResultError("project_id must be a positive integer"), nil
 	}
 
 	dashboardID := req.GetString("dashboard_id", "")

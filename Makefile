@@ -8,6 +8,9 @@ DOCS_URL        ?= https://docs.honeybadger.io
 MCP_NAME       ?= honeybadger-dev
 # Local-only value; production must share a real secret across replicas.
 MCP_CONFIRM_SECRET ?= local-dev-confirm-secret-not-for-production
+# Exported so docker-run passes it by name, keeping the value out of the
+# command line and away from shell interpolation.
+export MCP_CONFIRM_SECRET
 # user scope makes the server visible to Claude Code in every directory.
 MCP_SCOPE      ?= user
 MCP_PORT       ?= 9090
@@ -29,7 +32,7 @@ docker-run:
 		-e MCP_ADDRESS=:$(MCP_PORT) \
 		-e MCP_PUBLIC_URL=$(MCP_PUBLIC_URL) \
 		-e MCP_AUTHORIZATION_SERVER_URL=$(HONEYBADGER_URL) \
-		-e MCP_CONFIRM_SECRET=$(MCP_CONFIRM_SECRET) \
+		-e MCP_CONFIRM_SECRET \
 		-e LOG_LEVEL=debug \
 		$(IMAGE):$(TAG) http
 
