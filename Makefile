@@ -6,11 +6,6 @@ APIGO_DIR ?= ../api-go
 HONEYBADGER_URL ?= https://app.honeybadger.io
 DOCS_URL        ?= https://docs.honeybadger.io
 MCP_NAME       ?= honeybadger-dev
-# Local-only value; production must share a real secret across replicas.
-MCP_CONFIRM_SECRET ?= local-dev-confirm-secret-not-for-production
-# Exported so docker-run passes it by name, keeping the value out of the
-# command line and away from shell interpolation.
-export MCP_CONFIRM_SECRET
 # user scope makes the server visible to Claude Code in every directory.
 MCP_SCOPE      ?= user
 MCP_PORT       ?= 9090
@@ -25,7 +20,11 @@ build:
 test:
 	go test ./...
 
+# A single container needs no shared secret, so an unset MCP_CONFIRM_SECRET
+# gets a fresh random one per run; a known default would let any caller forge
+# delete confirmations. Passed by name to keep the value off the command line.
 docker-run:
+	MCP_CONFIRM_SECRET="$${MCP_CONFIRM_SECRET:-$$(openssl rand -hex 32)}" \
 	docker run --rm --network=host \
 		-e HONEYBADGER_API_URL=$(HONEYBADGER_URL) \
 		-e HONEYBADGER_INSTRUCTIONS_URL=$(DOCS_URL)/resources/llms/instructions \
