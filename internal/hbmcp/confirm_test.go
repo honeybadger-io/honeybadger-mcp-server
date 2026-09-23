@@ -182,11 +182,12 @@ func TestDeleteToolsRequireConfirmation(t *testing.T) {
 
 func TestHTTPDeleteConfirmation(t *testing.T) {
 	api := newFakeAPI(t)
+	const secret = "0123456789abcdef0123456789abcdef"
 	s := NewServer(&config.Config{
 		APIURL:        api.URL,
 		LogLevel:      "error",
 		TransportMode: config.TransportHTTP,
-		ConfirmSecret: "0123456789abcdef0123456789abcdef",
+		ConfirmSecret: secret,
 	}, "test")
 	caller := func(bearer, subject string) context.Context {
 		ctx := WithAuthToken(context.Background(), bearer)
@@ -204,6 +205,23 @@ func TestHTTPDeleteConfirmation(t *testing.T) {
 		forged := confirmtoken.New([]byte("alice-bearer")).Mint("alice", "delete_check_in", ids, time.Now())
 		if text, _ := callTool(t, s, caller("alice-bearer", "alice"), "delete_check_in", withArg(args, "confirm", forged)); deletesSince(before) != 0 {
 			t.Fatalf("token signed with the caller's bearer deleted: %q", text)
+		}
+	})
+
+	t.Run("per-process key", func(t *testing.T) {
+		_, before := api.counts()
+		stdio := processSigner.Mint("alice", "delete_check_in", ids, time.Now())
+		if text, _ := callTool(t, s, caller("alice-bearer", "alice"), "delete_check_in", withArg(args, "confirm", stdio)); deletesSince(before) != 0 {
+			t.Fatalf("http mode accepted a token not signed with MCP_CONFIRM_SECRET: %q", text)
+		}
+	})
+
+	t.Run("minted by another replica", func(t *testing.T) {
+		_, before := api.counts()
+		replica := confirmtoken.New([]byte(secret)).Mint("alice", "delete_check_in", ids, time.Now())
+		text, isErr := callTool(t, s, caller("alice-bearer", "alice"), "delete_check_in", withArg(args, "confirm", replica))
+		if isErr || deletesSince(before) != 1 {
+			t.Fatalf("token signed with the shared secret rejected: %q", text)
 		}
 	})
 

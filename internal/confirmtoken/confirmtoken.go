@@ -15,6 +15,9 @@ import (
 
 const TTL = 10 * time.Minute
 
+// Lets a replica whose clock trails the issuer's accept a fresh token.
+const clockSkew = 30 * time.Second
+
 // Signer's key must be unknown to callers: a key they hold, such as their
 // own bearer token, would let them mint a token without the preview.
 type Signer struct {
@@ -44,7 +47,7 @@ func (s *Signer) Valid(token, caller, action string, ids []any, now time.Time) b
 		return false
 	}
 	unix, err := strconv.ParseInt(exp, 36, 64)
-	if err != nil || now.Unix() >= unix || unix > now.Add(TTL).Unix() {
+	if err != nil || now.Unix() >= unix || unix > now.Add(TTL+clockSkew).Unix() {
 		return false
 	}
 	return hmac.Equal([]byte(mac), []byte(s.mac(caller, action, ids, exp)))

@@ -53,6 +53,19 @@ func TestValid(t *testing.T) {
 	}
 }
 
+func TestValidToleratesClockSkew(t *testing.T) {
+	s := New([]byte("server-secret"))
+	issued := time.Now()
+	token := s.Mint("alice", "delete_project", []any{1}, issued)
+
+	if !s.Valid(token, "alice", "delete_project", []any{1}, issued.Add(-clockSkew+time.Second)) {
+		t.Error("rejected by a verifier whose clock trails the issuer within the skew allowance")
+	}
+	if s.Valid(token, "alice", "delete_project", []any{1}, issued.Add(-clockSkew-time.Second)) {
+		t.Error("accepted by a verifier trailing beyond the skew allowance")
+	}
+}
+
 func TestNewRandomKeysDiffer(t *testing.T) {
 	now := time.Now()
 	token := NewRandom().Mint("", "delete_project", []any{1}, now)

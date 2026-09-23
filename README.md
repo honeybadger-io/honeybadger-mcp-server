@@ -214,7 +214,7 @@ read-only: true
 
 ## Tools
 
-Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller.
+Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller. Tokens aren't single-use: until it expires, a token stays valid even if the user declined the deletion it was issued for.
 
 ### Reference
 
