@@ -117,7 +117,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_dashboard",
 			mcp.WithTitleAnnotation("Delete Dashboard"),
-			mcp.WithDescription("Delete an Insights dashboard"),
+			mcp.WithDescription("Delete an Insights dashboard."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",
@@ -129,6 +129,7 @@ func RegisterDashboardTools(r *toolRegistrar, clientFor ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the dashboard to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteDashboard(ctx, clientFor(ctx), req)
@@ -265,14 +266,23 @@ func handleUpdateDashboard(ctx context.Context, client *hbapi.Client, req mcp.Ca
 }
 
 func handleDeleteDashboard(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
+	projectID, ok := requireID(req.GetArguments(), "project_id")
+	if !ok {
+		return mcp.NewToolResultError("project_id must be a positive integer"), nil
 	}
 
 	dashboardID := req.GetString("dashboard_id", "")
 	if dashboardID == "" {
 		return mcp.NewToolResultError("dashboard_id is required"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_dashboard", projectID, dashboardID) {
+		dashboard, err := client.Dashboards.Get(ctx, projectID, dashboardID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up dashboard: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete dashboard %q (id %s) from project %d", dashboard.Title, dashboardID, projectID)
+		return deletionPreview(ctx, req, "delete_dashboard", summary, projectID, dashboardID), nil
 	}
 
 	result, err := client.Dashboards.Delete(ctx, projectID, dashboardID)

@@ -63,6 +63,9 @@ func TestFaultCommentTools(t *testing.T) {
 			if tc.hasBody {
 				args["body"] = body
 			}
+			if tc.name == "delete" {
+				args["confirm"] = validConfirm("delete_fault_comment", 123, 456, 789)
+			}
 			path := "/v2/projects/123/faults/456/comments"
 			if tc.commentID {
 				path += "/789"

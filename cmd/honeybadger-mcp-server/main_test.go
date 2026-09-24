@@ -65,6 +65,23 @@ func TestRunHTTPRejectsReservedEndpointPaths(t *testing.T) {
 	}
 }
 
+func TestRunHTTPRequiresConfirmSecret(t *testing.T) {
+	for name, secret := range map[string]string{"missing": "", "short": "too-short"} {
+		t.Run(name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			viper.Set("public-url", "https://mcp.example.com")
+			viper.Set("authorization-server", "https://as.example.com")
+			viper.Set("confirm-secret", secret)
+
+			err := runHTTP(httpCmd, nil)
+			if err == nil || !strings.Contains(err.Error(), "MCP_CONFIRM_SECRET") {
+				t.Errorf("expected confirm-secret rejection, got: %v", err)
+			}
+		})
+	}
+}
+
 func TestRunHTTPAllowsDefaultReadOnly(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)

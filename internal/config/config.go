@@ -21,6 +21,7 @@ type Config struct {
 	LogLevel        string
 	ReadOnly        bool
 	TransportMode   string
+	ConfirmSecret   string
 }
 
 func (c *Config) Validate() error {

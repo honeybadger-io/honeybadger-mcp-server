@@ -32,6 +32,7 @@ func baseClaims() jwt.MapClaims {
 	now := time.Now().Unix()
 	return jwt.MapClaims{
 		"iss":   "http://localhost:3001",
+		"sub":   "42",
 		"exp":   now + 60,
 		"scope": "read write",
 	}
@@ -45,11 +46,31 @@ func TestParseAccessToken_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if got.Subject != "42" {
+		t.Errorf("Subject = %q, want 42", got.Subject)
+	}
 	if !got.HasScope("read") || !got.HasScope("write") {
 		t.Errorf("Scopes = %v", got.Scopes)
 	}
 	if got.HasScope("admin") {
 		t.Errorf("unexpected admin scope")
+	}
+}
+
+func TestParseAccessToken_RequiresSubject(t *testing.T) {
+	key, kf := testKey(t)
+	for name, sub := range map[string]any{"missing": nil, "empty": "", "non-string": 42} {
+		t.Run(name, func(t *testing.T) {
+			c := baseClaims()
+			if sub == nil {
+				delete(c, "sub")
+			} else {
+				c["sub"] = sub
+			}
+			if _, err := ParseAccessToken(signedToken(t, key, c), kf, "", ""); err == nil {
+				t.Fatal("expected rejection of token without a usable sub")
+			}
+		})
 	}
 }
 

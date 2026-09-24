@@ -6,6 +6,8 @@ APIGO_DIR ?= ../api-go
 HONEYBADGER_URL ?= https://app.honeybadger.io
 DOCS_URL        ?= https://docs.honeybadger.io
 MCP_NAME       ?= honeybadger-dev
+# user scope makes the server visible to Claude Code in every directory.
+MCP_SCOPE      ?= user
 MCP_PORT       ?= 9090
 MCP_PUBLIC_URL ?= http://localhost:$(MCP_PORT)
 MCP_URL        ?= $(MCP_PUBLIC_URL)/mcp
@@ -18,23 +20,28 @@ build:
 test:
 	go test ./...
 
+# A single container needs no shared secret, so an unset MCP_CONFIRM_SECRET
+# gets a fresh random one per run; a known default would let any caller forge
+# delete confirmations. Passed by name to keep the value off the command line.
 docker-run:
+	MCP_CONFIRM_SECRET="$${MCP_CONFIRM_SECRET:-$$(openssl rand -hex 32)}" \
 	docker run --rm --network=host \
 		-e HONEYBADGER_API_URL=$(HONEYBADGER_URL) \
 		-e HONEYBADGER_INSTRUCTIONS_URL=$(DOCS_URL)/resources/llms/instructions \
 		-e MCP_ADDRESS=:$(MCP_PORT) \
 		-e MCP_PUBLIC_URL=$(MCP_PUBLIC_URL) \
 		-e MCP_AUTHORIZATION_SERVER_URL=$(HONEYBADGER_URL) \
+		-e MCP_CONFIRM_SECRET \
 		-e LOG_LEVEL=debug \
 		$(IMAGE):$(TAG) http
 
 # Register the locally-running http host with Claude Code (uses OAuth against
 # whatever MCP_AUTHORIZATION_SERVER_URL the container was started with).
 claude-mcp-add:
-	claude mcp add --transport http $(MCP_NAME) $(MCP_URL)
+	claude mcp add --scope $(MCP_SCOPE) --transport http $(MCP_NAME) $(MCP_URL)
 
 claude-mcp-remove:
-	claude mcp remove $(MCP_NAME)
+	claude mcp remove --scope $(MCP_SCOPE) $(MCP_NAME)
 
 # Image with release dependencies, as the production pipeline builds it.
 docker:

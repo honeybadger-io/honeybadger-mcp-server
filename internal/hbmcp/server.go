@@ -5,6 +5,7 @@ import (
 
 	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/confirmtoken"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/logging"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -63,6 +64,14 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 		server.WithLogging(),
 		server.WithRecovery(),
 		server.WithHooks(hooks),
+	}
+	if cfg.ConfirmSecret != "" {
+		signer := confirmtoken.New([]byte(cfg.ConfirmSecret))
+		serverOptions = append(serverOptions, server.WithToolHandlerMiddleware(func(next server.ToolHandlerFunc) server.ToolHandlerFunc {
+			return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return next(withConfirmSigner(ctx, signer), req)
+			}
+		}))
 	}
 	serverOptions = append(serverOptions, server.WithToolFilter(func(ctx context.Context, tools []mcp.Tool) []mcp.Tool {
 		if EffectiveReadOnly(ctx, cfg) {

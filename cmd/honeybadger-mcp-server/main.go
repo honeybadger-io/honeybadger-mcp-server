@@ -145,6 +145,7 @@ func initConfig() {
 	_ = viper.BindEnv("public-url", "MCP_PUBLIC_URL")
 	_ = viper.BindEnv("authorization-server", "MCP_AUTHORIZATION_SERVER_URL")
 	_ = viper.BindEnv("resource-url", "MCP_RESOURCE_URL")
+	_ = viper.BindEnv("confirm-secret", "MCP_CONFIRM_SECRET")
 
 	// Read config file if it exists
 	if err := viper.ReadInConfig(); err == nil {
@@ -234,6 +235,12 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	resourceURL, err := httptransport.ValidateResourceURL(resource)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
+	}
+	// Signs delete confirmation tokens, so every replica must share it; a
+	// per-process fallback would reject tokens minted by another replica.
+	cfg.ConfirmSecret = viper.GetString("confirm-secret")
+	if len(cfg.ConfirmSecret) < 32 {
+		return errors.New("configuration error: MCP_CONFIRM_SECRET must be at least 32 characters in http mode, identical on every replica")
 	}
 
 	logger := logging.SetupLogger(cfg.LogLevel)

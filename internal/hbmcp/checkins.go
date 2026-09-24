@@ -137,7 +137,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_check_in",
 			mcp.WithTitleAnnotation("Delete Check-In"),
-			mcp.WithDescription("Delete a check-in. This also deletes the check-in's reporting history."),
+			mcp.WithDescription("Delete a check-in. This also deletes the check-in's reporting history."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",
@@ -149,6 +149,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the check-in to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteCheckIn(ctx, clientFor(ctx), req)
@@ -298,14 +299,23 @@ func handleUpdateCheckIn(ctx context.Context, client *hbapi.Client, req mcp.Call
 }
 
 func handleDeleteCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
+	projectID, ok := requireID(req.GetArguments(), "project_id")
+	if !ok {
+		return mcp.NewToolResultError("project_id must be a positive integer"), nil
 	}
 
 	checkInID := req.GetString("check_in_id", "")
 	if checkInID == "" {
 		return mcp.NewToolResultError("check_in_id is required"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_check_in", projectID, checkInID) {
+		checkIn, err := client.CheckIns.Get(ctx, projectID, checkInID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up check-in: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete check-in %q (id %s) from project %d, along with its reporting history", checkIn.Name, checkInID, projectID)
+		return deletionPreview(ctx, req, "delete_check_in", summary, projectID, checkInID), nil
 	}
 
 	if err := client.CheckIns.Delete(ctx, projectID, checkInID); err != nil {

@@ -147,7 +147,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_alarm",
 			mcp.WithTitleAnnotation("Delete Alarm"),
-			mcp.WithDescription("Delete an Insights alarm."),
+			mcp.WithDescription("Delete an Insights alarm."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithNumber("project_id",
@@ -159,6 +159,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the alarm to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteAlarm(ctx, clientFor(ctx), req)
@@ -376,14 +377,23 @@ func handleUpdateAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallTo
 }
 
 func handleDeleteAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
+	projectID, ok := requireID(req.GetArguments(), "project_id")
+	if !ok {
+		return mcp.NewToolResultError("project_id must be a positive integer"), nil
 	}
 
 	alarmID := req.GetString("alarm_id", "")
 	if alarmID == "" {
 		return mcp.NewToolResultError("alarm_id is required"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_alarm", projectID, alarmID) {
+		alarm, err := client.Alarms.Get(ctx, projectID, alarmID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up alarm: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete alarm %q (id %s) from project %d", alarm.Name, alarmID, projectID)
+		return deletionPreview(ctx, req, "delete_alarm", summary, projectID, alarmID), nil
 	}
 
 	result, err := client.Alarms.Delete(ctx, projectID, alarmID)
