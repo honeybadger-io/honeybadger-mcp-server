@@ -54,11 +54,15 @@ type referenceFetcher struct {
 	flights map[string]chan struct{}
 }
 
-func newReferenceFetcher(baseURL string, logger *slog.Logger) *referenceFetcher {
+// transport may be nil, which yields http.DefaultTransport. The hosted server
+// passes a recording transport so a docs-site outage is classified as an
+// outage rather than as a caller error — this fetcher does not go through
+// api-go, so it would otherwise never populate the upstream record.
+func newReferenceFetcher(baseURL string, logger *slog.Logger, transport http.RoundTripper) *referenceFetcher {
 	return &referenceFetcher{
 		baseURL: strings.TrimSuffix(baseURL, "/"),
 		ttl:     5 * time.Minute,
-		client:  &http.Client{Timeout: 5 * time.Second},
+		client:  &http.Client{Timeout: 5 * time.Second, Transport: transport},
 		logger:  logger,
 		entries: make(map[string]*cacheEntry),
 		flights: make(map[string]chan struct{}),

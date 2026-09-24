@@ -103,7 +103,7 @@ func loadConfigFromFlags(cmd *cobra.Command, transportMode string) (*config.Conf
 	if cmd.Flags().Changed("read-only") {
 		readOnly, _ = cmd.Flags().GetBool("read-only")
 	}
-	return config.Load(
+	cfg, err := config.Load(
 		viper.GetString("auth-token"),
 		viper.GetString("api-url"),
 		viper.GetString("instructions-url"),
@@ -111,6 +111,12 @@ func loadConfigFromFlags(cmd *cobra.Command, transportMode string) (*config.Conf
 		readOnly,
 		transportMode,
 	)
+	if err != nil {
+		return nil, err
+	}
+	cfg.HoneybadgerAPIKey = viper.GetString("honeybadger-api-key")
+	cfg.HoneybadgerEnv = viper.GetString("honeybadger-env")
+	return cfg, nil
 }
 
 func initConfig() {
@@ -139,6 +145,8 @@ func initConfig() {
 	_ = viper.BindEnv("instructions-url", "HONEYBADGER_INSTRUCTIONS_URL")
 	_ = viper.BindEnv("log-level", "LOG_LEVEL")
 	_ = viper.BindEnv("read-only", "HONEYBADGER_READ_ONLY")
+	_ = viper.BindEnv("honeybadger-api-key", "HONEYBADGER_API_KEY")
+	_ = viper.BindEnv("honeybadger-env", "HONEYBADGER_ENV")
 	_ = viper.BindEnv("address", "MCP_ADDRESS")
 	_ = viper.BindEnv("endpoint-path", "MCP_ENDPOINT_PATH")
 	_ = viper.BindEnv("stateless", "MCP_STATELESS")
@@ -249,7 +257,12 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		"log_level", cfg.LogLevel,
 		"api_url", cfg.APIURL)
 
-	mcpServer, toolCatalog := hbmcp.NewServerWithCatalog(cfg, version)
+	mcpServer, toolCatalog, sink := hbmcp.NewServerWithCatalog(cfg, version)
+	// Deferred rather than inline in the shutdown path: events are batched in
+	// a background worker, and handlers still in flight during the drain emit
+	// after any mid-shutdown flush. Registered here so it runs last, and so
+	// the server-error exit path flushes too. No-op when analytics is off.
+	defer sink.Flush()
 
 	// Both WithStateLess and WithStateful are no-ops when their arg is false.
 	sessionOpt := server.WithStateLess(true)

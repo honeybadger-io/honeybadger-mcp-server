@@ -163,3 +163,56 @@ func TestParseAccessToken_EmptyScope(t *testing.T) {
 		t.Errorf("Scopes = %v, want empty", got.Scopes)
 	}
 }
+
+func TestParseAccessToken_PopulatesIdentity(t *testing.T) {
+	key, kf := testKey(t)
+	c := baseClaims()
+	c["sub"] = "user_abc123"
+	c["account_id"] = "acct_xyz789"
+	c["client_id"] = "app-uid-42"
+	c["project_id"] = float64(31337)
+	raw := signedToken(t, key, c)
+
+	got, err := ParseAccessToken(raw, kf, "http://localhost:3001", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Subject != "user_abc123" {
+		t.Errorf("Subject = %q, want %q", got.Subject, "user_abc123")
+	}
+	if got.AccountID != "acct_xyz789" {
+		t.Errorf("AccountID = %q, want %q", got.AccountID, "acct_xyz789")
+	}
+	if got.ClientID != "app-uid-42" {
+		t.Errorf("ClientID = %q, want %q", got.ClientID, "app-uid-42")
+	}
+	if !got.ProjectScoped {
+		t.Error("ProjectScoped = false, want true")
+	}
+}
+
+// The AS .compacts the payload, so optional claims are genuinely absent on
+// some tokens. Their absence must leave fields empty, never fail validation.
+func TestParseAccessToken_OptionalIdentityClaimsAbsent(t *testing.T) {
+	key, kf := testKey(t)
+	c := baseClaims()
+	c["sub"] = "user_abc123"
+	raw := signedToken(t, key, c)
+
+	got, err := ParseAccessToken(raw, kf, "http://localhost:3001", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.AccountID != "" {
+		t.Errorf("AccountID = %q, want empty", got.AccountID)
+	}
+	if got.ClientID != "" {
+		t.Errorf("ClientID = %q, want empty", got.ClientID)
+	}
+	if got.ProjectScoped {
+		t.Error("ProjectScoped = true, want false")
+	}
+	if !got.HasScope("read") {
+		t.Error("scopes should still parse when identity claims are absent")
+	}
+}

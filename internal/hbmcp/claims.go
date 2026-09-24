@@ -11,6 +11,13 @@ const tokenPrefix = "hbo_"
 
 type Claims struct {
 	Scopes []string
+	// Subject and AccountID are hashids from the AS — opaque, not raw
+	// database IDs. ProjectScoped records only whether the token carried a
+	// project_id, because that claim (unlike the other two) is emitted raw.
+	Subject       string
+	AccountID     string
+	ClientID      string
+	ProjectScoped bool
 }
 
 func (c *Claims) HasScope(scope string) bool {
@@ -47,5 +54,17 @@ func ParseAccessToken(raw string, keyfunc jwt.Keyfunc, expectedIssuer, expectedA
 	}
 	mc, _ := tok.Claims.(jwt.MapClaims)
 	scope, _ := mc["scope"].(string)
-	return &Claims{Scopes: strings.Fields(scope)}, nil
+	sub, _ := mc["sub"].(string)
+	accountID, _ := mc["account_id"].(string)
+	clientID, _ := mc["client_id"].(string)
+	// The AS .compacts its payload, so these are absent on some tokens.
+	// Absence must leave the field empty, never fail validation.
+	_, projectScoped := mc["project_id"]
+	return &Claims{
+		Scopes:        strings.Fields(scope),
+		Subject:       sub,
+		AccountID:     accountID,
+		ClientID:      clientID,
+		ProjectScoped: projectScoped,
+	}, nil
 }
