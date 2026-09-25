@@ -220,6 +220,9 @@ func TestHandleCreateAlarm(t *testing.T) {
 	if !strings.Contains(resultText, "new123") {
 		t.Error("Result should contain new alarm ID")
 	}
+	if !strings.Contains(resultText, `"url":"https://app.honeybadger.io/projects/123/insights/alarms/new123"`) {
+		t.Errorf("Result should carry the alarm's UI url, got %s", resultText)
+	}
 }
 
 func TestHandleUpdateAlarm(t *testing.T) {

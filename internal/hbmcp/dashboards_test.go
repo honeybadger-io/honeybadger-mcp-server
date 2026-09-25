@@ -167,7 +167,8 @@ func TestHandleCreateDashboard(t *testing.T) {
 			"shared": true,
 			"created_at": "2024-01-01T00:00:00Z",
 			"updated_at": "2024-01-01T00:00:00Z",
-			"project_id": 123
+			"project_id": 123,
+			"url": "https://app.honeybadger.io/projects/123/insights/dashboards/new123"
 		}`))
 	}))
 	defer server.Close()
@@ -196,6 +197,9 @@ func TestHandleCreateDashboard(t *testing.T) {
 	}
 
 	resultText := getResultText(result)
+	if !strings.Contains(resultText, `"url":"https://app.honeybadger.io/projects/123/insights/dashboards/new123"`) {
+		t.Errorf("Result should carry the dashboard's UI url, got %s", resultText)
+	}
 	if !strings.Contains(resultText, "new123") {
 		t.Error("Result should contain new dashboard ID")
 	}
