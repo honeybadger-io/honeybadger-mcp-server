@@ -30,7 +30,8 @@ func TestHandleQueryInsights(t *testing.T) {
 			"total_rows": 2,
 			"start_at": "2024-01-01T00:00:00Z",
 			"end_at": "2024-01-01T03:00:00Z"
-		}
+		},
+		"url": "https://app.honeybadger.io/projects/123/insights/query?query=stats&timezone=UTC"
 	}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -70,6 +71,15 @@ func TestHandleQueryInsights(t *testing.T) {
 
 	// Check that insights data is present
 	resultText := getResultText(result)
+	var output struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal([]byte(resultText), &output); err != nil {
+		t.Fatalf("result is not JSON: %v", err)
+	}
+	if output.URL != "https://app.honeybadger.io/projects/123/insights/query?query=stats&timezone=UTC" {
+		t.Errorf("Result should carry the query's UI url, got %q", output.URL)
+	}
 	if !strings.Contains(resultText, "web") {
 		t.Error("Result data should be present in response")
 	}

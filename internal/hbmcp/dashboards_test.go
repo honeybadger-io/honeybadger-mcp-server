@@ -23,7 +23,8 @@ func TestHandleListDashboards(t *testing.T) {
 				"shared": true,
 				"created_at": "2024-01-01T00:00:00Z",
 				"updated_at": "2024-01-02T00:00:00Z",
-				"project_id": 123
+				"project_id": 123,
+				"url": "https://app.honeybadger.io/projects/123/insights/dashboards/abc123"
 			}
 		],
 		"links": {"self": "", "next": "", "prev": ""}
@@ -67,6 +68,9 @@ func TestHandleListDashboards(t *testing.T) {
 	if !strings.Contains(resultText, "abc123") {
 		t.Error("Result should contain dashboard ID")
 	}
+	if !strings.Contains(resultText, `"url":"https://app.honeybadger.io/projects/123/insights/dashboards/abc123"`) {
+		t.Errorf("Result should carry each dashboard's UI url, got %s", resultText)
+	}
 	if !strings.Contains(resultText, "Project Overview") {
 		t.Error("Result should contain dashboard title")
 	}
@@ -81,7 +85,8 @@ func TestHandleGetDashboard(t *testing.T) {
 		"shared": true,
 		"created_at": "2024-01-01T00:00:00Z",
 		"updated_at": "2024-01-02T00:00:00Z",
-		"project_id": 123
+		"project_id": 123,
+		"url": "https://app.honeybadger.io/projects/123/insights/dashboards/abc123"
 	}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +131,10 @@ func TestHandleGetDashboard(t *testing.T) {
 		t.Fatalf("Response should be valid JSON: %v", err)
 	}
 
+	if dashboard.URL != "https://app.honeybadger.io/projects/123/insights/dashboards/abc123" {
+		t.Errorf("expected dashboard UI url, got %q", dashboard.URL)
+	}
+
 	if dashboard.ID != "abc123" {
 		t.Errorf("expected ID abc123, got %s", dashboard.ID)
 	}
@@ -167,7 +176,8 @@ func TestHandleCreateDashboard(t *testing.T) {
 			"shared": true,
 			"created_at": "2024-01-01T00:00:00Z",
 			"updated_at": "2024-01-01T00:00:00Z",
-			"project_id": 123
+			"project_id": 123,
+			"url": "https://app.honeybadger.io/projects/123/insights/dashboards/new123"
 		}`))
 	}))
 	defer server.Close()
@@ -196,6 +206,9 @@ func TestHandleCreateDashboard(t *testing.T) {
 	}
 
 	resultText := getResultText(result)
+	if !strings.Contains(resultText, `"url":"https://app.honeybadger.io/projects/123/insights/dashboards/new123"`) {
+		t.Errorf("Result should carry the dashboard's UI url, got %s", resultText)
+	}
 	if !strings.Contains(resultText, "new123") {
 		t.Error("Result should contain new dashboard ID")
 	}
