@@ -325,6 +325,11 @@ func TestServerInstructions(t *testing.T) {
 	if !strings.Contains(instructions, "get_reference") {
 		t.Error("instructions should mention the get_reference tool")
 	}
+	// UI links come back as `url` in tool responses; the always-on
+	// instructions describe the server rather than scripting replies.
+	if strings.Contains(strings.ToLower(instructions), "link") {
+		t.Error("instructions should not tell the client to give the user links")
+	}
 	// Instructions are always-on context for every session — keep them small.
 	if len(instructions) > 2500 {
 		t.Errorf("instructions too long: %d bytes", len(instructions))
