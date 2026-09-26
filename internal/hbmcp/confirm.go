@@ -86,7 +86,7 @@ func excerpt(s string, max int) string {
 // imply one another, and a hand-edited grant can drop the read. Such a caller is
 // allowed to delete but not to look first, so the preview names the resource by
 // id instead of refusing, and the two-step confirmation still applies.
-const unreadableNote = " (details not shown: this credential can delete it but is not allowed to read it)"
+const unreadableNote = " (details not shown: this credential is not allowed to read it, though it may be allowed to delete it)"
 
 // unreadable reports whether a preview lookup failed only because the credential
 // may not read what it is allowed to delete.

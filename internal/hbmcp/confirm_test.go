@@ -30,9 +30,10 @@ type fakeAPI struct {
 	gets    int
 	deletes int
 
-	// readForbidden answers every read with insufficient_scope, like a
-	// write-only API token.
-	readForbidden bool
+	// readStatus and readBody, when set, answer every read with that error; an
+	// insufficient_scope 403 is what a write-only API token gets.
+	readStatus int
+	readBody   string
 }
 
 func newFakeAPI(t *testing.T) *fakeAPI {
@@ -46,10 +47,10 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 			return
 		}
 		f.gets++
-		if f.readForbidden {
+		if f.readStatus != 0 {
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			_, _ = w.Write([]byte(`{"error":{"code":"insufficient_scope","message":"Insufficient scope","details":{"required_scope":"x:read"}}}`))
+			w.WriteHeader(f.readStatus)
+			_, _ = w.Write([]byte(f.readBody))
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -306,7 +307,8 @@ func TestHTTPDeleteConfirmationBindsOpaqueTokens(t *testing.T) {
 // tool and could never use one.
 func TestDeleteToolsWorkForWriteOnlyTokens(t *testing.T) {
 	api := newFakeAPI(t)
-	api.readForbidden = true
+	api.readStatus = http.StatusForbidden
+	api.readBody = `{"error":{"code":"insufficient_scope","message":"Insufficient scope","details":{"required_scope":"x:read"}}}`
 	s := NewServer(&config.Config{
 		AuthToken:     "test-token",
 		APIURL:        api.URL,
@@ -329,6 +331,43 @@ func TestDeleteToolsWorkForWriteOnlyTokens(t *testing.T) {
 			text, isErr = callTool(t, s, ctx, tool, withArg(args, "confirm", m[1]))
 			if _, deletes := api.counts(); isErr || deletes != deletes0+1 {
 				t.Fatalf("confirmed call must delete once; isError=%v text=%q", isErr, text)
+			}
+		})
+	}
+}
+
+// Only insufficient_scope degrades a preview. A lookup that finds nothing, or is
+// refused for any other reason, must still fail with no confirmation token, or a
+// preview would mint one for a resource that does not exist or is off-limits.
+func TestDeletePreviewStillFailsOnOtherReadErrors(t *testing.T) {
+	for name, fail := range map[string]struct {
+		status int
+		body   string
+	}{
+		"not found":     {http.StatusNotFound, `{"error":{"code":"not_found","message":"Resource not found"}}`},
+		"access denied": {http.StatusForbidden, `{"error":{"code":"access_denied","message":"Access denied"}}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			api := newFakeAPI(t)
+			api.readStatus, api.readBody = fail.status, fail.body
+			s := NewServer(&config.Config{
+				AuthToken:     "test-token",
+				APIURL:        api.URL,
+				LogLevel:      "error",
+				TransportMode: config.TransportStdio,
+			}, "test")
+
+			for tool, args := range deleteToolArgs {
+				text, isErr := callTool(t, s, context.Background(), tool, args)
+				if !isErr || !strings.Contains(text, "Failed to look up") {
+					t.Errorf("%s: a %s lookup must fail the preview; isError=%v text=%q", tool, name, isErr, text)
+				}
+				if confirmTokenPattern.MatchString(text) {
+					t.Errorf("%s: issued a confirmation token after a %s lookup: %q", tool, name, text)
+				}
+			}
+			if _, deletes := api.counts(); deletes != 0 {
+				t.Errorf("deleted %d resources", deletes)
 			}
 		})
 	}

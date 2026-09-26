@@ -367,12 +367,16 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		// Each flag is its own request in v3, so the first can succeed and the
 		// second fail. Saying only "failed" would leave the caller believing
 		// nothing changed when something did.
-		if len(applied) > 2 { // more than the two ids means a change landed
+		//
+		// Worded as steps completed rather than changes applied: a completed step
+		// can have changed nothing (already resolved, or unverifiable without read
+		// access), and its note says so.
+		if len(applied) > 2 { // more than the two ids means a step completed
 			partial, marshalErr := json.Marshal(applied)
 			if marshalErr == nil {
 				return mcp.NewToolResultError(fmt.Sprintf(
-					"Failed to update fault: %v. These changes were already applied and remain "+
-						"in effect: %s", err, partial)), nil
+					"Failed to update fault: %v. These steps completed before the failure, and "+
+						"their results stand (see any notes): %s", err, partial)), nil
 			}
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update fault: %v", err)), nil
