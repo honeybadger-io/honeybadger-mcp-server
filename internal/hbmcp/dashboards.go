@@ -273,10 +273,15 @@ func handleDeleteDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 
 	if !deletionConfirmed(ctx, req, "delete_dashboard", projectID, dashboardID) {
 		dashboard, err := client.Dashboards.Get(ctx, projectID, dashboardID)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil:
+			summary = fmt.Sprintf("delete dashboard %q (id %s) from project %s", dashboard.Title, dashboardID, projectID)
+		case unreadable(err):
+			summary = fmt.Sprintf("delete dashboard %s from project %s", dashboardID, projectID) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up dashboard: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete dashboard %q (id %s) from project %s", dashboard.Title, dashboardID, projectID)
 		return deletionPreview(ctx, req, "delete_dashboard", summary, projectID, dashboardID), nil
 	}
 

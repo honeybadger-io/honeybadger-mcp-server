@@ -276,10 +276,15 @@ func handleDeleteCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 
 	if !deletionConfirmed(ctx, req, "delete_check_in", projectID, checkInID) {
 		checkIn, err := client.CheckIns.Get(ctx, projectID, checkInID)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil:
+			summary = fmt.Sprintf("delete check-in %q (id %s) from project %s, along with its reporting history", nullableString(checkIn.Name), checkInID, projectID)
+		case unreadable(err):
+			summary = fmt.Sprintf("delete check-in %s from project %s, along with its reporting history", checkInID, projectID) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up check-in: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete check-in %q (id %s) from project %s, along with its reporting history", nullableString(checkIn.Name), checkInID, projectID)
 		return deletionPreview(ctx, req, "delete_check_in", summary, projectID, checkInID), nil
 	}
 

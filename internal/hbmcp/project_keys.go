@@ -171,7 +171,11 @@ func handleDeleteProjectKey(ctx context.Context, client *apiv3.Client, req mcp.C
 
 	if !deletionConfirmed(ctx, req, "delete_project_key", projectID, keyID) {
 		summary, err := projectKeySummary(ctx, client, projectID, keyID)
-		if err != nil {
+		switch {
+		case err == nil:
+		case unreadable(err):
+			summary = fmt.Sprintf("delete ingestion key %s from project %s; notifiers sending with it will be refused", keyID, projectID) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up project key: %v", err)), nil
 		}
 		return deletionPreview(ctx, req, "delete_project_key", summary, projectID, keyID), nil

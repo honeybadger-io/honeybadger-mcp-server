@@ -194,11 +194,16 @@ func handleDeleteFaultComment(ctx context.Context, client *apiv3.Client, req mcp
 	}
 	if !deletionConfirmed(ctx, req, "delete_fault_comment", projectID, faultID, commentID) {
 		comment, err := client.Faults.GetComment(ctx, projectID, faultID, commentID)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil:
+			summary = fmt.Sprintf("delete comment %s by %s on fault %d: %q",
+				commentID, commentAuthor(comment), faultID, excerpt(nullableString(comment.Body), 80))
+		case unreadable(err):
+			summary = fmt.Sprintf("delete comment %s on fault %d", commentID, faultID) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up fault comment: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete comment %s by %s on fault %d: %q",
-			commentID, commentAuthor(comment), faultID, excerpt(nullableString(comment.Body), 80))
 		return deletionPreview(ctx, req, "delete_fault_comment", summary, projectID, faultID, commentID), nil
 	}
 	if err := client.Faults.DeleteComment(ctx, projectID, faultID, commentID); err != nil {

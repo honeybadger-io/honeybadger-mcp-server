@@ -224,13 +224,11 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 ### Projects
 
 - **list_projects** - List all Honeybadger projects
-  - `account_id` : Account ID to filter projects by specific account (string, optional)
 
 - **get_project** - Get detailed information for a single project by ID
   - `id` : The ID of the project to retrieve (number, required)
 
 - **create_project** - Create a new Honeybadger project _(requires `read-only=false`)_
-  - `account_id` : The account ID to associate the project with. If omitted, the project is created in the first account your auth token has access to (string, optional)
   - `name` : The name of the new project (string, required)
   - `resolve_errors_on_deploy` : Whether all unresolved faults should be marked as resolved when a deploy is recorded (boolean, optional)
   - `disable_public_links` : Whether to allow fault details to be publicly shareable via a button on the fault detail page (boolean, optional)
@@ -300,10 +298,10 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `occurred_before` : Filter faults that occurred before this timestamp (string, optional)
 
 - **list_fault_notices** - Get a list of notices (individual error events) for a specific fault
-  - `project_id` : The ID of the project containing the fault (number, required)
+  - `project_id` : The ID of the project containing the fault (string, required)
   - `fault_id` : The ID of the fault to get notices for (number, required)
-  - `created_after` : Filter notices created after this timestamp (string, optional)
-  - `created_before` : Filter notices created before this timestamp (string, optional)
+  - `before` : Cursor for older notices: `time_series.oldest_cursor` from the previous response (string, optional)
+  - `after` : Cursor for newer notices: `time_series.newest_cursor` from the previous response (string, optional)
   - `limit` : Maximum number of notices to return (max 25) (number, optional)
 
 - **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts
@@ -402,15 +400,16 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `stream_ids` : Optional JSON array of stream IDs to query (defaults to `["default"]`) (string, optional)
 
 - **update_alarm** - Update an existing Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms`, `queries`, and `badgerql` first (via `get_reference`).
-  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `project_id` : The ID of the project the alarm belongs to (string, required)
   - `alarm_id` : The ID of the alarm to update (string, required)
-  - `name` : The name of the alarm (string, required)
-  - `query` : BadgerQL query for the alarm (string, required)
-  - `evaluation_period` : How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m (string, required)
-  - `trigger_config` : JSON object defining when to trigger the alarm (string, required)
-  - `lookback_lag` : Delay before evaluating to allow data to arrive (e.g., 1m, 0s for no lag) (string, required)
-  - `description` : Optional description of the alarm (string, optional)
-  - `stream_ids` : Optional JSON array of stream IDs to query (string, optional)
+  - `name` : A new name for the alarm (string, optional)
+  - `description` : A new description; an empty string clears it (string, optional)
+  - `query` : A new BadgerQL query (string, optional)
+  - `evaluation_period` : A new evaluation window, as a compact duration such as `5m` or `1h` (string, optional)
+  - `lookback_lag` : A new lookback lag, such as `1m` (string, optional)
+  - `stream_ids` : JSON array of stream IDs, replacing the current set (string, optional)
+
+  Provide at least one field. The trigger can't be changed through an update yet; delete and recreate the alarm to change it.
 
 - **delete_alarm** - Delete an Insights alarm _(requires `read-only=false`)_
   - `project_id` : The ID of the project the alarm belongs to (number, required)
@@ -420,7 +419,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 - **get_alarm_history** - Get the trigger history for an Insights alarm
   - `project_id` : The ID of the project the alarm belongs to (number, required)
   - `alarm_id` : The ID of the alarm to get history for (string, required)
-  - `page` : Page number for pagination (default: 0) (number, optional)
+  - `page` : Page number, starting at 1 (default: 1). The response's `total_pages` says how many there are (number, optional)
 
 ### Check-Ins
 

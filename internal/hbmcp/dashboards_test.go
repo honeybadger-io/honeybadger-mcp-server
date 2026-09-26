@@ -43,8 +43,7 @@ func TestHandleGetDashboard(t *testing.T) {
 	})
 
 	result, err := handleGetDashboard(context.Background(), client,
-		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1",
-			"confirm": validConfirm("delete_dashboard", "Xk9mZp", "d1")}))
+		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1"}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}

@@ -358,10 +358,15 @@ func handleDeleteAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 
 	if !deletionConfirmed(ctx, req, "delete_alarm", projectID, alarmID) {
 		alarm, err := client.Alarms.Get(ctx, projectID, alarmID)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil:
+			summary = fmt.Sprintf("delete alarm %q (id %s) from project %s", alarm.Name, alarmID, projectID)
+		case unreadable(err):
+			summary = fmt.Sprintf("delete alarm %s from project %s", alarmID, projectID) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up alarm: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete alarm %q (id %s) from project %s", alarm.Name, alarmID, projectID)
 		return deletionPreview(ctx, req, "delete_alarm", summary, projectID, alarmID), nil
 	}
 

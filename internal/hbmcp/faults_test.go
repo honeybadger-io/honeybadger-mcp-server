@@ -632,7 +632,7 @@ const bulkUnchanged = `{"data":{"count":0,"dry_run":false,"fault_ids":[],"fault_
 func TestHandleUpdateFaultAlreadyInState(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp"}}`)
+			v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolved":true}}`)
 			return
 		}
 		v3JSON(w, http.StatusOK, bulkUnchanged)
@@ -680,14 +680,36 @@ func TestHandleUpdateFaultNotInProject(t *testing.T) {
 
 // fault_id 456.9 must not act on fault 456.
 func TestHandleUpdateFaultRejectsFractionalID(t *testing.T) {
-	result, err := handleUpdateFault(context.Background(), offlineV3Client(), faultArgs(map[string]interface{}{
+	result, err := handleUpdateFault(context.Background(), noRequestClient(t), faultArgs(map[string]interface{}{
 		"project_id": "Xk9mZp", "fault_id": 456.9, "ignored": true,
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
+	if !result.IsError || !strings.Contains(getResultText(result), "fault_id") {
+		t.Errorf("expected fault_id to be refused by name, got %s", getResultText(result))
+	}
+}
+
+// A zero count followed by a read showing the fault is not in the requested
+// state, because a new occurrence reopened it in between, must not report success.
+func TestHandleUpdateFaultReopenedInBetween(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolved":false}}`)
+			return
+		}
+		v3JSON(w, http.StatusOK, bulkUnchanged)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
 	if !result.IsError {
-		t.Errorf("expected a fractional fault_id to be refused, got %s", getResultText(result))
+		t.Errorf("reported success for a fault that is not resolved: %s", getResultText(result))
 	}
 }
 
@@ -750,4 +772,36 @@ func TestUpdateFaultAssigneeSchemaAcceptsNull(t *testing.T) {
 		t.Fatalf("assignee_id type = %v, want it to include null", tool.InputSchema.Properties["assignee_id"].Type)
 	}
 	t.Fatal("update_fault is not registered")
+}
+
+// A write-only credential can resolve but not read the fault back, so a zero
+// count cannot be told apart. The tool must say so, and not claim the change.
+func TestHandleUpdateFaultZeroCountWithoutReadScope(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			v3JSON(w, http.StatusForbidden, `{"error":{"code":"insufficient_scope","message":"Insufficient scope","details":{"required_scope":"faults:read"}}}`)
+			return
+		}
+		v3JSON(w, http.StatusOK, bulkUnchanged)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success with a note, got %s", getResultText(result))
+	}
+	var applied map[string]any
+	if err := json.Unmarshal([]byte(getResultText(result)), &applied); err != nil {
+		t.Fatalf("response is not JSON: %v", err)
+	}
+	if _, claimed := applied["resolved"]; claimed {
+		t.Errorf("claimed resolved without being able to confirm it: %v", applied)
+	}
+	if applied["resolved_note"] == nil {
+		t.Errorf("no note explaining the unconfirmed result: %v", applied)
+	}
 }

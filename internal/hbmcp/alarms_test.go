@@ -59,8 +59,7 @@ func TestHandleGetAlarm(t *testing.T) {
 	})
 
 	result, err := handleGetAlarm(context.Background(), client,
-		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "alarm_id": "a1",
-			"confirm": validConfirm("delete_alarm", "Xk9mZp", "a1")}))
+		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "alarm_id": "a1"}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -208,15 +207,15 @@ func TestHandleUpdateAlarmChangesBehaviour(t *testing.T) {
 // The trigger has no typed update field, so a request touching it is refused
 // rather than applying the other fields and reporting success.
 func TestHandleUpdateAlarmRefusesTrigger(t *testing.T) {
-	result, err := handleUpdateAlarm(context.Background(), offlineV3Client(),
+	result, err := handleUpdateAlarm(context.Background(), noRequestClient(t),
 		alarmArgs(map[string]interface{}{
 			"project_id": "Xk9mZp", "alarm_id": "a1", "name": "N", "trigger_config": `{"type":"alert_result_count"}`,
 		}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError {
-		t.Errorf("accepted; the trigger would have been dropped")
+	if !result.IsError || !strings.Contains(getResultText(result), "trigger_config") {
+		t.Errorf("expected trigger_config to be refused by name, got %s", getResultText(result))
 	}
 }
 

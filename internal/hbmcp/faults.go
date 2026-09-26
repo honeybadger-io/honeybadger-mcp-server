@@ -401,8 +401,28 @@ func applyStateChange(ctx context.Context, client *apiv3.Client, action bulkActi
 		return err
 	}
 	if result.Count == 0 {
-		if _, err := client.Faults.Get(ctx, projectID, faultID); err != nil {
+		fault, err := client.Faults.Get(ctx, projectID, faultID)
+		if unreadable(err) {
+			// A write-only credential can make the change but not read the fault
+			// back, so it cannot tell "already there" from "no such fault here".
+			// Say so rather than claim either.
+			applied[field+"_note"] = fmt.Sprintf("Nothing changed: the fault was already %s, or is "+
+				"not in this project. This credential cannot read faults, so it cannot tell which.",
+				stateName(field, value))
+			return nil
+		}
+		if err != nil {
 			return err
+		}
+		// Report what the fault is, not what was asked: a new occurrence can reopen
+		// it between the change and this read.
+		current := fault.Resolved
+		if field == "ignored" {
+			current = fault.Ignored
+		}
+		if current == nil || *current != value {
+			return fmt.Errorf("the change to %s did not take: the fault is not %s now (it may have "+
+				"changed between requests); check it with get_fault", field, stateName(field, value))
 		}
 		applied[field+"_note"] = fmt.Sprintf("The fault was already %s; nothing changed.", stateName(field, value))
 	}

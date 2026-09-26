@@ -29,6 +29,10 @@ type fakeAPI struct {
 	mu      sync.Mutex
 	gets    int
 	deletes int
+
+	// readForbidden answers every read with insufficient_scope, like a
+	// write-only API token.
+	readForbidden bool
 }
 
 func newFakeAPI(t *testing.T) *fakeAPI {
@@ -42,6 +46,12 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 			return
 		}
 		f.gets++
+		if f.readForbidden {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"code":"insufficient_scope","message":"Insufficient scope","details":{"required_scope":"x:read"}}}`))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		// One shape that decodes as any of the resources a delete previews.
 		thing := `{"id":"x","project_id":"Xk9mZp","fault_id":456,"name":"Thing","title":"Thing","label":"Thing","type":"Thing","key":"k","active":true,"author":{"name":"Thing"},"body":"Looked into it","created_at":"2026-01-01T00:00:00Z"}`
@@ -97,19 +107,20 @@ func withArg(args map[string]any, key string, value any) map[string]any {
 	return out
 }
 
-// Every delete_* tool must go through deletionConfirmed/deletionPreview. A new
-// delete tool fails here until it is added to deleteToolArgs.
-func TestDeleteToolsRequireConfirmation(t *testing.T) {
-	deleteToolArgs := map[string]map[string]any{
-		"delete_project":       {"id": "Xk9mZp"},
-		"delete_dashboard":     {"project_id": "Xk9mZp", "dashboard_id": "dash1"},
-		"delete_alarm":         {"project_id": "Xk9mZp", "alarm_id": "alarm1"},
-		"delete_check_in":      {"project_id": "Xk9mZp", "check_in_id": "chk1"},
-		"delete_fault_comment": {"project_id": "Xk9mZp", "fault_id": 456, "comment_id": "cmt1"},
-		"delete_integration":   {"project_id": "Xk9mZp", "integration_id": "int1"},
-		"delete_project_key":   {"project_id": "Xk9mZp", "key_id": "key1"},
-	}
+// deleteToolArgs holds valid arguments for every delete tool. A new delete tool
+// fails TestDeleteToolsRequireConfirmation until it is added here.
+var deleteToolArgs = map[string]map[string]any{
+	"delete_project":       {"id": "Xk9mZp"},
+	"delete_dashboard":     {"project_id": "Xk9mZp", "dashboard_id": "dash1"},
+	"delete_alarm":         {"project_id": "Xk9mZp", "alarm_id": "alarm1"},
+	"delete_check_in":      {"project_id": "Xk9mZp", "check_in_id": "chk1"},
+	"delete_fault_comment": {"project_id": "Xk9mZp", "fault_id": 456, "comment_id": "cmt1"},
+	"delete_integration":   {"project_id": "Xk9mZp", "integration_id": "int1"},
+	"delete_project_key":   {"project_id": "Xk9mZp", "key_id": "key1"},
+}
 
+// Every delete_* tool must go through deletionConfirmed/deletionPreview.
+func TestDeleteToolsRequireConfirmation(t *testing.T) {
 	api := newFakeAPI(t)
 	s := NewServer(&config.Config{
 		AuthToken:     "test-token",
@@ -286,5 +297,39 @@ func TestHTTPDeleteConfirmationBindsOpaqueTokens(t *testing.T) {
 	text, isErr := callTool(t, s, opaque("hbt_alice"), "delete_check_in", withArg(args, "confirm", m[1]))
 	if _, after := api.counts(); isErr || after-before != 1 {
 		t.Fatalf("alice's own confirmation was refused: %q", text)
+	}
+}
+
+// A write-only API token may delete but not read, so the preview's lookup is
+// refused. The preview must still be issued, naming the resource by id, and the
+// confirmed call must still delete. Before, such a token was offered every delete
+// tool and could never use one.
+func TestDeleteToolsWorkForWriteOnlyTokens(t *testing.T) {
+	api := newFakeAPI(t)
+	api.readForbidden = true
+	s := NewServer(&config.Config{
+		AuthToken:     "test-token",
+		APIURL:        api.URL,
+		LogLevel:      "error",
+		TransportMode: config.TransportStdio,
+	}, "test")
+	ctx := context.Background()
+
+	for tool, args := range deleteToolArgs {
+		t.Run(tool, func(t *testing.T) {
+			_, deletes0 := api.counts()
+			text, isErr := callTool(t, s, ctx, tool, args)
+			if isErr || !strings.HasPrefix(text, "Not deleted.") || !strings.Contains(text, "not allowed to read") {
+				t.Fatalf("a refused read must still preview by id; isError=%v text=%q", isErr, text)
+			}
+			m := confirmTokenPattern.FindStringSubmatch(text)
+			if m == nil {
+				t.Fatalf("preview has no token: %q", text)
+			}
+			text, isErr = callTool(t, s, ctx, tool, withArg(args, "confirm", m[1]))
+			if _, deletes := api.counts(); isErr || deletes != deletes0+1 {
+				t.Fatalf("confirmed call must delete once; isError=%v text=%q", isErr, text)
+			}
+		})
 	}
 }

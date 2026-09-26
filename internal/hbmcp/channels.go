@@ -195,10 +195,15 @@ func handleDeleteIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 
 	if !deletionConfirmed(ctx, req, "delete_integration", projectID, integrationID) {
 		integration, err := client.Integrations.Get(ctx, projectID, integrationID)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil:
+			summary = fmt.Sprintf("delete the %s integration (id %s) from project %s, with its tickets and configuration", integration.Type, integrationID, projectID)
+		case unreadable(err):
+			summary = fmt.Sprintf("delete integration %s from project %s, with its tickets and configuration", integrationID, projectID) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up integration: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete the %s integration (id %s) from project %s, with its tickets and configuration", integration.Type, integrationID, projectID)
 		return deletionPreview(ctx, req, "delete_integration", summary, projectID, integrationID), nil
 	}
 

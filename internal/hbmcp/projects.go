@@ -372,10 +372,15 @@ func handleDeleteProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 
 	if !deletionConfirmed(ctx, req, "delete_project", id) {
 		project, err := client.Projects.Get(ctx, id)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil:
+			summary = fmt.Sprintf("delete project %q (id %s) and all of its data", project.Name, id)
+		case unreadable(err):
+			summary = fmt.Sprintf("delete project %s and all of its data", id) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up project: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete project %q (id %s) and all of its data", project.Name, id)
 		return deletionPreview(ctx, req, "delete_project", summary, id), nil
 	}
 

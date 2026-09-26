@@ -41,3 +41,14 @@ func offlineV3Client() *apiv3.Client {
 func mcpRequest(args map[string]interface{}) mcp.CallToolRequest {
 	return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
 }
+
+// noRequestClient fails the test if anything reaches the API. For guard tests:
+// an offline client alone cannot tell "refused before the request" from "the
+// request failed", since both come back as an error result.
+func noRequestClient(t *testing.T) *apiv3.Client {
+	t.Helper()
+	return newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("request reached the API: %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(http.StatusTeapot)
+	})
+}

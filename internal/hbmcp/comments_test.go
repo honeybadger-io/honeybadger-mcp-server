@@ -219,3 +219,35 @@ func TestFaultCommentBodySchema(t *testing.T) {
 		})
 	}
 }
+
+// list_fault_comments reports an API failure as an error, and refuses bad ids
+// before any request.
+func TestListFaultCommentsFailures(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusForbidden, `{"error":{"code":"access_denied","message":"Forbidden"}}`)
+	})
+	result, err := handleListFaultComments(context.Background(), client, mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"project_id": "Xk9mZp", "fault_id": 456,
+	}}})
+	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "Failed to list fault comments") {
+		t.Fatalf("result = %+v, err = %v", result, err)
+	}
+
+	for field, values := range map[string][]any{
+		"project_id": {nil, ""},
+		"fault_id":   {nil, 0, -1, 1.5, "123", true, float64(maxSafeInteger * 2)},
+	} {
+		for _, value := range values {
+			args := map[string]any{"project_id": "Xk9mZp", "fault_id": 456}
+			if value == nil {
+				delete(args, field)
+			} else {
+				args[field] = value
+			}
+			result, err := handleListFaultComments(context.Background(), noRequestClient(t), mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}})
+			if err != nil || !result.IsError || !strings.Contains(getResultText(result), field) {
+				t.Errorf("%s=%v: result = %+v, err = %v", field, value, result, err)
+			}
+		}
+	}
+}

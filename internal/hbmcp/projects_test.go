@@ -394,12 +394,12 @@ func TestHandleUpdateProjectNothingToChange(t *testing.T) {
 // project in another account must be refused rather than have the project land
 // in the credential's own account.
 func TestHandleCreateProjectRefusesAccountID(t *testing.T) {
-	result, err := handleCreateProject(context.Background(), offlineV3Client(),
+	result, err := handleCreateProject(context.Background(), noRequestClient(t),
 		projectArgs(map[string]interface{}{"name": "New", "account_id": "Other1"}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError {
-		t.Errorf("expected account_id to be refused, got %s", getResultText(result))
+	if !result.IsError || !strings.Contains(getResultText(result), "account_id") {
+		t.Errorf("expected account_id to be refused by name, got %s", getResultText(result))
 	}
 }
