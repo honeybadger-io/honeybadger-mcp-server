@@ -34,7 +34,7 @@ func RegisterInsightsTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			),
 			mcp.WithArray("stream_ids",
 				mcp.WithStringItems(),
-				mcp.Description("Optional list of stream IDs to restrict the query to specific Insights streams. Use list_streams to discover a project's stream IDs; pass the 'id' field (not the slug). Omit to query all streams. Passing only unrecognized IDs yields an error, not an empty result."),
+				mcp.Description("Optional list of stream IDs to restrict the query to specific Insights streams. Use list_streams to discover a project's stream IDs; pass the 'id' field (not the slug). Omit to query all streams. An ID that isn't one of the project's streams is refused with an error."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

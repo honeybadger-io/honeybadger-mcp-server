@@ -19,6 +19,9 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details)"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
+			mcp.WithString("name",
+				mcp.Description("Optional exact project name; returns only the project with that name"),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListProjects(ctx, v3ClientFor(ctx), req)
@@ -205,7 +208,11 @@ func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallT
 	if msg := rejectStaleSchemaFields("list_projects", req); msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	projects, err := client.Projects.ListAll(ctx)
+	var opts []apiv3.ListAllOption
+	if name := req.GetString("name", ""); name != "" {
+		opts = append(opts, apiv3.Named(name))
+	}
+	projects, err := client.Projects.ListAll(ctx, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}

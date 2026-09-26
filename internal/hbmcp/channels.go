@@ -45,7 +45,7 @@ func RegisterIntegrationTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("Integration type: WebHook, PagerDutyV2, Email, etc. Must be an API-creatable type."),
 			),
 			mcp.WithString("config",
-				mcp.Description("JSON object of integration settings. Common fields: events (array of event names), active (bool), rate, threshold, notification_limit, site_ids, check_in_ids, environments, excluded_environments, included_environments. Type-specific fields vary (e.g. url for WebHook, integration_key for PagerDutyV2)."),
+				mcp.Description("JSON object of integration settings. Common fields: events (array of event names), active (bool), rate, threshold, notification_limit, site_ids, check_in_ids, environments, excluded_environments, included_environments. Type-specific fields vary (e.g. url for WebHook, integration_key for PagerDutyV2). site_ids and check_in_ids select which sites and check-ins notify; an empty list turns those notifications off, and an ID from outside the project is refused."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

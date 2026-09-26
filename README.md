@@ -224,6 +224,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 ### Projects
 
 - **list_projects** - List all Honeybadger projects
+  - `name` : Exact project name; returns only that project (string, optional)
 
 - **get_project** - Get detailed information for a single project by ID
   - `id` : The ID of the project to retrieve (string, required)

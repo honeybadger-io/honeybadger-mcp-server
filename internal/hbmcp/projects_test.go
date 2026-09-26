@@ -72,6 +72,28 @@ func TestHandleListProjects(t *testing.T) {
 	}
 }
 
+// name narrows the listing to one project by exact name.
+func TestHandleListProjectsByName(t *testing.T) {
+	var name string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		name = r.URL.Query().Get("name")
+		v3JSON(w, http.StatusOK, `{"data":[{"id":"Xk9mZp","account_id":"Ab3kL9","name":"Production","active":true}],
+		  "pagination":{"page":1,"per_page":25}}`)
+	})
+
+	result, err := handleListProjects(context.Background(), client,
+		projectArgs(map[string]interface{}{"name": "Production"}))
+	if err != nil {
+		t.Fatalf("handleListProjects() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	if name != "Production" {
+		t.Errorf("name = %q, want Production", name)
+	}
+}
+
 // The summary deliberately drops the large nested arrays that would blow the
 // token budget. get_project is where the full record lives.
 func TestHandleListProjectsOmitsHeavyFields(t *testing.T) {
