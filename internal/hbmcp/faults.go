@@ -157,7 +157,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_fault_affected_users",
 			mcp.WithTitleAnnotation("List Fault Affected Users"),
-			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts"),
+			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without q."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id",

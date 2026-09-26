@@ -304,7 +304,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `after` : Cursor for newer notices: `time_series.newest_cursor` from the previous response (string, optional)
   - `limit` : Maximum number of notices to return (max 25) (number, optional)
 
-- **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts
+- **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without `q`.
   - `project_id` : The ID of the project containing the fault (string, required)
   - `fault_id` : The ID of the fault to get affected users for (number, required)
   - `q` : Search string to filter affected users (string, optional)
@@ -408,8 +408,9 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `evaluation_period` : A new evaluation window, as a compact duration such as `5m` or `1h` (string, optional)
   - `lookback_lag` : A new lookback lag, such as `1m` (string, optional)
   - `stream_ids` : JSON array of stream IDs, replacing the current set (string, optional)
+  - `trigger_config` : JSON object replacing the whole trigger, in the same shape `create_alarm` takes (string, optional)
 
-  Provide at least one field. The trigger can't be changed through an update yet; delete and recreate the alarm to change it.
+  Provide at least one field.
 
 - **delete_alarm** - Delete an Insights alarm _(requires `read-only=false`)_
   - `project_id` : The ID of the project the alarm belongs to (string, required)
@@ -419,7 +420,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 - **get_alarm_history** - Get the trigger history for an Insights alarm
   - `project_id` : The ID of the project the alarm belongs to (string, required)
   - `alarm_id` : The ID of the alarm to get history for (string, required)
-  - `page` : Page number, starting at 1 (default: 1). The response's `total_pages` says how many there are (number, optional)
+  - `page` : Page number, starting at 1 (default: 1). Pages hold 25 entries; a non-null `links.next` means there are more (number, optional)
 
 ### Check-Ins
 

@@ -126,6 +126,9 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			mcp.WithString("stream_ids",
 				mcp.Description("JSON array of stream IDs, replacing the current set. Use the opaque IDs from list_streams, not slugs like \"default\": unrecognized IDs are silently dropped."),
 			),
+			mcp.WithString("trigger_config",
+				mcp.Description(`JSON object replacing the whole trigger, in the same shape create_alarm takes, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}.`),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateAlarm(ctx, v3ClientFor(ctx), req)
@@ -170,7 +173,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("The ID of the alarm to get history for"),
 			),
 			mcp.WithNumber("page",
-				mcp.Description("Page number, starting at 1 (default: 1). The response's total_pages says how many there are."),
+				mcp.Description("Page number, starting at 1 (default: 1). Pages hold 25 entries; a non-null links.next means there are more."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -222,12 +225,25 @@ func handleGetAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolR
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// alarmUpdateUnsupported lists the fields update_alarm cannot carry yet.
-//
-// The update schema declares trigger_config as an untyped object, so the client
-// has no typed trigger to send; a request carrying one is refused rather than
-// silently applying the other fields.
-var alarmUpdateUnsupported = []string{"trigger_config"}
+// parseTrigger reads a trigger_config argument. Create and update take the same
+// shape, as the API does.
+func parseTrigger(raw string) (*apiv3.AlarmTrigger, error) {
+	var trigger struct {
+		Type   string `json:"type"`
+		Config struct {
+			Operator string  `json:"operator"`
+			Value    float64 `json:"value"`
+		} `json:"config"`
+	}
+	if err := json.Unmarshal([]byte(raw), &trigger); err != nil {
+		return nil, err
+	}
+	return &apiv3.AlarmTrigger{
+		Type:     trigger.Type,
+		Operator: trigger.Config.Operator,
+		Value:    trigger.Config.Value,
+	}, nil
+}
 
 func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
@@ -259,21 +275,11 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		}
 	}
 	if raw := req.GetString("trigger_config", ""); raw != "" {
-		var trigger struct {
-			Type   string `json:"type"`
-			Config struct {
-				Operator string  `json:"operator"`
-				Value    float32 `json:"value"`
-			} `json:"config"`
-		}
-		if err := json.Unmarshal([]byte(raw), &trigger); err != nil {
+		trigger, err := parseTrigger(raw)
+		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
 		}
-		params.Trigger = &apiv3.AlarmTrigger{
-			Type:     trigger.Type,
-			Operator: trigger.Config.Operator,
-			Value:    trigger.Config.Value,
-		}
+		params.Trigger = trigger
 	}
 
 	alarm, err := client.Alarms.Create(ctx, projectID, params)
@@ -288,10 +294,7 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// handleUpdateAlarm changes an alarm's name or description.
-//
-// Those are the only fields v3's update schema declares, so a request touching
-// the alarm's behaviour is refused instead of applying a subset.
+// handleUpdateAlarm changes whichever of an alarm's fields the caller supplies.
 func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
@@ -301,11 +304,6 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if alarmID == "" {
 		return mcp.NewToolResultError("alarm_id is required"), nil
 	}
-	if msg := rejectUnsupported(req, alarmUpdateUnsupported, "updating an alarm",
-		"change the other fields here; to change the trigger, delete and recreate the alarm"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
-
 	// Presence, not emptiness: pointing at "" is how a caller clears a description,
 	// while omitting the field leaves it alone.
 	args := req.GetArguments()
@@ -328,6 +326,13 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)), nil
 		}
 		params.StreamIDs = &ids
+	}
+	if raw := req.GetString("trigger_config", ""); raw != "" {
+		trigger, err := parseTrigger(raw)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
+		}
+		params.Trigger = trigger
 	}
 	if params == (apiv3.AlarmUpdateParams{}) {
 		return mcp.NewToolResultError("provide at least one field to change"), nil
@@ -394,8 +399,7 @@ func handleGetAlarmHistory(ctx context.Context, client *apiv3.Client, req mcp.Ca
 		return mcp.NewToolResultError("alarm_id is required"), nil
 	}
 
-	// This endpoint passes the query service's paging through, so it takes page
-	// but no per_page.
+	// Page size is fixed at 25, so this endpoint takes page but no per_page.
 	var opts []apiv3.Option
 	if page := req.GetInt("page", 0); page > 0 {
 		opts = append(opts, apiv3.Page(page, 0))
@@ -406,12 +410,7 @@ func handleGetAlarmHistory(ctx context.Context, client *apiv3.Client, req mcp.Ca
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get alarm history: %v", err)), nil
 	}
 
-	// total_pages is the only end signal: this endpoint has no links.
-	jsonBytes, err := json.Marshal(map[string]any{
-		"results":     history.Entries,
-		"page":        history.Page,
-		"total_pages": history.TotalPages,
-	})
+	jsonBytes, err := json.Marshal(history)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}

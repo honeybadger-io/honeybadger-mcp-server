@@ -188,22 +188,15 @@ func handleDeleteProjectKey(ctx context.Context, client *apiv3.Client, req mcp.C
 	return mcp.NewToolResultText(fmt.Sprintf("Project key %s deleted successfully", keyID)), nil
 }
 
-// projectKeySummary describes a key for a deletion preview. There is no endpoint
-// for a single key, so it is found in the project's list.
+// projectKeySummary describes a key for a deletion preview.
 func projectKeySummary(ctx context.Context, client *apiv3.Client, projectID, keyID string) (string, error) {
-	keys, err := client.ProjectKeys.ListAll(ctx, projectID)
+	k, err := client.ProjectKeys.Get(ctx, projectID, keyID)
 	if err != nil {
 		return "", err
 	}
-	for _, k := range keys {
-		if k.Id != keyID {
-			continue
-		}
-		name := nullableString(k.Label)
-		if name == "" {
-			name = "unlabelled"
-		}
-		return fmt.Sprintf("delete the %s ingestion key (id %s) from project %s; notifiers sending with it will be refused", name, keyID, projectID), nil
+	name := nullableString(k.Label)
+	if name == "" {
+		name = "unlabelled"
 	}
-	return "", fmt.Errorf("no key %s in project %s", keyID, projectID)
+	return fmt.Sprintf("delete the %s ingestion key (id %s) from project %s; notifiers sending with it will be refused", name, keyID, projectID), nil
 }

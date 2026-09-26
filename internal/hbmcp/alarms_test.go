@@ -204,18 +204,43 @@ func TestHandleUpdateAlarmChangesBehaviour(t *testing.T) {
 	}
 }
 
-// The trigger has no typed update field, so a request touching it is refused
-// rather than applying the other fields and reporting success.
-func TestHandleUpdateAlarmRefusesTrigger(t *testing.T) {
+// The trigger changes in place too, with a fractional threshold intact.
+func TestHandleUpdateAlarmChangesTrigger(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"a1","name":"Spike"}}`)
+	})
+
+	result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "alarm_id": "a1",
+		"trigger_config": `{"type":"alert_result_count","config":{"operator":"gte","value":0.5}}`,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	trigger, ok := body["trigger_config"].(map[string]any)
+	if !ok || trigger["type"] != "alert_result_count" {
+		t.Fatalf("trigger_config = %v", body["trigger_config"])
+	}
+	if config, ok := trigger["config"].(map[string]any); !ok || config["operator"] != "gte" || config["value"] != 0.5 {
+		t.Errorf("trigger config = %v", trigger["config"])
+	}
+}
+
+func TestHandleUpdateAlarmRejectsInvalidTriggerJSON(t *testing.T) {
 	result, err := handleUpdateAlarm(context.Background(), noRequestClient(t),
 		alarmArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "alarm_id": "a1", "name": "N", "trigger_config": `{"type":"alert_result_count"}`,
+			"project_id": "Xk9mZp", "alarm_id": "a1", "trigger_config": `{not json`,
 		}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError || !strings.Contains(getResultText(result), "trigger_config") {
-		t.Errorf("expected trigger_config to be refused by name, got %s", getResultText(result))
+	if !result.IsError {
+		t.Errorf("expected an error for malformed trigger_config, got %s", getResultText(result))
 	}
 }
 
@@ -248,9 +273,10 @@ func TestHandleGetAlarmHistory(t *testing.T) {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		query = r.URL.RawQuery
-		// Rows come from the query service, so they stay untyped.
-		v3JSON(w, http.StatusOK, `{"data":[{"state":"triggered","value":91.5}],
-		  "pagination":{"page":2,"total_pages":2}}`)
+		v3JSON(w, http.StatusOK, `{"data":[{"id":"t1","observer_root_id":"a1","observer_id":"v7","status":"alarm",
+		    "created_at":"2026-09-26T00:00:00Z","evaluation_started_at":"2026-09-25T23:55:00Z","evaluation_result":91.5}],
+		  "pagination":{"page":2,"per_page":25},
+		  "links":{"self":"/x?page=2","next":"/x?page=3"}}`)
 	})
 
 	result, err := handleGetAlarmHistory(context.Background(), client, alarmArgs(map[string]interface{}{
@@ -270,18 +296,22 @@ func TestHandleGetAlarmHistory(t *testing.T) {
 		t.Errorf("query = %q, must not send per_page", query)
 	}
 	var got struct {
-		Results    []map[string]any `json:"results"`
-		Page       int              `json:"page"`
-		TotalPages int              `json:"total_pages"`
+		Data []struct {
+			Status           string  `json:"status"`
+			EvaluationResult float64 `json:"evaluation_result"`
+		} `json:"data"`
+		Links struct {
+			Next *string `json:"next"`
+		} `json:"links"`
 	}
 	if err := json.Unmarshal([]byte(getResultText(result)), &got); err != nil {
 		t.Fatalf("response is not JSON: %v", err)
 	}
-	if len(got.Results) != 1 || got.Results[0]["state"] != "triggered" {
-		t.Errorf("results = %v", got.Results)
+	if len(got.Data) != 1 || got.Data[0].Status != "alarm" || got.Data[0].EvaluationResult != 91.5 {
+		t.Errorf("data = %+v", got.Data)
 	}
-	// total_pages is the only way to know whether more history exists.
-	if got.Page != 2 || got.TotalPages != 2 {
-		t.Errorf("page %d of %d, want 2 of 2", got.Page, got.TotalPages)
+	// links.next is how the caller knows more history exists.
+	if got.Links.Next == nil {
+		t.Error("links.next was dropped from the response")
 	}
 }
