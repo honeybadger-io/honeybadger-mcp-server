@@ -255,6 +255,6 @@ func ServerInstructions() string {
 	sb.WriteString("Reference documentation is split into non-overlapping topics served by the get_reference tool: ")
 	sb.WriteString(strings.Join(referenceTopicNames, ", "))
 	sb.WriteString(". Tool descriptions state which topics they require. Fetch required topics in a single get_reference call before using those tools, and never re-fetch a topic whose content is still visible in your context. Call get_reference with no arguments for the topic index.\n\n")
-	sb.WriteString("Fundamentals: discover before you analyze — resolve projects with list_projects, verify data exists with a minimal count query, and preview event fields before writing analytical queries. Build queries incrementally with narrow time ranges and small limits, then widen. Verify a query returns the expected shape via query_insights before embedding it in a dashboard widget or alarm trigger. After running queries or creating dashboards and alarms, give the user Honeybadger UI links to the results.")
+	sb.WriteString("Fundamentals: discover before you analyze — resolve projects with list_projects, verify data exists with a minimal count query, and preview event fields before writing analytical queries. Build queries incrementally with narrow time ranges and small limits, then widen. Verify a query returns the expected shape via query_insights before embedding it in a dashboard widget or alarm trigger.")
 	return sb.String()
 }

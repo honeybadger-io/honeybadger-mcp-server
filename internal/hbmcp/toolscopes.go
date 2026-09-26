@@ -60,6 +60,12 @@ var toolOperations = map[string][]string{
 	"update_alarm":      {"updateAlarm"},
 	"delete_alarm":      {"deleteAlarm"},
 
+	"list_fault_comments":  {"listComments"},
+	"get_fault_comment":    {"getComment"},
+	"create_fault_comment": {"createComment"},
+	"update_fault_comment": {"updateComment"},
+	"delete_fault_comment": {"deleteComment"},
+
 	"get_integration":    {"getIntegration"},
 	"create_integration": {"createIntegration"},
 	"update_integration": {"updateIntegration"},

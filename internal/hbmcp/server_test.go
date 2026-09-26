@@ -142,6 +142,11 @@ func TestNewServerWithCatalog(t *testing.T) {
 		{"list_projects", true},
 		{"create_project", false},
 		{"search_tools", true},
+		{"list_fault_comments", true},
+		{"get_fault_comment", true},
+		{"create_fault_comment", false},
+		{"update_fault_comment", false},
+		{"delete_fault_comment", false},
 	}
 	for _, c := range cases {
 		tool, ok := byName[c.name]

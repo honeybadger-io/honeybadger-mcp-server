@@ -125,13 +125,14 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_project",
 			mcp.WithTitleAnnotation("Delete Project"),
-			mcp.WithDescription("Delete a Honeybadger project"),
+			mcp.WithDescription("Delete a Honeybadger project and all of its data."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteProject(ctx, v3ClientFor(ctx), req)
@@ -367,6 +368,15 @@ func handleDeleteProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	id := req.GetString("id", "")
 	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_project", id) {
+		project, err := client.Projects.Get(ctx, id)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up project: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete project %q (id %s) and all of its data", project.Name, id)
+		return deletionPreview(ctx, req, "delete_project", summary, id), nil
 	}
 
 	err := client.Projects.Delete(ctx, id)

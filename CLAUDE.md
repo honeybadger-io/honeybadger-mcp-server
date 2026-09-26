@@ -15,6 +15,16 @@ Every tool registered with the server must declare, in this order inside
    Tools that create, update, or delete:
    `mcp.WithReadOnlyHintAnnotation(false)` / `mcp.WithDestructiveHintAnnotation(true)`.
 
+4. Delete tools must not delete on the first call. Declare `withConfirmParam()`,
+   append `confirmNote` to the description, and gate the handler on
+   `deletionConfirmed(...)`; when it returns false, look up the resource and
+   return `deletionPreview(...)` so the user sees what will be deleted. Pass the
+   same tool name and ids to both (see `handleDeleteProject` in `projects.go`).
+   `destructiveHint` is only a hint to the client; it doesn't stop the call.
+   `TestDeleteToolsRequireConfirmation` in
+   `internal/hbmcp/confirm_test.go` fails for any `delete_*` tool that deletes
+   without a valid token or isn't listed in its `deleteToolArgs`.
+
 `TestAllToolsHaveTitleAndAnnotations` in `internal/hbmcp/server_test.go` fails
 the build if any tool (including hidden aliases) is missing a title,
 `readOnlyHint`, or `destructiveHint`. Run `go test ./...` before committing.

@@ -10,7 +10,8 @@ import (
 const tokenPrefix = "hbo_"
 
 type Claims struct {
-	Scopes []string
+	Subject string
+	Scopes  []string
 }
 
 func (c *Claims) HasScope(scope string) bool {
@@ -46,6 +47,12 @@ func ParseAccessToken(raw string, keyfunc jwt.Keyfunc, expectedIssuer, expectedA
 		return nil, err
 	}
 	mc, _ := tok.Claims.(jwt.MapClaims)
+	// Delete confirmations are bound to the subject, so callers without one
+	// would share an identity. RFC 9068 requires sub on JWT access tokens.
+	sub, err := mc.GetSubject()
+	if err != nil || sub == "" {
+		return nil, errors.New("token missing sub")
+	}
 	scope, _ := mc["scope"].(string)
-	return &Claims{Scopes: strings.Fields(scope)}, nil
+	return &Claims{Subject: sub, Scopes: strings.Fields(scope)}, nil
 }

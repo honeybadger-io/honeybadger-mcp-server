@@ -17,7 +17,7 @@ func TestHandleListDashboards(t *testing.T) {
 		if want := "/v3/projects/Xk9mZp/dashboards"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		v3JSON(w, http.StatusOK, `{"data":[{"id":"d1","title":"Ops","project_id":"Xk9mZp"}],
+		v3JSON(w, http.StatusOK, `{"data":[{"id":"d1","title":"Ops","project_id":"Xk9mZp","links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}}],
 		  "pagination":{"page":1,"per_page":25}}`)
 	})
 
@@ -39,11 +39,12 @@ func TestHandleGetDashboard(t *testing.T) {
 		if want := "/v3/projects/Xk9mZp/dashboards/d1"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		v3JSON(w, http.StatusOK, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp"}}`)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp","links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}}}`)
 	})
 
 	result, err := handleGetDashboard(context.Background(), client,
-		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1"}))
+		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1",
+			"confirm": validConfirm("delete_dashboard", "Xk9mZp", "d1")}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -58,7 +59,7 @@ func TestHandleCreateDashboardSendsTitle(t *testing.T) {
 	var body map[string]any
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp"}}`)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp","links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}}}`)
 	})
 
 	result, err := handleCreateDashboard(context.Background(), client,
@@ -117,7 +118,8 @@ func TestHandleDeleteDashboard(t *testing.T) {
 	})
 
 	result, err := handleDeleteDashboard(context.Background(), client,
-		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1"}))
+		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1",
+			"confirm": validConfirm("delete_dashboard", "Xk9mZp", "d1")}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -131,7 +133,7 @@ func TestHandleCreateDashboardSendsWidgets(t *testing.T) {
 	var body map[string]any
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp"}}`)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp","links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}}}`)
 	})
 
 	result, err := handleCreateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
@@ -188,5 +190,41 @@ func TestHandleUpdateDashboardRequiresWidgets(t *testing.T) {
 	}
 	if !strings.Contains(getResultText(result), "get_dashboard") {
 		t.Errorf("error should say how to recover: %q", getResultText(result))
+	}
+}
+
+// Dashboards carry their UI link in links.web, which reaches the tool output so
+// the caller can hand it to the user.
+func TestDashboardToolsCarryTheUILink(t *testing.T) {
+	const link = `"links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}`
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost:
+			v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp",`+link+`}}`)
+		case r.URL.Path == "/v3/projects/Xk9mZp/dashboards":
+			v3JSON(w, http.StatusOK, `{"data":[{"id":"d1","title":"Ops","project_id":"Xk9mZp",`+link+`}],"pagination":{"page":1,"per_page":25}}`)
+		default:
+			v3JSON(w, http.StatusOK, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp",`+link+`}}`)
+		}
+	})
+
+	for name, call := range map[string]func() (*mcp.CallToolResult, error){
+		"list": func() (*mcp.CallToolResult, error) {
+			return handleListDashboards(context.Background(), client, dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
+		},
+		"get": func() (*mcp.CallToolResult, error) {
+			return handleGetDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1"}))
+		},
+		"create": func() (*mcp.CallToolResult, error) {
+			return handleCreateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "title": "Ops"}))
+		},
+	} {
+		result, err := call()
+		if err != nil || result.IsError {
+			t.Fatalf("%s: %v %s", name, err, getResultText(result))
+		}
+		if !strings.Contains(getResultText(result), link) {
+			t.Errorf("%s: result lacks the UI link: %s", name, getResultText(result))
+		}
 	}
 }

@@ -72,7 +72,7 @@ func RegisterProjectKeyTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_project_key",
 			mcp.WithTitleAnnotation("Delete Project Key"),
-			mcp.WithDescription("Delete a project ingestion key. Notifiers using this key will no longer be able to send data."),
+			mcp.WithDescription("Delete a project ingestion key. Notifiers using this key will no longer be able to send data."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -83,6 +83,7 @@ func RegisterProjectKeyTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the key to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteProjectKey(ctx, v3ClientFor(ctx), req)
@@ -168,9 +169,37 @@ func handleDeleteProjectKey(ctx context.Context, client *apiv3.Client, req mcp.C
 		return mcp.NewToolResultError("key_id is required"), nil
 	}
 
+	if !deletionConfirmed(ctx, req, "delete_project_key", projectID, keyID) {
+		summary, err := projectKeySummary(ctx, client, projectID, keyID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up project key: %v", err)), nil
+		}
+		return deletionPreview(ctx, req, "delete_project_key", summary, projectID, keyID), nil
+	}
+
 	if err := client.ProjectKeys.Delete(ctx, projectID, keyID); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project key: %v", err)), nil
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Project key %s deleted successfully", keyID)), nil
+}
+
+// projectKeySummary describes a key for a deletion preview. There is no endpoint
+// for a single key, so it is found in the project's list.
+func projectKeySummary(ctx context.Context, client *apiv3.Client, projectID, keyID string) (string, error) {
+	keys, err := client.ProjectKeys.ListAll(ctx, projectID)
+	if err != nil {
+		return "", err
+	}
+	for _, k := range keys {
+		if k.Id != keyID {
+			continue
+		}
+		name := nullableString(k.Label)
+		if name == "" {
+			name = "unlabelled"
+		}
+		return fmt.Sprintf("delete the %s ingestion key (id %s) from project %s; notifiers sending with it will be refused", name, keyID, projectID), nil
+	}
+	return "", fmt.Errorf("no key %s in project %s", keyID, projectID)
 }

@@ -25,6 +25,7 @@ func TestHandleQueryInsights(t *testing.T) {
 			"rows": 2,
 			"total_rows": 2
 		},
+		"links": {"web": "https://app.honeybadger.io/projects/123/insights/query?query=stats&timezone=UTC"},
 		"meta": {"request_id": "req_1"}
 	}`
 
@@ -78,6 +79,10 @@ func TestHandleQueryInsights(t *testing.T) {
 	}
 	if response.RequestID != "req_1" {
 		t.Errorf("expected request id to survive, got %q", response.RequestID)
+	}
+	// The UI link rides in links.web, so the caller can hand it to the user.
+	if want := "https://app.honeybadger.io/projects/123/insights/query?query=stats&timezone=UTC"; response.Links.Web != want {
+		t.Errorf("links.web = %q, want %q", response.Links.Web, want)
 	}
 }
 

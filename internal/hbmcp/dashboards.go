@@ -112,7 +112,7 @@ func RegisterDashboardTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_dashboard",
 			mcp.WithTitleAnnotation("Delete Dashboard"),
-			mcp.WithDescription("Delete an Insights dashboard"),
+			mcp.WithDescription("Delete an Insights dashboard."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -123,6 +123,7 @@ func RegisterDashboardTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the dashboard to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteDashboard(ctx, v3ClientFor(ctx), req)
@@ -268,6 +269,15 @@ func handleDeleteDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	dashboardID := req.GetString("dashboard_id", "")
 	if dashboardID == "" {
 		return mcp.NewToolResultError("dashboard_id is required"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_dashboard", projectID, dashboardID) {
+		dashboard, err := client.Dashboards.Get(ctx, projectID, dashboardID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up dashboard: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete dashboard %q (id %s) from project %s", dashboard.Title, dashboardID, projectID)
+		return deletionPreview(ctx, req, "delete_dashboard", summary, projectID, dashboardID), nil
 	}
 
 	err := client.Dashboards.Delete(ctx, projectID, dashboardID)

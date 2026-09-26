@@ -134,7 +134,7 @@ func RegisterCheckInTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_check_in",
 			mcp.WithTitleAnnotation("Delete Check-In"),
-			mcp.WithDescription("Delete a check-in. This also deletes the check-in's reporting history."),
+			mcp.WithDescription("Delete a check-in. This also deletes the check-in's reporting history."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -145,6 +145,7 @@ func RegisterCheckInTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the check-in to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteCheckIn(ctx, v3ClientFor(ctx), req)
@@ -271,6 +272,15 @@ func handleDeleteCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 	checkInID := req.GetString("check_in_id", "")
 	if checkInID == "" {
 		return mcp.NewToolResultError("check_in_id is required"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_check_in", projectID, checkInID) {
+		checkIn, err := client.CheckIns.Get(ctx, projectID, checkInID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up check-in: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete check-in %q (id %s) from project %s, along with its reporting history", nullableString(checkIn.Name), checkInID, projectID)
+		return deletionPreview(ctx, req, "delete_check_in", summary, projectID, checkInID), nil
 	}
 
 	if err := client.CheckIns.Delete(ctx, projectID, checkInID); err != nil {

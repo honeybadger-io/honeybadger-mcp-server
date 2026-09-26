@@ -6,6 +6,7 @@ import (
 
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/confirmtoken"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/logging"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -105,6 +106,14 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 		server.WithRecovery(),
 		server.WithHooks(hooks),
 	}
+	if cfg.ConfirmSecret != "" {
+		signer := confirmtoken.New([]byte(cfg.ConfirmSecret))
+		serverOptions = append(serverOptions, server.WithToolHandlerMiddleware(func(next server.ToolHandlerFunc) server.ToolHandlerFunc {
+			return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return next(withConfirmSigner(ctx, signer), req)
+			}
+		}))
+	}
 	serverOptions = append(serverOptions, server.WithToolFilter(func(ctx context.Context, tools []mcp.Tool) []mcp.Tool {
 		if EffectiveReadOnly(ctx, cfg) {
 			tools = filterReadOnlyTools(tools)
@@ -127,6 +136,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	RegisterReferenceTools(r, newReferenceFetcher(cfg.InstructionsURL, logger))
 	RegisterProjectTools(r, v3ClientFor)
 	RegisterFaultTools(r, v3ClientFor)
+	RegisterCommentTools(r, v3ClientFor)
 	RegisterInsightsTools(r, v3ClientFor)
 	RegisterStreamTools(r, v3ClientFor)
 	RegisterDashboardTools(r, v3ClientFor)

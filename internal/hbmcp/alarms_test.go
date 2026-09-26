@@ -59,7 +59,8 @@ func TestHandleGetAlarm(t *testing.T) {
 	})
 
 	result, err := handleGetAlarm(context.Background(), client,
-		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "alarm_id": "a1"}))
+		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "alarm_id": "a1",
+			"confirm": validConfirm("delete_alarm", "Xk9mZp", "a1")}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -84,7 +85,8 @@ func TestHandleCreateAlarm(t *testing.T) {
 	var body map[string]any
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		v3JSON(w, http.StatusCreated, `{"data":{"id":"a1","name":"Error spike"}}`)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"a1","name":"Error spike",
+			"links":{"web":"https://app.honeybadger.io/projects/123/insights/alarms/a1"}}}`)
 	})
 
 	result, err := handleCreateAlarm(context.Background(), client, alarmArgs(map[string]interface{}{
@@ -113,6 +115,10 @@ func TestHandleCreateAlarm(t *testing.T) {
 	streams, ok := body["stream_ids"].([]any)
 	if !ok || len(streams) != 1 {
 		t.Errorf("stream_ids = %v", body["stream_ids"])
+	}
+	// The UI link rides along in links.web, so the caller can hand it to the user.
+	if !strings.Contains(getResultText(result), `"links":{"web":"https://app.honeybadger.io/projects/123/insights/alarms/a1"}`) {
+		t.Errorf("result should carry the alarm's UI link, got %s", getResultText(result))
 	}
 }
 
@@ -223,7 +229,8 @@ func TestHandleDeleteAlarm(t *testing.T) {
 	})
 
 	result, err := handleDeleteAlarm(context.Background(), client,
-		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "alarm_id": "a1"}))
+		alarmArgs(map[string]interface{}{"project_id": "Xk9mZp", "alarm_id": "a1",
+			"confirm": validConfirm("delete_alarm", "Xk9mZp", "a1")}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}

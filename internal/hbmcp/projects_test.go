@@ -238,7 +238,7 @@ func TestHandleDeleteProject(t *testing.T) {
 	})
 
 	result, err := handleDeleteProject(context.Background(), client,
-		projectArgs(map[string]interface{}{"id": "Xk9mZp"}))
+		projectArgs(map[string]interface{}{"id": "Xk9mZp", "confirm": validConfirm("delete_project", "Xk9mZp")}))
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}
@@ -258,7 +258,7 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 	})
 
 	result, err := handleDeleteProject(context.Background(), client,
-		projectArgs(map[string]interface{}{"id": "Xk9mZp"}))
+		projectArgs(map[string]interface{}{"id": "Xk9mZp", "confirm": validConfirm("delete_project", "Xk9mZp")}))
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}

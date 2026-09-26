@@ -43,7 +43,8 @@ func TestHandleGetCheckIn(t *testing.T) {
 	})
 
 	result, err := handleGetCheckIn(context.Background(), client,
-		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1"}))
+		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1",
+			"confirm": validConfirm("delete_check_in", "Xk9mZp", "c1")}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -140,7 +141,8 @@ func TestHandleDeleteCheckIn(t *testing.T) {
 	})
 
 	result, err := handleDeleteCheckIn(context.Background(), client,
-		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1"}))
+		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1",
+			"confirm": validConfirm("delete_check_in", "Xk9mZp", "c1")}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}

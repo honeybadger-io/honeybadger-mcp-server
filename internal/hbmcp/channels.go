@@ -80,7 +80,7 @@ func RegisterIntegrationTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_integration",
 			mcp.WithTitleAnnotation("Delete Integration"),
-			mcp.WithDescription("Delete a notification integration. Also deletes all associated tickets and configurations."),
+			mcp.WithDescription("Delete a notification integration. Also deletes all associated tickets and configurations."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -91,6 +91,7 @@ func RegisterIntegrationTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the integration to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteIntegration(ctx, v3ClientFor(ctx), req)
@@ -190,6 +191,15 @@ func handleDeleteIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 	integrationID := req.GetString("integration_id", "")
 	if integrationID == "" {
 		return mcp.NewToolResultError("integration_id is required"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_integration", projectID, integrationID) {
+		integration, err := client.Integrations.Get(ctx, projectID, integrationID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up integration: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete the %s integration (id %s) from project %s, with its tickets and configuration", integration.Type, integrationID, projectID)
+		return deletionPreview(ctx, req, "delete_integration", summary, projectID, integrationID), nil
 	}
 
 	if err := client.Integrations.Delete(ctx, projectID, integrationID); err != nil {

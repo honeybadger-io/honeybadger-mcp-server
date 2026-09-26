@@ -82,7 +82,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description(`JSON object describing what turns the alarm on, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}. Operators are named (gt, lt) rather than symbolic. Without a trigger the alarm is created but never fires. The alarms reference topic has the full list of types.`),
 			),
 			mcp.WithString("stream_ids",
-				mcp.Description("JSON array of stream IDs the query runs against. Omit to use every stream on the project."),
+				mcp.Description("JSON array of stream IDs the query runs against. Omit to query every stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": unrecognized IDs are silently dropped, and if none survive the API returns 422 \"stream_ids: cannot be empty\"."),
 			),
 			mcp.WithString("description",
 				mcp.Description("Optional description of the alarm"),
@@ -124,7 +124,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("A new lookback lag, in the same compact format ('1m')."),
 			),
 			mcp.WithString("stream_ids",
-				mcp.Description("JSON array of stream IDs, replacing the current set. Use the opaque IDs from list_streams."),
+				mcp.Description("JSON array of stream IDs, replacing the current set. Use the opaque IDs from list_streams, not slugs like \"default\": unrecognized IDs are silently dropped."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -136,7 +136,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_alarm",
 			mcp.WithTitleAnnotation("Delete Alarm"),
-			mcp.WithDescription("Delete an Insights alarm."),
+			mcp.WithDescription("Delete an Insights alarm."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -147,6 +147,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the alarm to delete"),
 			),
+			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteAlarm(ctx, v3ClientFor(ctx), req)
@@ -353,6 +354,15 @@ func handleDeleteAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	alarmID := req.GetString("alarm_id", "")
 	if alarmID == "" {
 		return mcp.NewToolResultError("alarm_id is required"), nil
+	}
+
+	if !deletionConfirmed(ctx, req, "delete_alarm", projectID, alarmID) {
+		alarm, err := client.Alarms.Get(ctx, projectID, alarmID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up alarm: %v", err)), nil
+		}
+		summary := fmt.Sprintf("delete alarm %q (id %s) from project %s", alarm.Name, alarmID, projectID)
+		return deletionPreview(ctx, req, "delete_alarm", summary, projectID, alarmID), nil
 	}
 
 	err := client.Alarms.Delete(ctx, projectID, alarmID)
