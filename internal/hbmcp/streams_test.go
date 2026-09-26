@@ -29,7 +29,7 @@ func TestHandleListStreams(t *testing.T) {
 				"created_at": "2024-01-01T00:00:00Z"
 			}
 		],
-		"pagination": {"page": 1, "per_page": 25, "total_count": 2, "total_pages": 1}
+		"pagination": {"page": 1, "per_page": 25}
 	}`
 
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {

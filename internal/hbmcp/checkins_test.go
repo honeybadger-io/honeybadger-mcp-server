@@ -18,7 +18,7 @@ func TestHandleListCheckIns(t *testing.T) {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":[{"id":"c1","name":"Nightly","slug":"nightly"}],
-		  "pagination":{"page":1,"per_page":25,"total_count":1,"total_pages":1}}`)
+		  "pagination":{"page":1,"per_page":25}}`)
 	})
 
 	result, err := handleListCheckIns(context.Background(), client,
@@ -220,16 +220,41 @@ func TestHandleCreateCheckInRequiresCronSchedule(t *testing.T) {
 	}
 }
 
-// The update body is the same schema as create, with name required.
-func TestHandleUpdateCheckInRequiresName(t *testing.T) {
-	result, err := handleUpdateCheckIn(context.Background(), offlineV3Client(),
+// An update is partial: changing only the grace period sends only that, and the
+// name stays whatever it was.
+func TestHandleUpdateCheckInWithoutName(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"c1","name":"Nightly"}}`)
+	})
+
+	result, err := handleUpdateCheckIn(context.Background(), client,
 		checkInArgs(map[string]interface{}{
 			"project_id": "Xk9mZp", "check_in_id": "c1", "grace_period": "5m",
 		}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError || !strings.Contains(getResultText(result), "name is required") {
-		t.Errorf("got %q", getResultText(result))
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	if body["grace_period"] != "5m" {
+		t.Errorf("grace_period = %v", body["grace_period"])
+	}
+	if _, present := body["name"]; present {
+		t.Errorf("name was sent unset: %v", body["name"])
+	}
+}
+
+// An update with nothing to change is refused before it reaches the API.
+func TestHandleUpdateCheckInNothingToChange(t *testing.T) {
+	result, err := handleUpdateCheckIn(context.Background(), offlineV3Client(),
+		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1"}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Errorf("expected an error, got %s", getResultText(result))
 	}
 }

@@ -100,8 +100,7 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("The ID of the project to update"),
 			),
 			mcp.WithString("name",
-				mcp.Required(),
-				mcp.Description("The project's name. Required even when changing something else: the v3 API's update takes the same body as create, so the current name must be sent."),
+				mcp.Description("A new name for the project"),
 				mcp.MinLength(1),
 				mcp.MaxLength(255),
 			),
@@ -274,9 +273,14 @@ func handleGetProject(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 // alone. Booleans come from the raw arguments because the typed getter cannot
 // distinguish false from absent, and false is a real value here — it is how a
 // caller turns a setting off.
-func projectParamsFrom(req mcp.CallToolRequest, name string) apiv3.ProjectParams {
+func projectParamsFrom(req mcp.CallToolRequest) apiv3.ProjectParams {
 	args := req.GetArguments()
-	params := apiv3.ProjectParams{Name: name}
+	var params apiv3.ProjectParams
+
+	// A name is never blank, so an empty one is treated as absent.
+	if name := req.GetString("name", ""); name != "" {
+		params.Name = &name
+	}
 
 	// Presence rather than emptiness: an empty string is how a caller clears a
 	// setting, so dropping it would make these fields impossible to unset.
@@ -312,7 +316,17 @@ func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-	params := projectParamsFrom(req, name)
+	p := projectParamsFrom(req)
+	params := apiv3.ProjectCreateParams{
+		Name:                  name,
+		UserUrl:               p.UserUrl,
+		SourceUrl:             p.SourceUrl,
+		UserSearchField:       p.UserSearchField,
+		Language:              p.Language,
+		ResolveErrorsOnDeploy: p.ResolveErrorsOnDeploy,
+		DisablePublicLinks:    p.DisablePublicLinks,
+		PurgeDays:             p.PurgeDays,
+	}
 
 	project, err := client.Projects.Create(ctx, params)
 	if err != nil {
@@ -333,15 +347,10 @@ func handleUpdateProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
 	}
-	// The API's update body is the same schema as create, with name required, so a
-	// caller changing only another field still has to supply the current name.
-	name := req.GetString("name", "")
-	if name == "" {
-		return mcp.NewToolResultError(
-			"name is required: the v3 API's project update takes the same body as create, " +
-				"so the current name must be sent even when changing something else"), nil
+	params := projectParamsFrom(req)
+	if params == (apiv3.ProjectParams{}) {
+		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
-	params := projectParamsFrom(req, name)
 
 	result, err := client.Projects.Update(ctx, id, params)
 	if err != nil {

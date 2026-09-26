@@ -18,7 +18,7 @@ func TestHandleListDashboards(t *testing.T) {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{"data":[{"id":"d1","title":"Ops","project_id":"Xk9mZp"}],
-		  "pagination":{"page":1,"per_page":25,"total_count":1,"total_pages":1}}`)
+		  "pagination":{"page":1,"per_page":25}}`)
 	})
 
 	result, err := handleListDashboards(context.Background(), client,

@@ -23,7 +23,7 @@ func TestHandleListFaults(t *testing.T) {
 		}
 		v3JSON(w, http.StatusOK, `{
 			"data": [{"id":1,"project_id":"Xk9mZp","klass":"RuntimeError","message":"boom","notices_count":42}],
-			"pagination": {"page":1,"per_page":25,"total_count":1,"total_pages":1}
+			"pagination": {"page":1,"per_page":25}
 		}`)
 	})
 

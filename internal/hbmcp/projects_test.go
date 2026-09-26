@@ -41,7 +41,7 @@ func TestHandleListProjects(t *testing.T) {
 				 "token": "tok_1", "fault_count": 12, "unresolved_fault_count": 3},
 				{"id": "Nm8pQx", "account_id": "Ab3kL9", "name": "Staging", "active": false}
 			],
-			"pagination": {"page": 1, "per_page": 25, "total_count": 2, "total_pages": 1}
+			"pagination": {"page": 1, "per_page": 25}
 		}`)
 	})
 
@@ -353,15 +353,39 @@ func TestHandleUpdateProjectOmitsUnmentionedSettings(t *testing.T) {
 	}
 }
 
-// The update body is the same schema as create, with name required, so the tool
-// says so rather than letting the API reject it.
-func TestHandleUpdateProjectRequiresName(t *testing.T) {
-	result, err := handleUpdateProject(context.Background(), offlineV3Client(),
+// An update is partial: changing only purge_days sends only that, and the name
+// stays whatever it was.
+func TestHandleUpdateProjectWithoutName(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"App","active":true}}`)
+	})
+
+	result, err := handleUpdateProject(context.Background(), client,
 		projectArgs(map[string]interface{}{"id": "Xk9mZp", "purge_days": float64(30)}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError || !strings.Contains(getResultText(result), "name is required") {
-		t.Errorf("got %q", getResultText(result))
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	if body["purge_days"] != float64(30) {
+		t.Errorf("purge_days = %v", body["purge_days"])
+	}
+	if _, present := body["name"]; present {
+		t.Errorf("name was sent unset: %v", body["name"])
+	}
+}
+
+// An update with nothing to change is refused before it reaches the API.
+func TestHandleUpdateProjectNothingToChange(t *testing.T) {
+	result, err := handleUpdateProject(context.Background(), offlineV3Client(),
+		projectArgs(map[string]interface{}{"id": "Xk9mZp"}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Errorf("expected an error, got %s", getResultText(result))
 	}
 }

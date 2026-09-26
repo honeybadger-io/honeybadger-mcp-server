@@ -107,8 +107,7 @@ func RegisterCheckInTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("The ID of the check-in to update"),
 			),
 			mcp.WithString("name",
-				mcp.Required(),
-				mcp.Description("The check-in's name. Required even when changing something else: the v3 API's update takes the same body as create, so the current name must be sent."),
+				mcp.Description("A new name for the check-in"),
 			),
 			mcp.WithString("slug",
 				mcp.Description("URL-friendly identifier used to report the check-in"),
@@ -246,13 +245,9 @@ func handleUpdateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
 
-	// The update body is the same schema as create, with name required, so the
-	// current name must be sent even when changing something else.
 	params := checkInParamsFrom(req)
-	if params.Name == "" {
-		return mcp.NewToolResultError(
-			"name is required: the v3 API's check-in update takes the same body as create, " +
-				"so the current name must be sent even when changing something else"), nil
+	if params == (apiv3.CheckInParams{}) {
+		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
 
 	checkIn, err := client.CheckIns.Update(ctx, projectID, checkInID, params)
