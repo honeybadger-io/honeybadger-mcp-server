@@ -25,6 +25,11 @@ func derefInt(v *int) int {
 // that never happened.
 var staleSchemaFields = map[string][]string{
 	"list_fault_notices": {"created_after", "created_before"},
+	// v3 resolves the account from the credential and takes no account id, so a
+	// project "created in account B" would silently land in the credential's.
+	"list_projects":                 {"account_id"},
+	"create_project":                {"account_id"},
+	"get_project_occurrence_counts": {"account_id"},
 }
 
 // rejectStaleSchemaFields refuses a request carrying parameters this server used
@@ -34,7 +39,7 @@ func rejectStaleSchemaFields(tool string, req mcp.CallToolRequest) string {
 	if !ok {
 		return ""
 	}
-	return rejectUnsupported(req, fields, "this operation",
+	return rejectUnsupported(req, fields, "using this tool",
 		"they are no longer accepted; reconnect to refresh the tool schemas")
 }
 
@@ -44,9 +49,10 @@ func requireProjectAndFault(req mcp.CallToolRequest) (projectID string, faultID 
 	if projectID == "" {
 		return "", 0, "project_id is required"
 	}
-	faultID = req.GetInt("fault_id", 0)
-	if faultID == 0 {
-		return "", 0, "fault_id is required"
+	// Not req.GetInt: it truncates, so fault_id 456.9 would act on fault 456.
+	faultID, ok := requireID(req.GetArguments(), "fault_id")
+	if !ok {
+		return "", 0, "fault_id is required and must be a positive integer"
 	}
 	return projectID, faultID, ""
 }

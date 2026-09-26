@@ -245,7 +245,19 @@ func TestHandleGetAlarmHistory(t *testing.T) {
 	if strings.Contains(query, "per_page") {
 		t.Errorf("query = %q, must not send per_page", query)
 	}
-	if !strings.Contains(getResultText(result), "triggered") {
-		t.Errorf("result = %q", getResultText(result))
+	var got struct {
+		Results    []map[string]any `json:"results"`
+		Page       int              `json:"page"`
+		TotalPages int              `json:"total_pages"`
+	}
+	if err := json.Unmarshal([]byte(getResultText(result)), &got); err != nil {
+		t.Fatalf("response is not JSON: %v", err)
+	}
+	if len(got.Results) != 1 || got.Results[0]["state"] != "triggered" {
+		t.Errorf("results = %v", got.Results)
+	}
+	// total_pages is the only way to know whether more history exists.
+	if got.Page != 2 || got.TotalPages != 2 {
+		t.Errorf("page %d of %d, want 2 of 2", got.Page, got.TotalPages)
 	}
 }

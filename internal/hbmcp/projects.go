@@ -20,9 +20,6 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details)"),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("account_id",
-				mcp.Description("Optional account ID to filter projects by specific account"),
-			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListProjects(ctx, v3ClientFor(ctx), req)
@@ -53,10 +50,6 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			mcp.WithDescription("Create a new Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithString("account_id",
-				mcp.Description("The account ID to associate the project with. If omitted, the project is created in the first account your auth token has access to."),
-				mcp.MinLength(1),
-			),
 			mcp.WithString("name",
 				mcp.Required(),
 				mcp.Description("The name of the new project"),
@@ -210,6 +203,9 @@ type projectSummaryResponse struct {
 }
 
 func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := rejectStaleSchemaFields("list_projects", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	projects, err := client.Projects.ListAll(ctx)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
@@ -312,6 +308,9 @@ func projectParamsFrom(req mcp.CallToolRequest) apiv3.ProjectParams {
 }
 
 func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := rejectStaleSchemaFields("create_project", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	name := req.GetString("name", "")
 	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
@@ -392,10 +391,11 @@ func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client,
 	}
 	projectID := req.GetString("project_id", "")
 
-	// Omitting the project reports across the whole account, which is what v2's
-	// all-projects variant did — though it is account-scoped rather than global,
-	// and returns a series per project rather than one object.
-	o.AccountID = req.GetString("account_id", "")
+	// Omitting the project reports across every project the credential reaches,
+	// returning a series per project rather than one object.
+	if msg := rejectStaleSchemaFields("get_project_occurrence_counts", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	var (
 		counts any
 		err    error

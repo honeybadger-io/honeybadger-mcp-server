@@ -389,3 +389,17 @@ func TestHandleUpdateProjectNothingToChange(t *testing.T) {
 		t.Errorf("expected an error, got %s", getResultText(result))
 	}
 }
+
+// v3 takes no account id, so a client with a cached schema asking to create a
+// project in another account must be refused rather than have the project land
+// in the credential's own account.
+func TestHandleCreateProjectRefusesAccountID(t *testing.T) {
+	result, err := handleCreateProject(context.Background(), offlineV3Client(),
+		projectArgs(map[string]interface{}{"name": "New", "account_id": "Other1"}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Errorf("expected account_id to be refused, got %s", getResultText(result))
+	}
+}

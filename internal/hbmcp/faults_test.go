@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -172,7 +173,7 @@ func TestHandleUpdateFaultResolve(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.URL.Path)
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		w.WriteHeader(http.StatusNoContent)
+		v3JSON(w, http.StatusOK, bulkChanged)
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
@@ -198,7 +199,7 @@ func TestHandleUpdateFaultUnresolveAndUnignore(t *testing.T) {
 	var paths []string
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.URL.Path)
-		w.WriteHeader(http.StatusNoContent)
+		v3JSON(w, http.StatusOK, bulkChanged)
 	})
 
 	_, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
@@ -219,7 +220,7 @@ func TestHandleUpdateFaultUnresolveAndUnignore(t *testing.T) {
 // Both flags in one request means two calls, and the summary reports both.
 func TestHandleUpdateFaultBothFlags(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
+		v3JSON(w, http.StatusOK, bulkChanged)
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
@@ -452,7 +453,7 @@ func TestHandleUpdateFaultAssigns(t *testing.T) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		bodies = append(bodies, body)
-		w.WriteHeader(http.StatusNoContent)
+		v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","assignee":{"id":"usr_1"}}}`)
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
@@ -477,7 +478,7 @@ func TestHandleUpdateFaultUnassignsOnNull(t *testing.T) {
 	var method, path string
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		method, path = r.Method, r.URL.Path
-		w.WriteHeader(http.StatusNoContent)
+		v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","assignee":null}}`)
 	})
 
 	if _, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
@@ -617,4 +618,136 @@ func TestHandleGetFaultCountsSendsTimeFilters(t *testing.T) {
 	if query.Get("occurred_after") == "" {
 		t.Error("occurred_after was not sent; counts would be unfiltered")
 	}
+}
+
+// bulkChanged is a bulk state change that changed the one fault it named.
+const bulkChanged = `{"data":{"count":1,"dry_run":false,"fault_ids":[1],"fault_ids_truncated":false}}`
+
+// bulkUnchanged is a bulk state change that changed nothing: either the fault was
+// already in that state or the id names no fault in the project.
+const bulkUnchanged = `{"data":{"count":0,"dry_run":false,"fault_ids":[],"fault_ids_truncated":false}}`
+
+// A count of zero on a fault that exists means it was already in that state:
+// success, with a note saying nothing changed.
+func TestHandleUpdateFaultAlreadyInState(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp"}}`)
+			return
+		}
+		v3JSON(w, http.StatusOK, bulkUnchanged)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	var applied map[string]any
+	if err := json.Unmarshal([]byte(getResultText(result)), &applied); err != nil {
+		t.Fatalf("response is not JSON: %v", err)
+	}
+	if applied["resolved"] != true || applied["resolved_note"] == nil {
+		t.Errorf("summary = %v, want resolved with a note that nothing changed", applied)
+	}
+}
+
+// A count of zero on a fault that is not in the project must fail. Before, the
+// tool reported resolved:true for a fault it never touched.
+func TestHandleUpdateFaultNotInProject(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			v3JSON(w, http.StatusNotFound, `{"error":{"code":"not_found","message":"Resource not found"}}`)
+			return
+		}
+		v3JSON(w, http.StatusOK, bulkUnchanged)
+	})
+
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 999, "resolved": true,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Errorf("expected an error for a fault outside the project, got %s", getResultText(result))
+	}
+}
+
+// fault_id 456.9 must not act on fault 456.
+func TestHandleUpdateFaultRejectsFractionalID(t *testing.T) {
+	result, err := handleUpdateFault(context.Background(), offlineV3Client(), faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 456.9, "ignored": true,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Errorf("expected a fractional fault_id to be refused, got %s", getResultText(result))
+	}
+}
+
+// Notice paging advances by cursor: before and after must reach the request.
+func TestHandleListFaultNoticesForwardsCursors(t *testing.T) {
+	var query url.Values
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query()
+		v3JSON(w, http.StatusOK, `{"data":[]}`)
+	})
+
+	result, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 1, "before": "cur_old",
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	if query.Get("before") != "cur_old" {
+		t.Errorf("before = %q, want cur_old", query.Get("before"))
+	}
+}
+
+// The advertised schema must let a client send null to unassign; a plain string
+// type would make schema-validating clients refuse the documented request.
+func TestUpdateFaultAssigneeSchemaAcceptsNull(t *testing.T) {
+	s := NewServer(&config.Config{AuthToken: "test-token", LogLevel: "info", TransportMode: config.TransportStdio}, "test")
+	resp := s.HandleMessage(context.Background(), []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal tools/list: %v", err)
+	}
+	var parsed struct {
+		Result struct {
+			Tools []struct {
+				Name        string `json:"name"`
+				InputSchema struct {
+					Properties map[string]struct {
+						Type any `json:"type"`
+					} `json:"properties"`
+				} `json:"inputSchema"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("parse tools/list: %v", err)
+	}
+	for _, tool := range parsed.Result.Tools {
+		if tool.Name != "update_fault" {
+			continue
+		}
+		types, _ := tool.InputSchema.Properties["assignee_id"].Type.([]any)
+		for _, typ := range types {
+			if typ == "null" {
+				return
+			}
+		}
+		t.Fatalf("assignee_id type = %v, want it to include null", tool.InputSchema.Properties["assignee_id"].Type)
+	}
+	t.Fatal("update_fault is not registered")
 }

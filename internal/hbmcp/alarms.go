@@ -157,7 +157,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("The ID of the alarm to get history for"),
 			),
 			mcp.WithNumber("page",
-				mcp.Description("Page number for pagination (default: 0)"),
+				mcp.Description("Page number, starting at 1 (default: 1). The response's total_pages says how many there are."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -365,24 +365,16 @@ func handleGetAlarmHistory(ctx context.Context, client *apiv3.Client, req mcp.Ca
 		opts = append(opts, apiv3.Page(page, 0))
 	}
 
-	// ListHistory returns only the rows, so the page the caller asked for is
-	// echoed back with them — otherwise there is no way to tell whether another
-	// page exists without probing for it.
-	page := req.GetInt("page", 0)
-	if page == 0 {
-		page = 1
-	}
-
-	response, err := client.Alarms.ListHistory(ctx, projectID, alarmID, opts...)
+	history, err := client.Alarms.ListHistory(ctx, projectID, alarmID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get alarm history: %v", err)), nil
 	}
 
+	// total_pages is the only end signal: this endpoint has no links.
 	jsonBytes, err := json.Marshal(map[string]any{
-		"results":    response,
-		"page":       page,
-		"page_size":  len(response),
-		"pagination": "Only the requested page is returned. Ask for the next page to find out whether more rows exist.",
+		"results":     history.Entries,
+		"page":        history.Page,
+		"total_pages": history.TotalPages,
 	})
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil

@@ -107,6 +107,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("Public ID of a project member to assign the fault to. "+
 					"Send null to unassign. A user who is not a member of the project is "+
 					"rejected rather than silently unassigning."),
+				nullable,
 			),
 			mcp.WithBoolean("resolve_on_deploy",
 				mcp.Description("Resolve this fault the next time a deploy is recorded. "+
@@ -135,11 +136,11 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the fault to get notices for"),
 			),
-			mcp.WithString("created_after",
-				mcp.Description("Filter notices created after this timestamp"),
+			mcp.WithString("before",
+				mcp.Description("Cursor for older notices: pass time_series.oldest_cursor from the previous response"),
 			),
-			mcp.WithString("created_before",
-				mcp.Description("Filter notices created before this timestamp"),
+			mcp.WithString("after",
+				mcp.Description("Cursor for newer notices: pass time_series.newest_cursor from the previous response"),
 			),
 			mcp.WithNumber("limit",
 				mcp.Description("Maximum number of notices to return (max 25)"),
@@ -265,9 +266,9 @@ func handleGetFault(ctx context.Context, client *apiv3.Client, req mcp.CallToolR
 // per action, which is why this reads as a sequence rather than a single call.
 // Each endpoint takes a list of fault ids; this tool changes one at a time.
 //
-// The response is a summary of what changed rather than the updated fault: the
-// endpoints answer 204, and re-fetching the record to return it would cost an
-// extra request the caller may not want. Use get_fault for the new state.
+// The response is a summary of what changed rather than the updated fault:
+// re-fetching the record to return it would cost an extra request the caller may
+// not want. Use get_fault for the new state.
 func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID, faultID, msg := requireProjectAndFault(req)
 	if msg != "" {
@@ -311,35 +312,34 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	}
 
 	applied := map[string]any{"project_id": projectID, "fault_id": faultID}
-	sel := apiv3.SelectFaults(faultID)
 
 	if hasResolved {
 		action := client.Faults.Resolve
 		if !resolved {
 			action = client.Faults.Unresolve
 		}
-		if err = action(ctx, projectID, sel); err == nil {
-			applied["resolved"] = resolved
-		}
+		err = applyStateChange(ctx, client, action, projectID, faultID, applied, "resolved", resolved)
 	}
 	if err == nil && hasIgnored {
 		action := client.Faults.Ignore
 		if !ignored {
 			action = client.Faults.Unignore
 		}
-		if err = action(ctx, projectID, sel); err == nil {
-			applied["ignored"] = ignored
-		}
+		err = applyStateChange(ctx, client, action, projectID, faultID, applied, "ignored", ignored)
 	}
 	if err == nil && hasAssignee {
+		var fault *apiv3.Fault
 		if id, ok := assignee.(string); ok && id != "" {
-			if err = client.Faults.Assign(ctx, projectID, faultID, id); err == nil {
-				applied["assignee_id"] = id
-			}
+			fault, err = client.Faults.Assign(ctx, projectID, faultID, id)
 		} else {
 			// Null or empty unassigns, through its own endpoint.
-			if err = client.Faults.Unassign(ctx, projectID, faultID); err == nil {
-				applied["assignee_id"] = nil
+			fault, err = client.Faults.Unassign(ctx, projectID, faultID)
+		}
+		if err == nil {
+			// Report the assignee the API stored, not the one requested.
+			applied["assignee_id"] = nil
+			if a, getErr := fault.Assignee.Get(); getErr == nil && a.Id != nil {
+				applied["assignee_id"] = *a.Id
 			}
 		}
 	}
@@ -385,21 +385,58 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
+// bulkAction is one of the four bulk state changes.
+type bulkAction func(context.Context, string, apiv3.FaultSelection, ...apiv3.Option) (*apiv3.FaultBulkResult, error)
+
+// applyStateChange runs a bulk state change on one fault and records it in
+// applied, but only if it can be shown to have landed.
+//
+// The bulk endpoints succeed with a count of zero both when the fault was
+// already in that state and when the id names no fault in the project, so a
+// zero is resolved by fetching the fault: a missing or merged fault is an error,
+// and an existing one was simply already there.
+func applyStateChange(ctx context.Context, client *apiv3.Client, action bulkAction, projectID string, faultID int, applied map[string]any, field string, value bool) error {
+	result, err := action(ctx, projectID, apiv3.SelectFaults(faultID))
+	if err != nil {
+		return err
+	}
+	if result.Count == 0 {
+		if _, err := client.Faults.Get(ctx, projectID, faultID); err != nil {
+			return err
+		}
+		applied[field+"_note"] = fmt.Sprintf("The fault was already %s; nothing changed.", stateName(field, value))
+	}
+	applied[field] = value
+	return nil
+}
+
+func stateName(field string, value bool) string {
+	if value {
+		return field
+	}
+	return "un" + field
+}
+
 func handleListFaultNotices(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID, faultID, msg := requireProjectAndFault(req)
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	// Notices are cursor-paginated in v3, so the timestamp filters have no
-	// equivalent — paging walks links rather than naming a time.
-	if msg := rejectUnsupported(req, []string{"created_after", "created_before"},
-		"listing notices", "notices are paged by cursor in v3; omit these and page instead"); msg != "" {
+	// Notices are cursor-paginated in v3, so the old timestamp filters have no
+	// equivalent; a client with a cached schema may still send them.
+	if msg := rejectStaleSchemaFields("list_fault_notices", req); msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
 
 	opts := []apiv3.Option{}
 	if limit := req.GetInt("limit", 0); limit > 0 {
 		opts = append(opts, apiv3.Limit(limit))
+	}
+	if cursor := req.GetString("before", ""); cursor != "" {
+		opts = append(opts, apiv3.Before(cursor))
+	}
+	if cursor := req.GetString("after", ""); cursor != "" {
+		opts = append(opts, apiv3.After(cursor))
 	}
 
 	response, err := client.Faults.ListNotices(ctx, projectID, faultID, opts...)
