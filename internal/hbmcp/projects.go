@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/honeybadger-io/api-go/apiv2"
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -195,11 +194,10 @@ type projectSummary struct {
 	UnresolvedFaultCount int        `json:"unresolved_fault_count"`
 }
 
-// projectSummaryResponse wraps summary results with pagination links,
-// preserving the same envelope shape as the upstream API response.
+// projectSummaryResponse wraps the summaries. ListAll has already walked every
+// page, so there is no pagination to report.
 type projectSummaryResponse struct {
-	Results []projectSummary      `json:"results"`
-	Links   apiv2.PaginationLinks `json:"links"`
+	Results []projectSummary `json:"results"`
 }
 
 func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -433,4 +431,3 @@ func handleGetProjectIntegrations(ctx context.Context, client *apiv3.Client, req
 	}
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
-

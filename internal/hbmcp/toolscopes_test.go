@@ -95,9 +95,9 @@ func TestScopeFreeToolsAlwaysSurvive(t *testing.T) {
 	}
 }
 
-// The tools awaiting a v3 endpoint still read data, so a credential with no read
+// The tools with v2-era names still read data, so a credential with no read
 // scope must not be offered them.
-func TestPendingMigrationToolsStillRequireScopes(t *testing.T) {
+func TestLegacyNamedToolsStillRequireScopes(t *testing.T) {
 	for _, tool := range []string{
 		"get_fault_counts", "get_project_occurrence_counts",
 		"get_project_integrations",

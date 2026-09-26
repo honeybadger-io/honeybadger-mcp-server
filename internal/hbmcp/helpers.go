@@ -2,7 +2,6 @@ package hbmcp
 
 import (
 	"math"
-	"time"
 )
 
 // maxSafeInteger is the largest integer a float64 can represent exactly
@@ -36,15 +35,4 @@ func requireID(args map[string]any, name string) (int, bool) {
 		}
 	}
 	return 0, false
-}
-
-// parseTimestampValue converts a timestamp string to time.Time, returns zero value if empty or invalid
-func parseTimestampValue(ts string) time.Time {
-	if ts == "" {
-		return time.Time{}
-	}
-	if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
-		return parsed
-	}
-	return time.Time{}
 }

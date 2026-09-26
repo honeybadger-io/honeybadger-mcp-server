@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-"strings"
+	"strings"
 	"testing"
 
-"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // getResultText pulls the text out of a tool result. Shared by every tool test.

@@ -33,7 +33,13 @@ var toolOperations = map[string][]string{
 	// update_fault covers several discrete v3 endpoints, since v3 replaced v2's
 	// mutable PUT with one endpoint per action. They share a scope, but listing
 	// them all keeps the map honest about what the tool reaches.
-	"update_fault": {"resolveFaults", "unresolveFaults", "ignoreFaults", "unignoreFaults"},
+	"update_fault": {
+		"resolveFaults", "unresolveFaults", "ignoreFaults", "unignoreFaults",
+		"assignFault", "unassignFault", "updateFault",
+		// Not getFault, though a zero-count bulk change is checked with one: the
+		// filter offers a tool when any listed scope is held, so its faults:read
+		// would show this write tool to read-only credentials.
+	},
 
 	"list_check_ins":  {"listCheckIns"},
 	"get_check_in":    {"getCheckIn"},
@@ -67,17 +73,11 @@ var toolOperations = map[string][]string{
 	"query_insights": {"runInsightsQuery"},
 	"list_streams":   {"listStreams"},
 
-	// These four still run on the v2 client because v3 has no equivalent endpoint.
-	//
-	// They are mapped to the v3 operation that will replace each one, so scope
-	// filtering already treats them as what they are — reads of faults and
-	// projects — rather than as tools needing nothing. A credential holding no
-	// read scope should not be offered them just because their migration is
-	// pending.
+	// Tools whose names predate v3: they keep their v2-era names for existing
+	// callers, but each runs on the v3 operations listed.
 	"get_fault_counts":              {"getFaultSummary"},
 	"get_project_occurrence_counts": {"getProjectOccurrences", "listAccountOccurrences"},
 	"get_project_integrations":      {"listIntegrations"},
-
 }
 
 // toolRequiredScopes returns the scopes a tool needs, derived from the spec.

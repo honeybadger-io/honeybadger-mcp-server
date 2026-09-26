@@ -127,7 +127,7 @@ func TestListToolsReadOnly(t *testing.T) {
 	}
 
 	// Verify destructive tools are NOT present
-	destructiveTools := []string{"create_alarm", "create_check_in", "create_dashboard", "create_project", "delete_alarm", "delete_check_in", "delete_dashboard", "delete_project", "update_alarm", "update_check_in", "update_dashboard", "update_fault", "update_project"}
+	destructiveTools := []string{"create_alarm", "create_check_in", "create_dashboard", "create_integration", "create_project", "create_project_key", "delete_alarm", "delete_check_in", "delete_dashboard", "delete_integration", "delete_project", "delete_project_key", "update_alarm", "update_check_in", "update_dashboard", "update_fault", "update_integration", "update_project", "update_project_key"}
 	for _, destructiveTool := range destructiveTools {
 		for _, foundTool := range foundTools {
 			if foundTool == destructiveTool {
