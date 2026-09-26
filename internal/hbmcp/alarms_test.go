@@ -168,31 +168,49 @@ func TestHandleUpdateAlarmRenames(t *testing.T) {
 	}
 }
 
-// Touching an alarm's configuration is refused rather than applying only the
-// name and reporting success.
-func TestHandleUpdateAlarmRejectsConfigChanges(t *testing.T) {
-	// description is accepted on update; the behaviour fields are not.
-	for field, value := range map[string]interface{}{
-		"query":             "count() > 5",
-		"evaluation_period": "10m",
-		"trigger_config":    `{"threshold":5}`,
-		"lookback_lag":      "2m",
-		"stream_ids":        `["s1"]`,
-	} {
-		result, err := handleUpdateAlarm(context.Background(), offlineV3Client(),
-			alarmArgs(map[string]interface{}{
-				"project_id": "Xk9mZp", "alarm_id": "a1", "name": "N", field: value,
-			}))
-		if err != nil {
-			t.Fatalf("%s: error = %v", field, err)
+// An alarm's query, window and streams change in place, keeping its history.
+func TestHandleUpdateAlarmChangesBehaviour(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"a1","name":"Spike"}}`)
+	})
+
+	result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "alarm_id": "a1",
+		"query": "count() > 5", "evaluation_period": "10m", "stream_ids": `["s1"]`,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	if body["query"] != "count() > 5" || body["evaluation_period"] != "10m" {
+		t.Errorf("body = %v", body)
+	}
+	if ids, ok := body["stream_ids"].([]any); !ok || len(ids) != 1 || ids[0] != "s1" {
+		t.Errorf("stream_ids = %v", body["stream_ids"])
+	}
+	for _, absent := range []string{"name", "description", "lookback_lag", "trigger_config"} {
+		if _, present := body[absent]; present {
+			t.Errorf("%s was sent though it was not supplied", absent)
 		}
-		if !result.IsError {
-			t.Errorf("%s: accepted; only the name would have been applied", field)
-			continue
-		}
-		if !strings.Contains(getResultText(result), field) {
-			t.Errorf("%s: error does not name it: %q", field, getResultText(result))
-		}
+	}
+}
+
+// The trigger has no typed update field, so a request touching it is refused
+// rather than applying the other fields and reporting success.
+func TestHandleUpdateAlarmRefusesTrigger(t *testing.T) {
+	result, err := handleUpdateAlarm(context.Background(), offlineV3Client(),
+		alarmArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "alarm_id": "a1", "name": "N", "trigger_config": `{"type":"alert_result_count"}`,
+		}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Errorf("accepted; the trigger would have been dropped")
 	}
 }
 

@@ -114,6 +114,18 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			mcp.WithString("description",
 				mcp.Description("A new description. Pass an empty string to clear it."),
 			),
+			mcp.WithString("query",
+				mcp.Description("A new BadgerQL query. Verify it via query_insights first."),
+			),
+			mcp.WithString("evaluation_period",
+				mcp.Description("A new evaluation window, as a compact duration: '5m', '10m', '1h', '1d'."),
+			),
+			mcp.WithString("lookback_lag",
+				mcp.Description("A new lookback lag, in the same compact format ('1m')."),
+			),
+			mcp.WithString("stream_ids",
+				mcp.Description("JSON array of stream IDs, replacing the current set. Use the opaque IDs from list_streams."),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateAlarm(ctx, v3ClientFor(ctx), req)
@@ -209,15 +221,12 @@ func handleGetAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolR
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// alarmUpdateOnlyName lists the fields v3's alarm update cannot carry.
+// alarmUpdateUnsupported lists the fields update_alarm cannot carry yet.
 //
-// Create takes the query, evaluation period, trigger and streams; update takes
-// only name and description. So an alarm's behaviour cannot be changed after it
-// exists, and a request trying to is refused rather than silently applying just
-// the name.
-var alarmUpdateOnlyName = []string{
-	"query", "evaluation_period", "trigger_config", "lookback_lag", "stream_ids",
-}
+// The update schema declares trigger_config as an untyped object, so the client
+// has no typed trigger to send; a request carrying one is refused rather than
+// silently applying the other fields.
+var alarmUpdateUnsupported = []string{"trigger_config"}
 
 func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
@@ -291,9 +300,8 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if alarmID == "" {
 		return mcp.NewToolResultError("alarm_id is required"), nil
 	}
-	if msg := rejectUnsupported(req, alarmUpdateOnlyName, "updating an alarm",
-		"v3's alarm update accepts only name and description — delete and recreate the alarm "+
-			"to change how it fires"); msg != "" {
+	if msg := rejectUnsupported(req, alarmUpdateUnsupported, "updating an alarm",
+		"change the other fields here; to change the trigger, delete and recreate the alarm"); msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
 
@@ -301,14 +309,27 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	// while omitting the field leaves it alone.
 	args := req.GetArguments()
 	var params apiv3.AlarmUpdateParams
-	if v, ok := args["name"].(string); ok {
-		params.Name = &v
+	for field, target := range map[string]**string{
+		"name":              &params.Name,
+		"description":       &params.Description,
+		"query":             &params.Query,
+		"evaluation_period": &params.EvaluationPeriod,
+		"lookback_lag":      &params.LookbackLag,
+	} {
+		if v, ok := args[field].(string); ok {
+			value := v
+			*target = &value
+		}
 	}
-	if v, ok := args["description"].(string); ok {
-		params.Description = &v
+	if raw := req.GetString("stream_ids", ""); raw != "" {
+		var ids []string
+		if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)), nil
+		}
+		params.StreamIDs = &ids
 	}
-	if params.Name == nil && params.Description == nil {
-		return mcp.NewToolResultError("at least one of name or description is required"), nil
+	if params == (apiv3.AlarmUpdateParams{}) {
+		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
 
 	alarm, err := client.Alarms.Update(ctx, projectID, alarmID, params)
