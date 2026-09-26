@@ -384,23 +384,38 @@ func TestValidateMiddlewareOAuthProceedsWhenIntrospectionIsUnavailable(t *testin
 
 // An opaque token is refused during an outage. Nothing about it has been checked,
 // so proceeding would treat any hbt_-prefixed string as authenticated for the
-// length of the outage.
+// length of the outage. But it is refused as unavailable, not invalid: a 401
+// invalid_token would tell the client to discard a credential that may be fine.
 func TestValidateMiddlewareOpaqueFailsClosedWhenIntrospectionIsUnavailable(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("an unverifiable credential reached the handler during an outage")
 	})
 
-	stub := &stubIntrospector{err: errors.New("dial tcp: connection refused")}
+	for _, tc := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"transport failure", errors.New("dial tcp: connection refused"), http.StatusServiceUnavailable},
+		{"upstream 5xx", &apiv3.Error{StatusCode: http.StatusBadGateway}, http.StatusServiceUnavailable},
+		{"upstream rate limit", &apiv3.Error{StatusCode: http.StatusTooManyRequests}, http.StatusTooManyRequests},
+	} {
+		for _, raw := range []string{"hbt_anything", "hba_anything"} {
+			req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+			req.Header.Set("Authorization", "Bearer "+raw)
+			rec := httptest.NewRecorder()
 
-	for _, raw := range []string{"hbt_anything", "hba_anything"} {
-		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
-		req.Header.Set("Authorization", "Bearer "+raw)
-		rec := httptest.NewRecorder()
+			ValidateMiddleware("https://mcp.test/prm", nil, "", "", &stubIntrospector{err: tc.err}, next).ServeHTTP(rec, req)
 
-		ValidateMiddleware("https://mcp.test/prm", nil, "", "", stub, next).ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusUnauthorized {
-			t.Errorf("%s: status = %d, want 401", raw, rec.Code)
+			if rec.Code != tc.want {
+				t.Errorf("%s, %s: status = %d, want %d", tc.name, raw, rec.Code, tc.want)
+			}
+			if rec.Header().Get("Retry-After") == "" {
+				t.Errorf("%s, %s: no Retry-After", tc.name, raw)
+			}
+			if rec.Header().Get("WWW-Authenticate") != "" {
+				t.Errorf("%s, %s: challenged as invalid; the credential was never judged", tc.name, raw)
+			}
 		}
 	}
 }

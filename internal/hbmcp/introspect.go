@@ -116,8 +116,14 @@ func (c *IntrospectionCache) Get(ctx context.Context, token string) (*apiv3.Toke
 		return info, err
 	}
 	if waiter != nil {
-		<-waiter.done
-		return waiter.info, waiter.err
+		// Wait for the fetch already running, but no longer than this caller's own
+		// deadline: its request may have a shorter one than the fetcher's.
+		select {
+		case <-waiter.done:
+			return waiter.info, waiter.err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 	call := c.inFlightFor(key)
 

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/honeybadger-io/api-go/apiv3"
@@ -122,9 +125,12 @@ func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer, expect
 				// authenticated for the length of the outage. It costs those
 				// callers nothing real: with the API down, every tool call would
 				// fail anyway.
+				//
+				// Refused as unavailable, not as invalid. A 401 invalid_token would
+				// tell the client to throw away a credential that may be fine; a
+				// 503 or 429 with Retry-After tells it to try again.
 				if !kind.Verifiable() {
-					w.Header().Set("WWW-Authenticate", invalidToken)
-					w.WriteHeader(http.StatusUnauthorized)
+					refuseUnavailable(w, err)
 					return
 				}
 			}
@@ -145,4 +151,24 @@ func BearerFromRequest(r *http.Request) string {
 // For LB target-group health checks.
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+// refuseUnavailable answers a request whose credential could not be checked
+// because introspection failed upstream. A rate-limited upstream becomes a 429,
+// anything else a 503, both with Retry-After so the client waits and retries.
+func refuseUnavailable(w http.ResponseWriter, err error) {
+	status, retryAfter := http.StatusServiceUnavailable, 5*time.Second
+
+	var apiErr *apiv3.Error
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusTooManyRequests {
+		status = http.StatusTooManyRequests
+		if rl := apiErr.RateLimit; rl != nil {
+			if wait := time.Until(rl.Reset); wait > 0 {
+				retryAfter = wait
+			}
+		}
+	}
+
+	w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
+	w.WriteHeader(status)
 }

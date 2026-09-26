@@ -262,3 +262,37 @@ func TestIntrospectionCacheRefreshDoesNotEvictOthers(t *testing.T) {
 		t.Error("refreshing one credential evicted another tenant's entry")
 	}
 }
+
+// A caller joining a fetch already in flight stops waiting at its own deadline,
+// not the fetcher's: its request may have a shorter one.
+func TestIntrospectionWaiterHonoursItsOwnCancellation(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{})
+	fetch := func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		close(started)
+		<-release
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}
+	cache := NewIntrospectionCache(fetch, 0, 0, 0)
+	defer close(release)
+
+	go func() { _, _ = cache.Get(context.Background(), "hbt_x") }()
+	<-started
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := cache.Get(ctx, "hbt_x")
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("err = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a cancelled waiter stayed blocked on another caller's fetch")
+	}
+}
