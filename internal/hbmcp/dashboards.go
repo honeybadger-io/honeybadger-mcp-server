@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -81,7 +82,7 @@ func RegisterDashboardTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("update_dashboard",
 			mcp.WithTitleAnnotation("Update Dashboard"),
-			mcp.WithDescription("Update an existing Insights dashboard. IMPORTANT: Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference first (skip topics still visible in your context)."),
+			mcp.WithDescription("Update an existing Insights dashboard. Only the parameters given are changed, so a rename needs only title. IMPORTANT: Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference first (skip topics still visible in your context)."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -93,11 +94,10 @@ func RegisterDashboardTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("The ID of the dashboard to update"),
 			),
 			mcp.WithString("title",
-				mcp.Required(),
-				mcp.Description("The title of the dashboard"),
+				mcp.Description("A new title for the dashboard"),
 			),
 			mcp.WithString("widgets",
-				mcp.Description("JSON array of widget objects. The dashboards reference topic has the full schema and examples. Each widget needs a type (insights_vis, alarms, errors, deployments, checkins, uptime) and optionally grid, presentation and config."),
+				mcp.Description("JSON array of widget objects that replaces the dashboard's widgets: a widget left out is removed, and a widget keeps its identity only if it's sent with the id get_dashboard returned. Omit to leave the widgets as they are. The dashboards reference topic has the schema."),
 			),
 			mcp.WithString("default_ts",
 				mcp.Description("Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month)."),
@@ -174,30 +174,29 @@ func handleGetDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallT
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// dashboardParamsFrom reads a dashboard write out of a request.
-//
-// Widgets arrive as a JSON string, as they did on v2, and travel through as raw
-// JSON — the generated widget type is a nested anonymous struct no caller could
-// build, so passing the array untouched is what makes widgets usable at all.
-func dashboardParamsFrom(req mcp.CallToolRequest) (apiv3.DashboardParams, string) {
-	// v2 called this title and so does v3 now, but accept name too since the tool
-	// has advertised both.
-	title := req.GetString("title", "")
-	if title == "" {
-		title = req.GetString("name", "")
+// dashboardWidgets reads the widgets argument, a JSON array as the tools have
+// always taken it. Unknown keys on a widget are refused rather than dropped: the
+// API would refuse them too, and dropping one would change what was asked for.
+func dashboardWidgets(req mcp.CallToolRequest) (*[]apiv3.DashboardWidget, string) {
+	raw := req.GetString("widgets", "")
+	if raw == "" {
+		return nil, ""
 	}
-	if title == "" {
-		return apiv3.DashboardParams{}, "title is required"
+	dec := json.NewDecoder(strings.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var widgets []apiv3.DashboardWidget
+	if err := dec.Decode(&widgets); err != nil {
+		return nil, fmt.Sprintf("widgets must be a JSON array of widget objects: %v", err)
 	}
+	return &widgets, ""
+}
 
-	params := apiv3.DashboardParams{Title: title, DefaultTs: req.GetString("default_ts", "")}
-	if raw := req.GetString("widgets", ""); raw != "" {
-		if !json.Valid([]byte(raw)) {
-			return apiv3.DashboardParams{}, "widgets must be valid JSON"
-		}
-		params.Widgets = json.RawMessage(raw)
+// optionalString points at a string argument when it was given, even empty.
+func optionalString(req mcp.CallToolRequest, name string) *string {
+	if v, ok := req.GetArguments()[name].(string); ok {
+		return &v
 	}
-	return params, ""
+	return nil
 }
 
 func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -205,9 +204,22 @@ func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-	params, msg := dashboardParamsFrom(req)
+	// v2 called this title and so does v3 now, but accept name too since the tool
+	// has advertised both.
+	title := req.GetString("title", "")
+	if title == "" {
+		title = req.GetString("name", "")
+	}
+	if title == "" {
+		return mcp.NewToolResultError("title is required"), nil
+	}
+	widgets, msg := dashboardWidgets(req)
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
+	}
+	params := apiv3.DashboardCreateParams{Title: title, Widgets: widgets}
+	if ts := req.GetString("default_ts", ""); ts != "" {
+		params.DefaultTs = &ts
 	}
 
 	dashboard, err := client.Dashboards.Create(ctx, projectID, params)
@@ -222,12 +234,8 @@ func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// handleUpdateDashboard replaces a dashboard's title, time range and widgets.
-//
-// Note this is a replacement rather than a merge: the update body is the same
-// schema as create, so omitting widgets clears them. The tool therefore requires
-// widgets to be sent explicitly when changing anything else, rather than silently
-// emptying a dashboard.
+// handleUpdateDashboard changes whichever of a dashboard's title, time range and
+// widgets the caller supplies; the rest keep their values.
 func handleUpdateDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
@@ -237,15 +245,17 @@ func handleUpdateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	if dashboardID == "" {
 		return mcp.NewToolResultError("dashboard_id is required"), nil
 	}
-	params, msg := dashboardParamsFrom(req)
+	widgets, msg := dashboardWidgets(req)
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	if len(params.Widgets) == 0 {
-		return mcp.NewToolResultError(
-			"widgets is required on update: the v3 API replaces the dashboard rather than " +
-				"merging, so omitting widgets would clear the ones it has. Read the dashboard " +
-				"first with get_dashboard and send its widgets back, changed or unchanged."), nil
+	params := apiv3.DashboardUpdateParams{
+		Title:     optionalString(req, "title"),
+		DefaultTs: optionalString(req, "default_ts"),
+		Widgets:   widgets,
+	}
+	if params.Title == nil && params.DefaultTs == nil && params.Widgets == nil {
+		return mcp.NewToolResultError("provide at least one of title, default_ts or widgets"), nil
 	}
 
 	dashboard, err := client.Dashboards.Update(ctx, projectID, dashboardID, params)

@@ -31,9 +31,9 @@ func RegisterIntegrationTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	)
 
 	r.AddTool(
-		mcp.NewTool("create_integration",
+		mcp.NewTool("create_integration", append([]mcp.ToolOption{
 			mcp.WithTitleAnnotation("Create Integration"),
-			mcp.WithDescription("Create a notification integration for a project. IMPORTANT: Requires reference topic: integrations — fetch via get_reference first (skip if still visible in your context) for the list of API-creatable types, required config fields per type, and event names."),
+			mcp.WithDescription("Create a notification integration for a project. IMPORTANT: Requires reference topic: integrations — fetch via get_reference first (skip if still visible in your context) for the list of types, each type's config settings, and event names."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -42,21 +42,21 @@ func RegisterIntegrationTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			),
 			mcp.WithString("type",
 				mcp.Required(),
-				mcp.Description("Integration type: WebHook, PagerDutyV2, Email, etc. Must be an API-creatable type."),
+				mcp.Description("Integration type: WebHook, Email, PagerDutyV2, Slack, and so on. OAuth types (Slack, GitHub and the like) are created turned off and not connected: send the user to the result's links.web to connect it, then turn it on with update_integration active=true."),
 			),
 			mcp.WithString("config",
-				mcp.Description("JSON object of integration settings. Common fields: events (array of event names), active (bool), rate, threshold, notification_limit, site_ids, check_in_ids, included_environments, excluded_environments, filter_events with filter_queries. Type-specific fields vary (e.g. url for WebHook, integration_key for PagerDutyV2). site_ids and check_in_ids select which sites and check-ins notify; an empty list turns those notifications off, and an ID from outside the project is refused. included_environments, when non-empty, is the only set that notifies (including environments that have not reported yet); excluded_environments always wins."),
+				mcp.Description(`JSON object of the type's own settings, e.g. {"url":"https://example.com/hook","label":"Deploys"} for WebHook or {"integration_key":"..."} for PagerDutyV2. The shared settings (events, site_ids and the rest) are separate parameters, not part of config.`),
 			),
-		),
+		}, integrationSettingOptions()...)...),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleCreateIntegration(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
 	r.AddTool(
-		mcp.NewTool("update_integration",
+		mcp.NewTool("update_integration", append([]mcp.ToolOption{
 			mcp.WithTitleAnnotation("Update Integration"),
-			mcp.WithDescription("Update a notification integration's settings. Only provided fields are changed. IMPORTANT: Requires reference topic: integrations — fetch via get_reference first (skip if still visible in your context) for config fields and event names."),
+			mcp.WithDescription("Update a notification integration. Only the parameters given are changed; the type can't be. IMPORTANT: Requires reference topic: integrations — fetch via get_reference first (skip if still visible in your context) for config settings and event names."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -68,10 +68,9 @@ func RegisterIntegrationTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("The ID of the integration to update"),
 			),
 			mcp.WithString("config",
-				mcp.Required(),
-				mcp.Description("JSON object of integration settings to update. Same fields as create_integration config, minus type (which cannot be changed)."),
+				mcp.Description("JSON object of the type's own settings to change, the same keys get_integration returns under config. A secret sent back masked, exactly as read, is left unchanged."),
 			),
-		),
+		}, integrationSettingOptions()...)...),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateIntegration(ctx, v3ClientFor(ctx), req)
 		},
@@ -121,6 +120,73 @@ func handleGetIntegration(ctx context.Context, client *apiv3.Client, req mcp.Cal
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
+// integrationSettingFields are the settings every integration type shares. They
+// sit beside config in the API's body, not inside it.
+var integrationSettingFields = []string{
+	"active", "events", "rate", "threshold", "notification_limit",
+	"site_ids", "check_in_ids", "alarm_alert_ids", "alarm_ok_ids",
+	"included_environments", "excluded_environments", "filter_events", "filter_queries",
+}
+
+// integrationSettingOptions declares the shared settings, in the same order, for
+// create_integration and update_integration.
+func integrationSettingOptions() []mcp.ToolOption {
+	list := func(name, description string) mcp.ToolOption {
+		return mcp.WithArray(name, mcp.WithStringItems(), mcp.Description(description))
+	}
+	return []mcp.ToolOption{
+		mcp.WithBoolean("active", mcp.Description("Whether the integration sends notifications")),
+		list("events", "Event names to notify on, e.g. occurred, resolved, assigned, down, check_in_missing. Adding one the type doesn't support is refused. On create, omit for the type's defaults."),
+		mcp.WithString("rate", mcp.Description("Period for the rate_exceeded event: minute, hour, day, and so on")),
+		mcp.WithNumber("threshold", mcp.Description("Occurrences within rate before rate_exceeded fires; must be greater than 0")),
+		mcp.WithNumber("notification_limit", mcp.Description("Most notifications in a 10-minute window before flood control (the flooded event) steps in")),
+		list("site_ids", "Uptime sites whose up and down events notify. An empty list turns site notifications off; an ID from outside the project is refused."),
+		list("check_in_ids", "Check-ins whose events notify. An empty list turns check-in notifications off; an ID from outside the project is refused."),
+		list("alarm_alert_ids", "Alarms whose alert events notify"),
+		list("alarm_ok_ids", "Alarms whose recovery events notify"),
+		list("included_environments", "When non-empty, the only environments that notify, including ones that haven't reported yet. Empty means every environment not excluded."),
+		list("excluded_environments", "Environments that never notify; wins over included_environments. Names are stored as given, so one can be excluded before it first reports."),
+		list("filter_events", "Events to filter, paired by position with filter_queries. Replaces the stored filters; send [] to clear them."),
+		list("filter_queries", "The search query for the event at the same position in filter_events: that event notifies only when the error matches."),
+	}
+}
+
+// integrationBody collects the shared settings and config into the API's body
+// shape, as JSON for decoding into the create or update params. Decoding does the
+// type checking: a site id that isn't a UUID or a fractional threshold is refused
+// there rather than sent.
+func integrationBody(req mcp.CallToolRequest, extra map[string]any) ([]byte, string) {
+	args := req.GetArguments()
+	body := map[string]any{}
+	for k, v := range extra {
+		body[k] = v
+	}
+	for _, field := range integrationSettingFields {
+		if v, ok := args[field]; ok {
+			body[field] = v
+		}
+	}
+	if raw := req.GetString("config", ""); raw != "" {
+		var config map[string]any
+		if err := json.Unmarshal([]byte(raw), &config); err != nil {
+			return nil, fmt.Sprintf("Failed to parse config JSON: %v", err)
+		}
+		// The flat shape this tool used to take put these inside config; the API
+		// now refuses them there, so say where they go instead.
+		for _, field := range integrationSettingFields {
+			if _, ok := config[field]; ok {
+				return nil, fmt.Sprintf("%s is its own parameter, not a config setting: config holds only the type's settings", field)
+			}
+		}
+		body["config"] = config
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return nil, "Failed to encode the integration"
+	}
+	return encoded, ""
+}
+
 func handleCreateIntegration(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
@@ -131,13 +197,14 @@ func handleCreateIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 		return mcp.NewToolResultError("type is required"), nil
 	}
 
-	var params apiv3.IntegrationParams
-	if raw := req.GetString("config", ""); raw != "" {
-		if err := json.Unmarshal([]byte(raw), &params); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse config JSON: %v", err)), nil
-		}
+	raw, msg := integrationBody(req, map[string]any{"type": integrationType})
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
-	params.Type = &integrationType
+	var params apiv3.IntegrationCreateParams
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid integration settings: %v", err)), nil
+	}
 
 	integration, err := client.Integrations.Create(ctx, projectID, params)
 	if err != nil {
@@ -161,14 +228,16 @@ func handleUpdateIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 		return mcp.NewToolResultError("integration_id is required"), nil
 	}
 
-	raw := req.GetString("config", "")
-	if raw == "" {
-		return mcp.NewToolResultError("config is required"), nil
+	raw, msg := integrationBody(req, nil)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
-
-	var params apiv3.IntegrationParams
-	if err := json.Unmarshal([]byte(raw), &params); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse config JSON: %v", err)), nil
+	var params apiv3.IntegrationUpdateParams
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid integration settings: %v", err)), nil
+	}
+	if params == (apiv3.IntegrationUpdateParams{}) {
+		return mcp.NewToolResultError("provide at least one setting to change"), nil
 	}
 
 	integration, err := client.Integrations.Update(ctx, projectID, integrationID, params)

@@ -169,26 +169,67 @@ func TestHandleCreateDashboardRejectsInvalidWidgetJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError || !strings.Contains(getResultText(result), "valid JSON") {
+	if !result.IsError || !strings.Contains(getResultText(result), "JSON array") {
 		t.Errorf("got %q", getResultText(result))
 	}
 }
 
-// Omitting widgets on update would clear the dashboard, since the API replaces
-// rather than merges. The tool refuses instead of emptying it.
-func TestHandleUpdateDashboardRequiresWidgets(t *testing.T) {
-	result, err := handleUpdateDashboard(context.Background(), offlineV3Client(),
+// An update merges, so a rename sends only the title and leaves the widgets alone.
+func TestHandleUpdateDashboardRenamesWithoutWidgets(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"d1","project_id":"Xk9mZp","title":"Renamed"}}`)
+	})
+
+	result, err := handleUpdateDashboard(context.Background(), client,
 		dashboardArgs(map[string]interface{}{
 			"project_id": "Xk9mZp", "dashboard_id": "d1", "title": "Renamed",
 		}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if !result.IsError {
-		t.Fatal("update without widgets was accepted; it would have cleared them")
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-	if !strings.Contains(getResultText(result), "get_dashboard") {
-		t.Errorf("error should say how to recover: %q", getResultText(result))
+	if body["title"] != "Renamed" {
+		t.Errorf("title = %v", body["title"])
+	}
+	if _, sent := body["widgets"]; sent {
+		t.Error("widgets was sent on a rename; the update would have replaced them")
+	}
+}
+
+// A widget's type-specific config survives the trip, and a key the widget schema
+// doesn't have is refused rather than dropped.
+func TestHandleCreateDashboardKeepsWidgetConfig(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","project_id":"Xk9mZp","title":"Ops"}}`)
+	})
+
+	result, err := handleCreateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "title": "Ops",
+		"widgets": `[{"type":"alarms","config":{"limit":5,"filter_state":"triggered"}}]`,
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("create = %v, %v", getResultText(result), err)
+	}
+	widgets, _ := body["widgets"].([]any)
+	widget, _ := widgets[0].(map[string]any)
+	if config, _ := widget["config"].(map[string]any); config["filter_state"] != "triggered" || config["limit"] != float64(5) {
+		t.Errorf("widget = %v", widget)
+	}
+
+	result, err = handleCreateDashboard(context.Background(), offlineV3Client(), dashboardArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "title": "Ops", "widgets": `[{"type":"errors","colour":"red"}]`,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "colour") {
+		t.Errorf("expected the unknown widget key to be refused by name, got %s", getResultText(result))
 	}
 }
 

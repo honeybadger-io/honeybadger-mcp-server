@@ -2,6 +2,7 @@ package hbmcp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -29,5 +30,90 @@ func TestDeleteIntegrationPreviewNamesTheLabel(t *testing.T) {
 	}
 	if text := getResultText(result); !strings.Contains(text, `WebHook integration "Deploy hook"`) {
 		t.Errorf("preview = %q, want it to name the label", text)
+	}
+}
+
+func integrationArgs(args map[string]any) mcp.CallToolRequest {
+	return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
+}
+
+// The shared settings go beside config and the type's settings inside it, the
+// shape the API takes.
+func TestCreateIntegrationSendsTheAPIShape(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"i1","project_id":"Xk9mZp","type":"WebHook","active":true,"links":{"web":"https://app/x"}}}`)
+	})
+
+	result, err := handleCreateIntegration(context.Background(), client, integrationArgs(map[string]any{
+		"project_id": "Xk9mZp", "type": "WebHook",
+		"events":       []any{"occurred", "resolved"},
+		"check_in_ids": []any{},
+		"threshold":    float64(10),
+		"config":       `{"url":"https://example.com/hook","label":"Deploys"}`,
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("create = %s, %v", getResultText(result), err)
+	}
+	if body["type"] != "WebHook" || body["threshold"] != float64(10) {
+		t.Errorf("body = %v", body)
+	}
+	// An explicit empty list is a setting (check-in notifications off), not an omission.
+	if ids, ok := body["check_in_ids"].([]any); !ok || len(ids) != 0 {
+		t.Errorf("check_in_ids = %v, want []", body["check_in_ids"])
+	}
+	config, _ := body["config"].(map[string]any)
+	if config["url"] != "https://example.com/hook" {
+		t.Errorf("config = %v", body["config"])
+	}
+	if _, flat := body["url"]; flat {
+		t.Error("url was sent outside config")
+	}
+}
+
+// The old flat shape put shared settings inside config; the API now refuses
+// them there, so the tool says where they go instead.
+func TestCreateIntegrationRefusesSharedSettingsInsideConfig(t *testing.T) {
+	result, err := handleCreateIntegration(context.Background(), noRequestClient(t), integrationArgs(map[string]any{
+		"project_id": "Xk9mZp", "type": "WebHook",
+		"config": `{"url":"https://example.com/hook","events":["occurred"]}`,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "events is its own parameter") {
+		t.Errorf("got %s", getResultText(result))
+	}
+}
+
+// Values the API types strictly are checked before sending.
+func TestIntegrationSettingsAreTypeChecked(t *testing.T) {
+	for name, args := range map[string]map[string]any{
+		"fractional threshold": {"threshold": 2.5},
+		"site id not a uuid":   {"site_ids": []any{"not-a-uuid"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			args["project_id"], args["integration_id"] = "Xk9mZp", "i1"
+			result, err := handleUpdateIntegration(context.Background(), noRequestClient(t), integrationArgs(args))
+			if err != nil {
+				t.Fatalf("error = %v", err)
+			}
+			if !result.IsError {
+				t.Errorf("expected a refusal, got %s", getResultText(result))
+			}
+		})
+	}
+}
+
+func TestUpdateIntegrationNeedsSomethingToChange(t *testing.T) {
+	result, err := handleUpdateIntegration(context.Background(), noRequestClient(t), integrationArgs(map[string]any{
+		"project_id": "Xk9mZp", "integration_id": "i1",
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError {
+		t.Errorf("expected a refusal, got %s", getResultText(result))
 	}
 }

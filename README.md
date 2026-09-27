@@ -260,6 +260,24 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 - **get_project_integrations** - Get a list of integrations (channels) for a Honeybadger project
   - `project_id` : The ID of the project to get integrations for (string, required)
 
+- **get_integration** - Get a single notification integration
+  - `project_id` : The ID of the project the integration belongs to (string, required)
+  - `integration_id` : The ID of the integration (string, required)
+
+- **create_integration** - Create a notification integration _(requires `read-only=false`)_
+  - `project_id` : The ID of the project to create the integration in (string, required)
+  - `type` : Integration type, such as `WebHook`, `Email`, `PagerDutyV2` or `Slack`. OAuth types start turned off and unconnected; the user connects them from the result's `links.web` (string, required)
+  - `config` : JSON object of the type's own settings, e.g. `{"url": "https://example.com/hook"}` for `WebHook` (string, optional)
+  - `active`, `events`, `rate`, `threshold`, `notification_limit`, `site_ids`, `check_in_ids`, `alarm_alert_ids`, `alarm_ok_ids`, `included_environments`, `excluded_environments`, `filter_events`, `filter_queries` : the settings every type shares, as their own parameters rather than inside `config` (optional)
+
+- **update_integration** - Update a notification integration _(requires `read-only=false`)_
+  - `project_id`, `integration_id` : Which integration (string, required)
+  - `config` and the shared settings as for `create_integration`; only those given change, and the type can't (optional)
+
+- **delete_integration** - Delete a notification integration and its tickets _(requires `read-only=false`)_
+  - `project_id`, `integration_id` : Which integration (string, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
+
 - **get_project_report** - Get report data for a Honeybadger project
   - `project_id` : The ID of the project to get report data for (string, required)
   - `report` : The type of report to get: 'notices_by_class', 'notices_by_location', 'notices_by_user', or 'notices_per_day' (string, required)
@@ -372,9 +390,11 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 - **update_dashboard** - Update an existing Insights dashboard _(requires `read-only=false`)_
   - `project_id` : The ID of the project the dashboard belongs to (string, required)
   - `dashboard_id` : The ID of the dashboard to update (string, required)
-  - `title` : The title of the dashboard (string, required)
-  - `widgets` : JSON array of widget objects (see `create_dashboard`) (string, required)
+  - `title` : A new title (string, optional)
+  - `widgets` : JSON array of widget objects that replaces the dashboard's widgets; keep each widget's `id` to keep its identity (string, optional)
   - `default_ts` : Default time range for the dashboard (string, optional)
+
+  Only the fields given change, so a rename needs only `title`.
 
 - **delete_dashboard** - Delete an Insights dashboard _(requires `read-only=false`)_
   - `project_id` : The ID of the project the dashboard belongs to (string, required)
