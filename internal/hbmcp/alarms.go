@@ -226,23 +226,21 @@ func handleGetAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolR
 }
 
 // parseTrigger reads a trigger_config argument. Create and update take the same
-// shape, as the API does.
-func parseTrigger(raw string) (*apiv3.AlarmTrigger, error) {
-	var trigger struct {
-		Type   string `json:"type"`
-		Config struct {
-			Operator string  `json:"operator"`
-			Value    float64 `json:"value"`
-		} `json:"config"`
-	}
+// shape, as the API does, and it's sent whole.
+func parseTrigger(raw string) (*apiv3.AlarmTriggerConfig, error) {
+	var trigger apiv3.AlarmTriggerConfig
 	if err := json.Unmarshal([]byte(raw), &trigger); err != nil {
 		return nil, err
 	}
-	return &apiv3.AlarmTrigger{
-		Type:     trigger.Type,
-		Operator: trigger.Config.Operator,
-		Value:    trigger.Config.Value,
-	}, nil
+	return &trigger, nil
+}
+
+// nonEmpty points at s, or is nil when s is empty.
+func nonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -259,27 +257,29 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		return mcp.NewToolResultError("query is required"), nil
 	}
 
-	params := apiv3.AlarmParams{
+	params := apiv3.AlarmCreateParams{
 		Name:             name,
 		Query:            query,
-		EvaluationPeriod: req.GetString("evaluation_period", ""),
-		LookbackLag:      req.GetString("lookback_lag", ""),
-		Description:      req.GetString("description", ""),
+		EvaluationPeriod: nonEmpty(req.GetString("evaluation_period", "")),
+		LookbackLag:      nonEmpty(req.GetString("lookback_lag", "")),
+		Description:      nonEmpty(req.GetString("description", "")),
 	}
 
 	// stream_ids and trigger_config arrive as JSON strings, matching how v2's tool
 	// took them.
 	if raw := req.GetString("stream_ids", ""); raw != "" {
-		if err := json.Unmarshal([]byte(raw), &params.StreamIDs); err != nil {
+		var ids []string
+		if err := json.Unmarshal([]byte(raw), &ids); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)), nil
 		}
+		params.StreamIds = &ids
 	}
 	if raw := req.GetString("trigger_config", ""); raw != "" {
 		trigger, err := parseTrigger(raw)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
 		}
-		params.Trigger = trigger
+		params.TriggerConfig = trigger
 	}
 
 	alarm, err := client.Alarms.Create(ctx, projectID, params)
@@ -325,14 +325,14 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		if err := json.Unmarshal([]byte(raw), &ids); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)), nil
 		}
-		params.StreamIDs = &ids
+		params.StreamIds = &ids
 	}
 	if raw := req.GetString("trigger_config", ""); raw != "" {
 		trigger, err := parseTrigger(raw)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
 		}
-		params.Trigger = trigger
+		params.TriggerConfig = trigger
 	}
 	if params == (apiv3.AlarmUpdateParams{}) {
 		return mcp.NewToolResultError("provide at least one field to change"), nil

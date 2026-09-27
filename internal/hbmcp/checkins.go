@@ -196,19 +196,23 @@ func handleGetCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// checkInParamsFrom reads a check-in write out of a request.
-//
-// The cron fields exist in v3 now, so a cron check-in is expressible.
-func checkInParamsFrom(req mcp.CallToolRequest) apiv3.CheckInParams {
-	return apiv3.CheckInParams{
-		Name:         req.GetString("name", ""),
-		ScheduleType: req.GetString("schedule_type", ""),
-		ReportPeriod: req.GetString("report_period", ""),
-		GracePeriod:  req.GetString("grace_period", ""),
-		CronSchedule: req.GetString("cron_schedule", ""),
-		CronTimezone: req.GetString("cron_timezone", ""),
-		Slug:         req.GetString("slug", ""),
+// checkInParamsFrom reads a check-in write out of a request. Empty arguments are
+// left out: a check-in's fields can't be cleared once set, so "" can only mean
+// "not given".
+func checkInParamsFrom(req mcp.CallToolRequest) apiv3.CheckInUpdateParams {
+	params := apiv3.CheckInUpdateParams{
+		Name:         nonEmpty(req.GetString("name", "")),
+		ReportPeriod: nonEmpty(req.GetString("report_period", "")),
+		GracePeriod:  nonEmpty(req.GetString("grace_period", "")),
+		CronSchedule: nonEmpty(req.GetString("cron_schedule", "")),
+		CronTimezone: nonEmpty(req.GetString("cron_timezone", "")),
+		Slug:         nonEmpty(req.GetString("slug", "")),
 	}
+	if st := req.GetString("schedule_type", ""); st != "" {
+		scheduleType := apiv3.CheckInScheduleType(st)
+		params.ScheduleType = &scheduleType
+	}
+	return params
 }
 
 func handleCreateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -216,12 +220,21 @@ func handleCreateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-	params := checkInParamsFrom(req)
-	if params.Name == "" {
+	fields := checkInParamsFrom(req)
+	if fields.Name == nil {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-	if params.ScheduleType == "cron" && params.CronSchedule == "" {
+	if fields.ScheduleType != nil && *fields.ScheduleType == apiv3.ScheduleCron && fields.CronSchedule == nil {
 		return mcp.NewToolResultError("cron_schedule is required when schedule_type is cron"), nil
+	}
+	params := apiv3.CheckInCreateParams{
+		Name:         *fields.Name,
+		ScheduleType: fields.ScheduleType,
+		ReportPeriod: fields.ReportPeriod,
+		GracePeriod:  fields.GracePeriod,
+		CronSchedule: fields.CronSchedule,
+		CronTimezone: fields.CronTimezone,
+		Slug:         fields.Slug,
 	}
 
 	checkIn, err := client.CheckIns.Create(ctx, projectID, params)
@@ -247,7 +260,7 @@ func handleUpdateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 	}
 
 	params := checkInParamsFrom(req)
-	if params == (apiv3.CheckInParams{}) {
+	if params == (apiv3.CheckInUpdateParams{}) {
 		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
 
