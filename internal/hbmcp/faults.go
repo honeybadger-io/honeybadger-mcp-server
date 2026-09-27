@@ -27,13 +27,13 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("Search string to filter faults (see the errors reference topic for the search query syntax)"),
 			),
 			mcp.WithString("created_after",
-				mcp.Description("Filter faults created after this timestamp"),
+				mcp.Description("Filter faults created after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
 			),
 			mcp.WithString("occurred_after",
-				mcp.Description("Filter faults that occurred after this timestamp"),
+				mcp.Description("Filter faults that occurred after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
 			),
 			mcp.WithString("occurred_before",
-				mcp.Description("Filter faults that occurred before this timestamp"),
+				mcp.Description("Filter faults that occurred before this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
 			),
 			mcp.WithNumber("limit",
 				mcp.Description("Maximum number of faults to return (max 25)"),
@@ -192,13 +192,13 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("Search string to filter faults (see the errors reference topic for the search query syntax)"),
 			),
 			mcp.WithString("created_after",
-				mcp.Description("Filter faults created after this timestamp"),
+				mcp.Description("Filter faults created after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
 			),
 			mcp.WithString("occurred_after",
-				mcp.Description("Filter faults that occurred after this timestamp"),
+				mcp.Description("Filter faults that occurred after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
 			),
 			mcp.WithString("occurred_before",
-				mcp.Description("Filter faults that occurred before this timestamp"),
+				mcp.Description("Filter faults that occurred before this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -220,7 +220,11 @@ func handleListFaults(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 	if order := req.GetString("order", ""); order != "" {
 		opts = append(opts, apiv3.OrderBy(order))
 	}
-	opts = append(opts, timeFilters(req)...)
+	times, msg := timeFilters(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	opts = append(opts, times...)
 	if page, perPage := req.GetInt("page", 0), req.GetInt("limit", 0); page > 0 || perPage > 0 {
 		opts = append(opts, apiv3.Page(max(page, 1), perPage))
 	}
@@ -510,7 +514,11 @@ func handleGetFaultCounts(ctx context.Context, client *apiv3.Client, req mcp.Cal
 	if q := req.GetString("q", ""); q != "" {
 		opts = append(opts, apiv3.Search(q))
 	}
-	opts = append(opts, timeFilters(req)...)
+	times, msg := timeFilters(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	opts = append(opts, times...)
 
 	counts, err := client.Faults.Summary(ctx, projectID, opts...)
 	if err != nil {

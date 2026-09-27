@@ -425,22 +425,52 @@ func TestHandleListFaultsSendsOrderAndTimeFilters(t *testing.T) {
 	}
 }
 
-// An unparseable timestamp is dropped rather than erroring here: the API's own
-// validation message beats a guess from this layer.
-func TestHandleListFaultsIgnoresUnparseableTimestamp(t *testing.T) {
+// An unparseable timestamp is refused by name. Dropping it would run the listing
+// unfiltered and return more than was asked for.
+func TestHandleListFaultsRefusesUnparseableTimestamp(t *testing.T) {
+	result, err := handleListFaults(context.Background(), noRequestClient(t), faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "created_after": "last tuesday",
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "created_after") {
+		t.Errorf("expected created_after to be refused by name, got %s", getResultText(result))
+	}
+}
+
+// A bare date is accepted as midnight UTC.
+func TestHandleListFaultsAcceptsBareDate(t *testing.T) {
 	var query url.Values
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		query = r.URL.Query()
 		v3JSON(w, http.StatusOK, `{"data":[]}`)
 	})
 
-	if _, err := handleListFaults(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "created_after": "last tuesday",
-	})); err != nil {
+	result, err := handleListFaults(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "occurred_after": "2026-01-02",
+	}))
+	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if query.Get("created_after") != "" {
-		t.Errorf("created_after = %q, want it dropped", query.Get("created_after"))
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	if got := query.Get("occurred_after"); got != "1767312000" {
+		t.Errorf("occurred_after = %q, want 1767312000 (2026-01-02T00:00:00Z)", got)
+	}
+}
+
+// Fault counts share the filters, so they refuse the same way.
+func TestHandleGetFaultCountsRefusesUnparseableTimestamp(t *testing.T) {
+	result, err := handleGetFaultCounts(context.Background(), noRequestClient(t), faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "occurred_before": "soon",
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(getResultText(result), "occurred_before") {
+		t.Errorf("expected occurred_before to be refused by name, got %s", getResultText(result))
 	}
 }
 

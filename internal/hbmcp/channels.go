@@ -198,7 +198,13 @@ func handleDeleteIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 		var summary string
 		switch {
 		case err == nil:
-			summary = fmt.Sprintf("delete the %s integration (id %s) from project %s, with its tickets and configuration", integration.Type, integrationID, projectID)
+			name := integration.Type
+			if label := integrationLabel(integration); label != "" {
+				name = fmt.Sprintf("%s integration %q", integration.Type, label)
+			} else {
+				name += " integration"
+			}
+			summary = fmt.Sprintf("delete the %s (id %s) from project %s, with its tickets and configuration", name, integrationID, projectID)
 		case unreadable(err):
 			summary = fmt.Sprintf("delete integration %s from project %s, with its tickets and configuration", integrationID, projectID) + unreadableNote
 		default:
@@ -212,4 +218,22 @@ func handleDeleteIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Integration %s deleted successfully", integrationID)), nil
+}
+
+// integrationLabel returns an integration's label, or "" when it has none. A
+// project can hold several integrations of one type, and the label is what tells
+// them apart in a deletion preview.
+func integrationLabel(integration *apiv3.Integration) string {
+	if integration.Config == nil {
+		return ""
+	}
+	raw, ok := (*integration.Config)["label"]
+	if !ok {
+		return ""
+	}
+	label, err := raw.AsIntegrationConfig1()
+	if err != nil {
+		return ""
+	}
+	return label
 }

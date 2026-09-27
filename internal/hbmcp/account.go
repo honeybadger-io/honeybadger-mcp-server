@@ -93,25 +93,34 @@ func rejectUnsupported(req mcp.CallToolRequest, fields []string, action, advice 
 		strings.Join(present, ", "), action, advice)
 }
 
-// timeFilters reads the timestamp filters a fault listing or count accepts.
+// timeFilters reads the timestamp filters a fault listing or count accepts: an
+// RFC 3339 timestamp, or a bare date meaning midnight UTC.
 //
-// Values are ISO 8601, as the tools have always taken them, and are dropped
-// rather than erroring when unparseable — the API's own validation gives a better
-// message than a guess here would.
-func timeFilters(req mcp.CallToolRequest) []apiv3.Option {
+// A value it can't parse is refused by name. Dropping it would never reach the
+// API's validation — it would just run the query unfiltered and return more than
+// was asked for.
+func timeFilters(req mcp.CallToolRequest) ([]apiv3.Option, string) {
 	var opts []apiv3.Option
-	for field, build := range map[string]func(time.Time) apiv3.ListAllOption{
-		"created_after":   apiv3.CreatedAfter,
-		"occurred_after":  apiv3.OccurredAfter,
-		"occurred_before": apiv3.OccurredBefore,
+	for _, f := range []struct {
+		field string
+		build func(time.Time) apiv3.ListAllOption
+	}{
+		{"created_after", apiv3.CreatedAfter},
+		{"occurred_after", apiv3.OccurredAfter},
+		{"occurred_before", apiv3.OccurredBefore},
 	} {
-		raw := req.GetString(field, "")
+		raw := req.GetString(f.field, "")
 		if raw == "" {
 			continue
 		}
-		if at, err := time.Parse(time.RFC3339, raw); err == nil {
-			opts = append(opts, build(at))
+		at, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			at, err = time.Parse(time.DateOnly, raw)
 		}
+		if err != nil {
+			return nil, fmt.Sprintf("%s must be an RFC 3339 timestamp like 2026-01-02T15:04:05Z or a date like 2026-01-02; got %q", f.field, raw)
+		}
+		opts = append(opts, f.build(at))
 	}
-	return opts
+	return opts, ""
 }

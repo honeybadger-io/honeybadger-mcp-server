@@ -254,7 +254,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 
 - **get_project_occurrence_counts** - Get occurrence counts for all projects or a specific project
   - `project_id` : Project ID to get occurrence counts for a specific project (string, optional)
-  - `period` : Time period for grouping data: 'hour', 'day', 'week', or 'month'. Defaults to 'hour' (string, optional)
+  - `period` : Window to report over: 'hour' (61 one-minute buckets), 'day' (25 hourly), 'week' (8 daily), or 'month' (31 daily). Defaults to 'hour' (string, optional)
   - `environment` : Environment name to filter results (string, optional)
 
 - **get_project_integrations** - Get a list of integrations (channels) for a Honeybadger project
@@ -272,9 +272,9 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 - **list_faults** - Get a list of faults for a project with optional filtering and ordering. Fetch the `errors` reference topic (via `get_reference`) for the fault/notice model and the `q` search syntax.
   - `project_id` : The ID of the project to get faults for (string, required)
   - `q` : Search string to filter faults (string, optional)
-  - `created_after` : Filter faults created after this timestamp (string, optional)
-  - `occurred_after` : Filter faults that occurred after this timestamp (string, optional)
-  - `occurred_before` : Filter faults that occurred before this timestamp (string, optional)
+  - `created_after` : Filter faults created after this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
+  - `occurred_after` : Filter faults that occurred after this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
+  - `occurred_before` : Filter faults that occurred before this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
   - `limit` : Maximum number of faults to return (max 25) (number, optional)
   - `order` : Order results by 'recent' or 'frequent' (string, optional)
   - `page` : Page number for pagination (number, optional)
@@ -294,9 +294,9 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 - **get_fault_counts** - Get fault count statistics for a project with optional filtering. Fetch the `errors` reference topic (via `get_reference`) for the `q` search syntax.
   - `project_id` : The ID of the project to get fault counts for (string, required)
   - `q` : Search string to filter faults (string, optional)
-  - `created_after` : Filter faults created after this timestamp (string, optional)
-  - `occurred_after` : Filter faults that occurred after this timestamp (string, optional)
-  - `occurred_before` : Filter faults that occurred before this timestamp (string, optional)
+  - `created_after` : Filter faults created after this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
+  - `occurred_after` : Filter faults that occurred after this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
+  - `occurred_before` : Filter faults that occurred before this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
 
 - **list_fault_notices** - Get a list of notices (individual error events) for a specific fault
   - `project_id` : The ID of the project containing the fault (string, required)

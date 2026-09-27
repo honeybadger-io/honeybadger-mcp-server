@@ -153,7 +153,7 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("Optional project ID. Omit to report across every project the credential can reach."),
 			),
 			mcp.WithString("period",
-				mcp.Description("Time period for grouping data: 'hour', 'day', 'week', or 'month'. Defaults to 'hour'"),
+				mcp.Description("Window to report over: 'hour' (61 one-minute buckets), 'day' (25 hourly), 'week' (8 daily), or 'month' (31 daily). Defaults to 'hour'"),
 				mcp.Enum("hour", "day", "week", "month"),
 			),
 			mcp.WithString("environment",
