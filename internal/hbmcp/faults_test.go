@@ -23,7 +23,7 @@ func TestHandleListFaults(t *testing.T) {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK, `{
-			"data": [{"id":1,"project_id":"Xk9mZp","klass":"RuntimeError","message":"boom","notices_count":42}],
+			"data": [{"id":"1","project_id":"Xk9mZp","klass":"RuntimeError","message":"boom","notices_count":42}],
 			"pagination": {"page":1,"per_page":25}
 		}`)
 	})
@@ -116,7 +116,7 @@ func TestHandleGetFault(t *testing.T) {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		v3JSON(w, http.StatusOK,
-			`{"data":{"id":1,"project_id":"Xk9mZp","klass":"RuntimeError","action":null}}`)
+			`{"data":{"id":"1","project_id":"Xk9mZp","klass":"RuntimeError","action":null}}`)
 	})
 
 	result, err := handleGetFault(context.Background(), client,
@@ -189,7 +189,7 @@ func TestHandleUpdateFaultResolve(t *testing.T) {
 		t.Errorf("paths = %v", paths)
 	}
 	ids, _ := body["fault_ids"].([]any)
-	if len(ids) != 1 || ids[0] != float64(1) {
+	if len(ids) != 1 || ids[0] != "1" {
 		t.Errorf("fault_ids = %v", body["fault_ids"])
 	}
 }
@@ -296,7 +296,7 @@ func TestHandleListFaultNotices(t *testing.T) {
 		}
 		// Notice ids are UUIDs, unlike every other v3 resource.
 		v3JSON(w, http.StatusOK, `{
-			"data":[{"id":"11111111-1111-4111-8111-111111111111","fault_id":1,"project_id":"Xk9mZp"}],
+			"data":[{"id":"11111111-1111-4111-8111-111111111111","fault_id":"1","project_id":"Xk9mZp"}],
 			"pagination":{"has_older":false,"has_newer":false,"limit":5}
 		}`)
 	})
@@ -483,7 +483,7 @@ func TestHandleUpdateFaultAssigns(t *testing.T) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		bodies = append(bodies, body)
-		v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","assignee":{"id":"usr_1"}}}`)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"1","project_id":"Xk9mZp","assignee":{"id":"usr_1"}}}`)
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
@@ -508,7 +508,7 @@ func TestHandleUpdateFaultUnassignsOnNull(t *testing.T) {
 	var method, path string
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		method, path = r.Method, r.URL.Path
-		v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","assignee":null}}`)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"1","project_id":"Xk9mZp","assignee":null}}`)
 	})
 
 	if _, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
@@ -531,7 +531,7 @@ func TestHandleUpdateFaultSendsResolveOnDeploy(t *testing.T) {
 	c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(raw, &body)
-		v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolve_on_deploy":true}}`)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"1","project_id":"Xk9mZp","resolve_on_deploy":true}}`)
 	})
 
 	result, err := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
@@ -553,7 +553,7 @@ func TestHandleUpdateFaultSendsResolveOnDeploy(t *testing.T) {
 // pending resolution that does not exist.
 func TestHandleUpdateFaultReportsDiscardedResolveOnDeploy(t *testing.T) {
 	c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolved":true}}`)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"1","project_id":"Xk9mZp","resolved":true}}`)
 	})
 
 	result, err := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
@@ -581,7 +581,7 @@ func TestHandleUpdateFaultAllowsCoherentResolveOnDeployCombinations(t *testing.T
 	} {
 		c := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPatch || r.Method == http.MethodPut {
-				v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolve_on_deploy":false}}`)
+				v3JSON(w, http.StatusOK, `{"data":{"id":"1","project_id":"Xk9mZp","resolve_on_deploy":false}}`)
 				return
 			}
 			w.WriteHeader(http.StatusOK)
@@ -651,7 +651,7 @@ func TestHandleGetFaultCountsSendsTimeFilters(t *testing.T) {
 }
 
 // bulkChanged is a bulk state change that changed the one fault it named.
-const bulkChanged = `{"data":{"count":1,"dry_run":false,"fault_ids":[1],"fault_ids_truncated":false}}`
+const bulkChanged = `{"data":{"count":1,"dry_run":false,"fault_ids":["1"],"fault_ids_truncated":false}}`
 
 // bulkUnchanged is a bulk state change that changed nothing: either the fault was
 // already in that state or the id names no fault in the project.
@@ -662,7 +662,7 @@ const bulkUnchanged = `{"data":{"count":0,"dry_run":false,"fault_ids":[],"fault_
 func TestHandleUpdateFaultAlreadyInState(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolved":true}}`)
+			v3JSON(w, http.StatusOK, `{"data":{"id":"1","project_id":"Xk9mZp","resolved":true}}`)
 			return
 		}
 		v3JSON(w, http.StatusOK, bulkUnchanged)
@@ -726,7 +726,7 @@ func TestHandleUpdateFaultRejectsFractionalID(t *testing.T) {
 func TestHandleUpdateFaultReopenedInBetween(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			v3JSON(w, http.StatusOK, `{"data":{"id":1,"project_id":"Xk9mZp","resolved":false}}`)
+			v3JSON(w, http.StatusOK, `{"data":{"id":"1","project_id":"Xk9mZp","resolved":false}}`)
 			return
 		}
 		v3JSON(w, http.StatusOK, bulkUnchanged)
@@ -769,7 +769,7 @@ func TestHandleListFaultNoticesForwardsCursors(t *testing.T) {
 // type would make schema-validating clients refuse the documented request.
 func TestUpdateFaultAssigneeSchemaAcceptsNull(t *testing.T) {
 	s := NewServer(&config.Config{AuthToken: "test-token", LogLevel: "info", TransportMode: config.TransportStdio}, "test")
-	resp := s.HandleMessage(context.Background(), []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	resp := s.HandleMessage(context.Background(), []byte(`{"jsonrpc":"2.0","id":"1","method":"tools/list"}`))
 	raw, err := json.Marshal(resp)
 	if err != nil {
 		t.Fatalf("marshal tools/list: %v", err)
@@ -833,5 +833,26 @@ func TestHandleUpdateFaultZeroCountWithoutReadScope(t *testing.T) {
 	}
 	if applied["resolved_note"] == nil {
 		t.Errorf("no note explaining the unconfirmed result: %v", applied)
+	}
+}
+
+// Fault ids are strings in v3, but a whole number from before the change is
+// still accepted; a fractional one is refused rather than truncated.
+func TestFaultIDAcceptsStringsAndWholeNumbers(t *testing.T) {
+	for _, tc := range []struct {
+		in   any
+		want string
+		ok   bool
+	}{
+		{"12345", "12345", true},
+		{" 12345 ", "12345", true},
+		{float64(12345), "12345", true},
+		{456.9, "", false},
+		{"", "", false},
+	} {
+		got, ok := requireFaultID(map[string]any{"fault_id": tc.in}, "fault_id")
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("requireFaultID(%#v) = %q, %v; want %q, %v", tc.in, got, ok, tc.want, tc.ok)
+		}
 	}
 }

@@ -44,15 +44,14 @@ func rejectStaleSchemaFields(tool string, req mcp.CallToolRequest) string {
 }
 
 // requireProjectAndFault reads the two ids every fault tool needs.
-func requireProjectAndFault(req mcp.CallToolRequest) (projectID string, faultID int, errMsg string) {
+func requireProjectAndFault(req mcp.CallToolRequest) (projectID, faultID, errMsg string) {
 	projectID = req.GetString("project_id", "")
 	if projectID == "" {
-		return "", 0, "project_id is required"
+		return "", "", "project_id is required"
 	}
-	// Not req.GetInt: it truncates, so fault_id 456.9 would act on fault 456.
-	faultID, ok := requireID(req.GetArguments(), "fault_id")
+	faultID, ok := requireFaultID(req.GetArguments(), "fault_id")
 	if !ok {
-		return "", 0, "fault_id is required and must be a positive integer"
+		return "", "", "fault_id is required: the fault's ID, as list_faults and get_fault return it"
 	}
 	return projectID, faultID, ""
 }

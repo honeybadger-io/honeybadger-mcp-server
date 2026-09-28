@@ -99,7 +99,7 @@ func withProjectParam() mcp.ToolOption {
 }
 
 func withFaultParam() mcp.ToolOption {
-	return mcp.WithNumber("fault_id", mcp.Required(), mcp.Description("The ID of the fault the comments belong to"), mcp.Min(1))
+	return mcp.WithString("fault_id", mcp.Required(), mcp.Description("The ID of the fault the comments belong to"))
 }
 
 func withCommentParam() mcp.ToolOption {
@@ -112,14 +112,14 @@ func withCommentBodyParam() mcp.ToolOption {
 }
 
 // requireComment reads the ids every single-comment tool needs.
-func requireComment(req mcp.CallToolRequest) (projectID string, faultID int, commentID, errMsg string) {
+func requireComment(req mcp.CallToolRequest) (projectID, faultID, commentID, errMsg string) {
 	projectID, faultID, errMsg = requireProjectAndFault(req)
 	if errMsg != "" {
-		return "", 0, "", errMsg
+		return "", "", "", errMsg
 	}
 	commentID = req.GetString("comment_id", "")
 	if commentID == "" {
-		return "", 0, "", "comment_id is required"
+		return "", "", "", "comment_id is required"
 	}
 	return projectID, faultID, commentID, ""
 }
@@ -197,10 +197,10 @@ func handleDeleteFaultComment(ctx context.Context, client *apiv3.Client, req mcp
 		var summary string
 		switch {
 		case err == nil:
-			summary = fmt.Sprintf("delete comment %s by %s on fault %d: %q",
+			summary = fmt.Sprintf("delete comment %s by %s on fault %s: %q",
 				commentID, commentAuthor(comment), faultID, excerpt(nullableString(comment.Body), 80))
 		case unreadable(err):
-			summary = fmt.Sprintf("delete comment %s on fault %d", commentID, faultID) + unreadableNote
+			summary = fmt.Sprintf("delete comment %s on fault %s", commentID, faultID) + unreadableNote
 		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up fault comment: %v", err)), nil
 		}

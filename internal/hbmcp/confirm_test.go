@@ -55,7 +55,7 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		// One shape that decodes as any of the resources a delete previews.
-		thing := `{"id":"x","project_id":"Xk9mZp","fault_id":456,"name":"Thing","title":"Thing","label":"Thing","type":"Thing","key":"k","active":true,"author":{"name":"Thing"},"body":"Looked into it","created_at":"2026-01-01T00:00:00Z"}`
+		thing := `{"id":"x","project_id":"Xk9mZp","fault_id":"456","name":"Thing","title":"Thing","label":"Thing","type":"Thing","key":"k","active":true,"author":{"name":"Thing"},"body":"Looked into it","created_at":"2026-01-01T00:00:00Z"}`
 		_, _ = w.Write([]byte(`{"data":` + thing + `}`))
 	}))
 	t.Cleanup(f.Close)

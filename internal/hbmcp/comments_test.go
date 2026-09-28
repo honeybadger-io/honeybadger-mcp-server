@@ -14,7 +14,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-const testComment = `{"id":"cmt1","fault_id":456,"body":"Investigation","created_at":"2026-09-26T00:00:00Z","author":{"name":"Kevin"}}`
+const testComment = `{"id":"cmt1","fault_id":"456","body":"Investigation","created_at":"2026-09-26T00:00:00Z","author":{"name":"Kevin"}}`
 
 func TestListFaultCommentsEmpty(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +38,7 @@ func TestListFaultCommentsWalksEveryPage(t *testing.T) {
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if r.URL.Path == "/v3/older" {
-			v3JSON(w, http.StatusOK, `{"data":[{"id":"cmt0","fault_id":456,"created_at":"2026-09-25T00:00:00Z"}],
+			v3JSON(w, http.StatusOK, `{"data":[{"id":"cmt0","fault_id":"456","created_at":"2026-09-25T00:00:00Z"}],
 			  "pagination":{"has_older":false,"limit":1},"links":{"self":"/v3/older"}}`)
 			return
 		}
@@ -88,7 +88,7 @@ func TestFaultCommentTools(t *testing.T) {
 				args["body"] = body
 			}
 			if tc.name == "delete" {
-				args["confirm"] = validConfirm("delete_fault_comment", "Xk9mZp", 456, "cmt1")
+				args["confirm"] = validConfirm("delete_fault_comment", "Xk9mZp", "456", "cmt1")
 			}
 			path := "/v3/projects/Xk9mZp/faults/456/comments"
 			if tc.commentID {
@@ -142,7 +142,7 @@ func TestFaultCommentTools(t *testing.T) {
 
 			invalid := map[string][]any{
 				"project_id": {nil, ""},
-				"fault_id":   {nil, 0, -1, 1.5, "123", true, float64(maxSafeInteger * 2)},
+				"fault_id":   {nil, 0, -1, 1.5, "", "   ", true, float64(maxSafeInteger * 2)},
 			}
 			if tc.commentID {
 				invalid["comment_id"] = []any{nil, ""}
@@ -235,7 +235,7 @@ func TestListFaultCommentsFailures(t *testing.T) {
 
 	for field, values := range map[string][]any{
 		"project_id": {nil, ""},
-		"fault_id":   {nil, 0, -1, 1.5, "123", true, float64(maxSafeInteger * 2)},
+		"fault_id":   {nil, 0, -1, 1.5, "", "   ", true, float64(maxSafeInteger * 2)},
 	} {
 		for _, value := range values {
 			args := map[string]any{"project_id": "Xk9mZp", "fault_id": 456}

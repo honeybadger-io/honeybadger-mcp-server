@@ -65,7 +65,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
 			),
-			mcp.WithNumber("fault_id",
+			mcp.WithString("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to retrieve"),
 			),
@@ -89,7 +89,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
 			),
-			mcp.WithNumber("fault_id",
+			mcp.WithString("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to update"),
 			),
@@ -132,7 +132,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
 			),
-			mcp.WithNumber("fault_id",
+			mcp.WithString("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to get notices for"),
 			),
@@ -164,7 +164,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Required(),
 				mcp.Description("The ID of the project containing the fault"),
 			),
-			mcp.WithNumber("fault_id",
+			mcp.WithString("fault_id",
 				mcp.Required(),
 				mcp.Description("The ID of the fault to get affected users for"),
 			),
@@ -403,7 +403,7 @@ type bulkAction func(context.Context, string, apiv3.FaultSelection, ...apiv3.Opt
 // already in that state and when the id names no fault in the project, so a
 // zero is resolved by fetching the fault: a missing or merged fault is an error,
 // and an existing one was simply already there.
-func applyStateChange(ctx context.Context, client *apiv3.Client, action bulkAction, projectID string, faultID int, applied map[string]any, field string, value bool) error {
+func applyStateChange(ctx context.Context, client *apiv3.Client, action bulkAction, projectID string, faultID string, applied map[string]any, field string, value bool) error {
 	result, err := action(ctx, projectID, apiv3.SelectFaults(faultID))
 	if err != nil {
 		return err

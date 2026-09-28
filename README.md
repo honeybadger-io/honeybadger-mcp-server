@@ -299,11 +299,11 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 
 - **get_fault** - Get detailed information for a specific fault in a project
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault to retrieve (number, required)
+  - `fault_id` : The ID of the fault to retrieve (string, required)
 
 - **update_fault** - Update a fault's resolved, ignored, assignee, or resolve-on-deploy state. Only the provided fields are changed.
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault to update (number, required)
+  - `fault_id` : The ID of the fault to update (string, required)
   - `resolved` : Whether the fault is resolved (boolean, optional)
   - `ignored` : Whether the fault is ignored (boolean, optional)
   - `assignee_id` : Positive integer to assign that user; null to remove the current assignee; omit to leave unchanged (integer or null, optional)
@@ -318,14 +318,14 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 
 - **list_fault_notices** - Get a list of notices (individual error events) for a specific fault
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault to get notices for (number, required)
+  - `fault_id` : The ID of the fault to get notices for (string, required)
   - `before` : Cursor for older notices: `time_series.oldest_cursor` from the previous response (string, optional)
   - `after` : Cursor for newer notices: `time_series.newest_cursor` from the previous response (string, optional)
   - `limit` : Maximum number of notices to return (max 25) (number, optional)
 
 - **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without `q`.
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault to get affected users for (number, required)
+  - `fault_id` : The ID of the fault to get affected users for (string, required)
   - `q` : Search string to filter affected users (string, optional)
 
 ### Fault Comments

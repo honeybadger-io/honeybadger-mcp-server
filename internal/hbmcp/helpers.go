@@ -2,6 +2,8 @@ package hbmcp
 
 import (
 	"math"
+	"strconv"
+	"strings"
 )
 
 // maxSafeInteger is the largest integer a float64 can represent exactly
@@ -19,20 +21,24 @@ func nullable(schema map[string]any) {
 	}
 }
 
-// requireID extracts a positive integer argument, rejecting the fractional,
-// string, and negative values that req.GetInt would silently coerce. Use for
-// resource IDs in destructive handlers, where a truncated 456.9 would target
-// the wrong resource.
-func requireID(args map[string]any, name string) (int, bool) {
+// requireFaultID reads a fault id. v3 fault ids are opaque strings, but a whole
+// number is still accepted, since callers may hold ids from before the change
+// and the API accepts either. A fractional number is refused rather than
+// truncated, so 456.9 can't act on fault 456.
+func requireFaultID(args map[string]any, name string) (string, bool) {
 	switch v := args[name].(type) {
+	case string:
+		if id := strings.TrimSpace(v); id != "" {
+			return id, true
+		}
 	case float64:
 		if v >= 1 && v <= maxSafeInteger && v == math.Trunc(v) {
-			return int(v), true
+			return strconv.FormatInt(int64(v), 10), true
 		}
 	case int: // arguments constructed in Go rather than decoded from JSON
 		if v >= 1 {
-			return v, true
+			return strconv.Itoa(v), true
 		}
 	}
-	return 0, false
+	return "", false
 }
