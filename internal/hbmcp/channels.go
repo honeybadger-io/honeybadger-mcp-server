@@ -3,7 +3,10 @@ package hbmcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
+	"strings"
 
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -187,6 +190,30 @@ func integrationBody(req mcp.CallToolRequest, extra map[string]any) ([]byte, str
 	return encoded, ""
 }
 
+// describeSettingError turns a decoding failure into the tool's terms. The raw
+// errors name Go types and struct fields, which mean nothing to the caller.
+func describeSettingError(err error) string {
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		want := "a string"
+		switch typeErr.Type.Kind() {
+		case reflect.Int:
+			want = "a whole number"
+		case reflect.Bool:
+			want = "true or false"
+		case reflect.Slice:
+			want = "a list of strings"
+		}
+		return fmt.Sprintf("%s must be %s", typeErr.Field, want)
+	}
+	// Only site_ids decodes into UUIDs, and the UUID parser doesn't say which
+	// field it was reading.
+	if strings.Contains(err.Error(), "UUID") {
+		return fmt.Sprintf("site_ids must be site IDs, which are UUIDs: %v", err)
+	}
+	return fmt.Sprintf("Invalid integration settings: %v", err)
+}
+
 func handleCreateIntegration(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
@@ -203,7 +230,7 @@ func handleCreateIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 	}
 	var params apiv3.IntegrationCreateParams
 	if err := json.Unmarshal(raw, &params); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Invalid integration settings: %v", err)), nil
+		return mcp.NewToolResultError(describeSettingError(err)), nil
 	}
 
 	integration, err := client.Integrations.Create(ctx, projectID, params)
@@ -234,7 +261,7 @@ func handleUpdateIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 	}
 	var params apiv3.IntegrationUpdateParams
 	if err := json.Unmarshal(raw, &params); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Invalid integration settings: %v", err)), nil
+		return mcp.NewToolResultError(describeSettingError(err)), nil
 	}
 	if params == (apiv3.IntegrationUpdateParams{}) {
 		return mcp.NewToolResultError("provide at least one setting to change"), nil

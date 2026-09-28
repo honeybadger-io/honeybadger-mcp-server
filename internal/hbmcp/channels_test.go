@@ -87,20 +87,26 @@ func TestCreateIntegrationRefusesSharedSettingsInsideConfig(t *testing.T) {
 	}
 }
 
-// Values the API types strictly are checked before sending.
+// Values the API types strictly are checked before sending, and the refusal is
+// in the tool's terms rather than Go's.
 func TestIntegrationSettingsAreTypeChecked(t *testing.T) {
-	for name, args := range map[string]map[string]any{
-		"fractional threshold": {"threshold": 2.5},
-		"site id not a uuid":   {"site_ids": []any{"not-a-uuid"}},
+	for name, tc := range map[string]struct {
+		args map[string]any
+		want string
+	}{
+		"fractional threshold": {map[string]any{"threshold": 2.5}, "threshold must be a whole number"},
+		"active as a string":   {map[string]any{"active": "yes"}, "active must be true or false"},
+		"events not a list":    {map[string]any{"events": "occurred"}, "events must be a list of strings"},
+		"site id not a uuid":   {map[string]any{"site_ids": []any{"not-a-uuid"}}, "site_ids must be site IDs"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			args["project_id"], args["integration_id"] = "Xk9mZp", "i1"
-			result, err := handleUpdateIntegration(context.Background(), noRequestClient(t), integrationArgs(args))
+			tc.args["project_id"], tc.args["integration_id"] = "Xk9mZp", "i1"
+			result, err := handleUpdateIntegration(context.Background(), noRequestClient(t), integrationArgs(tc.args))
 			if err != nil {
 				t.Fatalf("error = %v", err)
 			}
-			if !result.IsError {
-				t.Errorf("expected a refusal, got %s", getResultText(result))
+			if !result.IsError || !strings.Contains(getResultText(result), tc.want) {
+				t.Errorf("got %q, want it to say %q", getResultText(result), tc.want)
 			}
 		})
 	}
