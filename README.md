@@ -11,8 +11,6 @@ First, pull the Docker image:
 docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
 ```
 
-Images are published under exact version tags only, with no `latest`, so pin the version you use and update it deliberately. The [releases page](https://github.com/honeybadger-io/honeybadger-mcp-server/releases) lists them. To pin by digest instead, use `ghcr.io/honeybadger-io/honeybadger-mcp-server@sha256:…`.
-
 Then, configure your MCP client(s). You can find your personal auth token under the "Authentication" tab in your [Honeybadger user settings](https://app.honeybadger.io/users/edit#authentication).
 
 ### Cursor, Windsurf, and Claude Desktop
