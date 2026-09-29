@@ -394,7 +394,7 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 }
 
 // bulkAction is one of the four bulk state changes.
-type bulkAction func(context.Context, string, apiv3.FaultSelection, ...apiv3.Option) (*apiv3.FaultBulkResult, error)
+type bulkAction func(context.Context, string, apiv3.FaultSelection) (*apiv3.FaultBulkResult, error)
 
 // applyStateChange runs a bulk state change on one fault and records it in
 // applied, but only if it can be shown to have landed.
