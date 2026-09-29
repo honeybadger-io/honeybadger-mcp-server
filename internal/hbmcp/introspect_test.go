@@ -296,3 +296,64 @@ func TestIntrospectionWaiterHonoursItsOwnCancellation(t *testing.T) {
 		t.Fatal("a cancelled waiter stayed blocked on another caller's fetch")
 	}
 }
+
+// A fetch that panics must still settle its in-flight entry, or every later
+// caller for that credential would wait forever.
+func TestIntrospectionPanicDoesNotStrandLaterCallers(t *testing.T) {
+	calls := 0
+	fetch := func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		calls++
+		if calls == 1 {
+			panic("introspection blew up")
+		}
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}
+	cache := NewIntrospectionCache(fetch, time.Minute, time.Second, 10)
+
+	func() {
+		defer func() { _ = recover() }()
+		_, _ = cache.Get(context.Background(), "hbt_x")
+	}()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := cache.Get(context.Background(), "hbt_x")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("err = %v, want the retried fetch to succeed", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a caller after the panic stayed blocked on the abandoned fetch")
+	}
+}
+
+// A fetch cut short by its caller going away says nothing about the credential,
+// so it isn't cached: the next caller fetches afresh.
+func TestIntrospectionCancelledFetchIsNotCached(t *testing.T) {
+	calls := 0
+	fetch := func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		calls++
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}
+	cache := NewIntrospectionCache(fetch, time.Minute, time.Minute, 10)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := cache.Get(ctx, "hbt_x"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+
+	info, err := cache.Get(context.Background(), "hbt_x")
+	if err != nil || info == nil || info.AccountID != "Ab3kL9" {
+		t.Errorf("Get = %+v, %v; want a fresh fetch, not the cached cancellation", info, err)
+	}
+	if calls != 2 {
+		t.Errorf("fetch ran %d times, want 2", calls)
+	}
+}

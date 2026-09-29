@@ -27,6 +27,13 @@ func PRMHandler(resource string, authServers, scopes []string) http.Handler {
 	})
 }
 
+// Introspector describes a credential by asking the API, with caching. Optional:
+// a nil introspector skips the step, and the request proceeds on whatever the
+// credential could prove locally.
+type Introspector interface {
+	Get(ctx context.Context, token string) (*apiv3.TokenInfo, error)
+}
+
 // ValidateMiddleware authenticates the request's Bearer credential.
 //
 // v3 accepts three kinds and they can be verified to different depths:
@@ -44,13 +51,6 @@ func PRMHandler(resource string, authServers, scopes []string) http.Handler {
 // expiry check, so an expired one surfaces as a failure on the first API call
 // rather than as a challenge here.
 //
-// Introspector describes a credential by asking the API, with caching. Optional:
-// a nil introspector skips the step, and the request proceeds on whatever the
-// credential could prove locally.
-type Introspector interface {
-	Get(ctx context.Context, token string) (*apiv3.TokenInfo, error)
-}
-
 // Expired tokens get an error_description so MCP clients trigger their refresh-on-401 path.
 func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer, expectedAudience string, introspector Introspector, next http.Handler) http.Handler {
 	bootstrap := fmt.Sprintf(`Bearer resource_metadata="%s"`, prmURL)

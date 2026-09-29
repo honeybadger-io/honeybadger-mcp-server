@@ -127,15 +127,29 @@ func (c *IntrospectionCache) Get(ctx context.Context, token string) (*apiv3.Toke
 	}
 	call := c.inFlightFor(key)
 
-	info, err := c.fetch(ctx, token)
-	c.store(key, info, err)
+	// Settle the in-flight entry however the fetch ends, a panic included.
+	// Otherwise the entry stays registered and every later caller for this
+	// credential waits on a fetch that will never finish.
+	var (
+		info *apiv3.TokenInfo
+		err  error
+	)
+	defer func() {
+		c.mu.Lock()
+		delete(c.inflight, key)
+		c.mu.Unlock()
 
-	c.mu.Lock()
-	delete(c.inflight, key)
-	c.mu.Unlock()
+		call.info, call.err = info, err
+		close(call.done)
+	}()
 
-	call.info, call.err = info, err
-	close(call.done)
+	info, err = c.fetch(ctx, token)
+	// A fetch cut short by this caller going away says nothing about the
+	// credential. Caching it would fail the token for everyone else until the
+	// negative TTL ran out.
+	if ctx.Err() == nil {
+		c.store(key, info, err)
+	}
 	return info, err
 }
 

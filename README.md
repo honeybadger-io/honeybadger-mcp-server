@@ -278,15 +278,6 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `project_id`, `integration_id` : Which integration (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
-- **get_project_report** - Get report data for a Honeybadger project
-  - `project_id` : The ID of the project to get report data for (string, required)
-  - `report` : The type of report to get: 'notices_by_class', 'notices_by_location', 'notices_by_user', or 'notices_per_day' (string, required)
-  - `start` : Start date/time in ISO 8601 format for the beginning of the reporting period (string, optional)
-  - `stop` : Stop date/time in ISO 8601 format for the end of the reporting period (string, optional)
-  - `environment` : Environment name to filter results (string, optional)
-
-### Faults
-
 - **list_faults** - Get a list of faults for a project with optional filtering and ordering. Fetch the `errors` reference topic (via `get_reference`) for the fault/notice model and the `q` search syntax.
   - `project_id` : The ID of the project to get faults for (string, required)
   - `q` : Search string to filter faults (string, optional)
