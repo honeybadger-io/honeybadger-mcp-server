@@ -306,7 +306,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `fault_id` : The ID of the fault to update (string, required)
   - `resolved` : Whether the fault is resolved (boolean, optional)
   - `ignored` : Whether the fault is ignored (boolean, optional)
-  - `assignee_id` : Positive integer to assign that user; null to remove the current assignee; omit to leave unchanged (integer or null, optional)
+  - `assignee_id` : Public ID of a project member to assign the fault to; null to remove the current assignee; omit to leave unchanged (string or null, optional)
   - `resolve_on_deploy` : Mark the fault to be resolved automatically on next deploy (boolean, optional)
 
 - **get_fault_counts** - Get fault count statistics for a project with optional filtering. Fetch the `errors` reference topic (via `get_reference`) for the `q` search syntax.
@@ -332,27 +332,27 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 
 - **list_fault_comments** - List every comment on a fault, newest first.
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault (integer, required)
+  - `fault_id` : The ID of the fault (string, required)
 
 - **get_fault_comment** - Get a single comment on a fault by ID.
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault (integer, required)
+  - `fault_id` : The ID of the fault (string, required)
   - `comment_id` : The ID of the comment (string, required)
 
 - **create_fault_comment** - Add a comment to a fault.
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault (integer, required)
+  - `fault_id` : The ID of the fault (string, required)
   - `body` : Non-blank comment text (string, required)
 
 - **update_fault_comment** - Replace the body of an existing fault comment. Returns the comment as stored.
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault (integer, required)
+  - `fault_id` : The ID of the fault (string, required)
   - `comment_id` : The ID of the comment (string, required)
   - `body` : Non-blank comment text (string, required)
 
 - **delete_fault_comment** - Delete an existing comment from a fault.
   - `project_id` : The ID of the project containing the fault (string, required)
-  - `fault_id` : The ID of the fault (integer, required)
+  - `fault_id` : The ID of the fault (string, required)
   - `comment_id` : The ID of the comment (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
