@@ -111,9 +111,9 @@ func (c *IntrospectionCache) Get(ctx context.Context, token string) (*apiv3.Toke
 	// Without this, a burst of requests carrying the same uncached token issues one
 	// upstream call each — and at capacity each completion also evicts an unrelated
 	// entry, pushing other tenants into misses and amplifying the burst further.
-	info, err, hit, waiter := c.claim(key)
-	if hit {
-		return info, err
+	cached, waiter := c.claim(key)
+	if cached != nil {
+		return cached.info, cached.err
 	}
 	if waiter != nil {
 		// Wait for the fetch already running, but no longer than this caller's own
@@ -127,7 +127,7 @@ func (c *IntrospectionCache) Get(ctx context.Context, token string) (*apiv3.Toke
 	}
 	call := c.inFlightFor(key)
 
-	info, err = c.fetch(ctx, token)
+	info, err := c.fetch(ctx, token)
 	c.store(key, info, err)
 
 	c.mu.Lock()
@@ -146,7 +146,10 @@ func (c *IntrospectionCache) Get(ctx context.Context, token string) (*apiv3.Toke
 // separate locked sections, a caller could miss the cache before the winner stored
 // its result and then register a second fetch after the winner had cleaned up —
 // which is exactly the duplicate call this exists to prevent.
-func (c *IntrospectionCache) claim(key string) (info *apiv3.TokenInfo, err error, hit bool, waitOn *inFlight) {
+//
+// A hit returns a copy of the cached entry, whose err is the cached outcome of an
+// earlier lookup rather than a failure of claim itself.
+func (c *IntrospectionCache) claim(key string) (cached *introspectionEntry, waitOn *inFlight) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -155,14 +158,15 @@ func (c *IntrospectionCache) claim(key string) (info *apiv3.TokenInfo, err error
 			delete(c.entries, key)
 		} else {
 			entry.lastUsed = c.now()
-			return entry.info, entry.err, true, nil
+			hit := *entry
+			return &hit, nil
 		}
 	}
 	if existing, ok := c.inflight[key]; ok {
-		return nil, nil, false, existing
+		return nil, existing
 	}
 	c.inflight[key] = &inFlight{done: make(chan struct{})}
-	return nil, nil, false, nil
+	return nil, nil
 }
 
 // inFlightFor returns the fetch this caller registered in claim.
