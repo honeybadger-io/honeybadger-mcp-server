@@ -1,11 +1,11 @@
 module github.com/honeybadger-io/honeybadger-mcp-server
 
-go 1.25.5
+go 1.27.1
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/honeybadger-io/api-go v0.9.0
+	github.com/honeybadger-io/api-go v0.9.1-0.20260929225423-c934ab888aff
 	github.com/mark3labs/mcp-go v0.55.1
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
@@ -39,5 +39,3 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/honeybadger-io/api-go => ../api-go
