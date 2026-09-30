@@ -15,9 +15,13 @@ import (
 // JSON Schema clients and Go regular expressions.
 const nonBlankCommentPattern = "[^\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"
 
-// A comment is attributed to a person, so the API refuses to write one with an
-// account token, which has nobody to attribute it to.
-const commentAuthorNote = " Needs a personal token or OAuth: an account token is refused with requires_user_token, since a comment is attributed to a person."
+// How each comment write behaves with an account token (hba_), which has no
+// user behind it.
+const (
+	commentCreateNote = " With an account token, the comment is attributed to the token's name."
+	commentUpdateNote = " Only the comment's author can edit it, so an account token, which has no author, is refused with access_denied."
+	commentDeleteNote = " An account token can delete a comment only when it can manage the project."
+)
 
 // RegisterCommentTools registers the fault comment tools.
 func RegisterCommentTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
@@ -51,7 +55,7 @@ func RegisterCommentTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("create_fault_comment",
 			mcp.WithTitleAnnotation("Create Fault Comment"),
-			mcp.WithDescription("Add a comment to a fault. @mentions notify the named project members."+commentAuthorNote),
+			mcp.WithDescription("Add a comment to a fault. @mentions notify the named project members."+commentCreateNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			withProjectParam(),
@@ -65,7 +69,7 @@ func RegisterCommentTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("update_fault_comment",
 			mcp.WithTitleAnnotation("Update Fault Comment"),
-			mcp.WithDescription("Replace the body of an existing fault comment. Returns the comment as stored."+commentAuthorNote),
+			mcp.WithDescription("Replace the body of an existing fault comment. Returns the comment as stored."+commentUpdateNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			withProjectParam(),
@@ -80,7 +84,7 @@ func RegisterCommentTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_fault_comment",
 			mcp.WithTitleAnnotation("Delete Fault Comment"),
-			mcp.WithDescription("Delete an existing comment from a fault."+commentAuthorNote+confirmNote),
+			mcp.WithDescription("Delete an existing comment from a fault."+commentDeleteNote+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			withProjectParam(),

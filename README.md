@@ -347,7 +347,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `comment_id` : The ID of the comment (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
-Creating, updating, and deleting comments require write access (`--read-only=false` in stdio mode or the `write` scope in HTTP mode), and a personal token or OAuth: an account token is refused with `requires_user_token`, since a comment is attributed to a person.
+Creating, updating, and deleting comments require write access (`--read-only=false` in stdio mode or the `write` scope in HTTP mode). With an account token (`hba_`), a new comment is attributed to the token's name; updates are refused with `access_denied`, since only a comment's author can edit it; and deletes need permission to manage the project.
 
 ### Insights
 
