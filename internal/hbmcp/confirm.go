@@ -2,9 +2,11 @@ package hbmcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/confirmtoken"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -28,10 +30,20 @@ func confirmSigner(ctx context.Context) *confirmtoken.Signer {
 	return processSigner
 }
 
-// The subject survives access-token refreshes, unlike the bearer itself.
+// confirmCaller names who a confirmation token is bound to, so one caller cannot
+// use a token minted for another.
+//
+// An OAuth caller is its subject, which survives access-token refreshes where the
+// bearer does not. An opaque token (hbt_, hba_) never refreshes, so it is its own
+// stable identity; a digest of it is used, since the signing key rather than the
+// caller id is what keeps tokens unforgeable. In stdio mode there is one caller
+// and no bearer, so the id is empty.
 func confirmCaller(ctx context.Context) string {
 	if claims := ClaimsFromContext(ctx); claims != nil {
-		return claims.Subject
+		return "sub:" + claims.Subject
+	}
+	if token := AuthTokenFromContext(ctx); token != "" {
+		return "token:" + digest(token)
 	}
 	return ""
 }
@@ -68,4 +80,16 @@ func excerpt(s string, max int) string {
 		return s
 	}
 	return string(r[:max]) + "…"
+}
+
+// A write-only API token can hold alarms:write without alarms:read: scopes do not
+// imply one another, and a hand-edited grant can drop the read. Such a caller is
+// allowed to delete but not to look first, so the preview names the resource by
+// id instead of refusing, and the two-step confirmation still applies.
+const unreadableNote = " (details not shown: this credential is not allowed to read it, though it may be allowed to delete it)"
+
+// unreadable reports whether a preview lookup failed only because the credential
+// may not read what it is allowed to delete.
+func unreadable(err error) bool {
+	return errors.Is(err, apiv3.ErrInsufficientScope)
 }

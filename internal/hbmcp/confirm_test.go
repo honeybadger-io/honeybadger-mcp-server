@@ -29,6 +29,11 @@ type fakeAPI struct {
 	mu      sync.Mutex
 	gets    int
 	deletes int
+
+	// readStatus and readBody, when set, answer every read with that error; an
+	// insufficient_scope 403 is what a write-only API token gets.
+	readStatus int
+	readBody   string
 }
 
 func newFakeAPI(t *testing.T) *fakeAPI {
@@ -42,8 +47,16 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 			return
 		}
 		f.gets++
+		if f.readStatus != 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(f.readStatus)
+			_, _ = w.Write([]byte(f.readBody))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"name":"Thing","title":"Thing","author":"Thing","body":"Looked into it"}`))
+		// One shape that decodes as any of the resources a delete previews.
+		thing := `{"id":"x","project_id":"Xk9mZp","fault_id":"456","name":"Thing","title":"Thing","label":"Thing","type":"Thing","key":"k","active":true,"author":{"name":"Thing"},"body":"Looked into it","created_at":"2026-01-01T00:00:00Z"}`
+		_, _ = w.Write([]byte(`{"data":` + thing + `}`))
 	}))
 	t.Cleanup(f.Close)
 	return f
@@ -90,17 +103,20 @@ func withArg(args map[string]any, key string, value any) map[string]any {
 	return out
 }
 
-// Every delete_* tool must go through deletionConfirmed/deletionPreview. A new
-// delete tool fails here until it is added to deleteToolArgs.
-func TestDeleteToolsRequireConfirmation(t *testing.T) {
-	deleteToolArgs := map[string]map[string]any{
-		"delete_project":       {"id": 123},
-		"delete_dashboard":     {"project_id": 123, "dashboard_id": "dash1"},
-		"delete_alarm":         {"project_id": 123, "alarm_id": "alarm1"},
-		"delete_check_in":      {"project_id": 123, "check_in_id": "chk1"},
-		"delete_fault_comment": {"project_id": 123, "fault_id": 456, "comment_id": 789},
-	}
+// deleteToolArgs holds valid arguments for every delete tool. A new delete tool
+// fails TestDeleteToolsRequireConfirmation until it is added here.
+var deleteToolArgs = map[string]map[string]any{
+	"delete_project":       {"id": "Xk9mZp"},
+	"delete_dashboard":     {"project_id": "Xk9mZp", "dashboard_id": "dash1"},
+	"delete_alarm":         {"project_id": "Xk9mZp", "alarm_id": "alarm1"},
+	"delete_check_in":      {"project_id": "Xk9mZp", "check_in_id": "chk1"},
+	"delete_fault_comment": {"project_id": "Xk9mZp", "fault_id": 456, "comment_id": "cmt1"},
+	"delete_integration":   {"project_id": "Xk9mZp", "integration_id": "int1"},
+	"delete_project_key":   {"project_id": "Xk9mZp", "key_id": "key1"},
+}
 
+// Every delete_* tool must go through deletionConfirmed/deletionPreview.
+func TestDeleteToolsRequireConfirmation(t *testing.T) {
 	api := newFakeAPI(t)
 	s := NewServer(&config.Config{
 		AuthToken:     "test-token",
@@ -193,8 +209,8 @@ func TestHTTPDeleteConfirmation(t *testing.T) {
 		ctx := WithAuthToken(context.Background(), bearer)
 		return WithClaims(ctx, &Claims{Subject: subject, Scopes: []string{"write"}})
 	}
-	args := map[string]any{"project_id": 123, "check_in_id": "chk1"}
-	ids := []any{123, "chk1"}
+	args := map[string]any{"project_id": "Xk9mZp", "check_in_id": "chk1"}
+	ids := []any{"Xk9mZp", "chk1"}
 	deletesSince := func(before int) int {
 		_, d := api.counts()
 		return d - before
@@ -202,7 +218,7 @@ func TestHTTPDeleteConfirmation(t *testing.T) {
 
 	t.Run("client-minted token", func(t *testing.T) {
 		_, before := api.counts()
-		forged := confirmtoken.New([]byte("alice-bearer")).Mint("alice", "delete_check_in", ids, time.Now())
+		forged := confirmtoken.New([]byte("alice-bearer")).Mint("sub:alice", "delete_check_in", ids, time.Now())
 		if text, _ := callTool(t, s, caller("alice-bearer", "alice"), "delete_check_in", withArg(args, "confirm", forged)); deletesSince(before) != 0 {
 			t.Fatalf("token signed with the caller's bearer deleted: %q", text)
 		}
@@ -210,7 +226,7 @@ func TestHTTPDeleteConfirmation(t *testing.T) {
 
 	t.Run("per-process key", func(t *testing.T) {
 		_, before := api.counts()
-		stdio := processSigner.Mint("alice", "delete_check_in", ids, time.Now())
+		stdio := processSigner.Mint("sub:alice", "delete_check_in", ids, time.Now())
 		if text, _ := callTool(t, s, caller("alice-bearer", "alice"), "delete_check_in", withArg(args, "confirm", stdio)); deletesSince(before) != 0 {
 			t.Fatalf("http mode accepted a token not signed with MCP_CONFIRM_SECRET: %q", text)
 		}
@@ -218,7 +234,7 @@ func TestHTTPDeleteConfirmation(t *testing.T) {
 
 	t.Run("minted by another replica", func(t *testing.T) {
 		_, before := api.counts()
-		replica := confirmtoken.New([]byte(secret)).Mint("alice", "delete_check_in", ids, time.Now())
+		replica := confirmtoken.New([]byte(secret)).Mint("sub:alice", "delete_check_in", ids, time.Now())
 		text, isErr := callTool(t, s, caller("alice-bearer", "alice"), "delete_check_in", withArg(args, "confirm", replica))
 		if isErr || deletesSince(before) != 1 {
 			t.Fatalf("token signed with the shared secret rejected: %q", text)
@@ -245,4 +261,109 @@ func TestHTTPDeleteConfirmation(t *testing.T) {
 			t.Fatalf("token rejected after alice's bearer refreshed: %q", text)
 		}
 	})
+}
+
+// An opaque token (hbt_, hba_) has no subject, so a confirmation is bound to the
+// token itself: another caller's token cannot use it, the same token can.
+func TestHTTPDeleteConfirmationBindsOpaqueTokens(t *testing.T) {
+	api := newFakeAPI(t)
+	s := NewServer(&config.Config{
+		APIURL:        api.URL,
+		LogLevel:      "error",
+		TransportMode: config.TransportHTTP,
+		ConfirmSecret: "0123456789abcdef0123456789abcdef",
+	}, "test")
+	opaque := func(bearer string) context.Context {
+		ctx := WithAuthToken(context.Background(), bearer)
+		return WithCredentialKind(ctx, ClassifyCredential(bearer))
+	}
+	args := map[string]any{"project_id": "Xk9mZp", "check_in_id": "chk1"}
+
+	text, _ := callTool(t, s, opaque("hbt_alice"), "delete_check_in", args)
+	m := confirmTokenPattern.FindStringSubmatch(text)
+	if m == nil {
+		t.Fatalf("preview has no token: %q", text)
+	}
+
+	_, before := api.counts()
+	if text, _ := callTool(t, s, opaque("hbt_bob"), "delete_check_in", withArg(args, "confirm", m[1])); func() int { _, d := api.counts(); return d - before }() != 0 {
+		t.Fatalf("alice's confirmation deleted for bob: %q", text)
+	}
+
+	text, isErr := callTool(t, s, opaque("hbt_alice"), "delete_check_in", withArg(args, "confirm", m[1]))
+	if _, after := api.counts(); isErr || after-before != 1 {
+		t.Fatalf("alice's own confirmation was refused: %q", text)
+	}
+}
+
+// A write-only API token may delete but not read, so the preview's lookup is
+// refused. The preview must still be issued, naming the resource by id, and the
+// confirmed call must still delete. Before, such a token was offered every delete
+// tool and could never use one.
+func TestDeleteToolsWorkForWriteOnlyTokens(t *testing.T) {
+	api := newFakeAPI(t)
+	api.readStatus = http.StatusForbidden
+	api.readBody = `{"error":{"code":"insufficient_scope","message":"Insufficient scope","details":{"required_scope":"x:read"}}}`
+	s := NewServer(&config.Config{
+		AuthToken:     "test-token",
+		APIURL:        api.URL,
+		LogLevel:      "error",
+		TransportMode: config.TransportStdio,
+	}, "test")
+	ctx := context.Background()
+
+	for tool, args := range deleteToolArgs {
+		t.Run(tool, func(t *testing.T) {
+			_, deletes0 := api.counts()
+			text, isErr := callTool(t, s, ctx, tool, args)
+			if isErr || !strings.HasPrefix(text, "Not deleted.") || !strings.Contains(text, "not allowed to read") {
+				t.Fatalf("a refused read must still preview by id; isError=%v text=%q", isErr, text)
+			}
+			m := confirmTokenPattern.FindStringSubmatch(text)
+			if m == nil {
+				t.Fatalf("preview has no token: %q", text)
+			}
+			text, isErr = callTool(t, s, ctx, tool, withArg(args, "confirm", m[1]))
+			if _, deletes := api.counts(); isErr || deletes != deletes0+1 {
+				t.Fatalf("confirmed call must delete once; isError=%v text=%q", isErr, text)
+			}
+		})
+	}
+}
+
+// Only insufficient_scope degrades a preview. A lookup that finds nothing, or is
+// refused for any other reason, must still fail with no confirmation token, or a
+// preview would mint one for a resource that does not exist or is off-limits.
+func TestDeletePreviewStillFailsOnOtherReadErrors(t *testing.T) {
+	for name, fail := range map[string]struct {
+		status int
+		body   string
+	}{
+		"not found":     {http.StatusNotFound, `{"error":{"code":"not_found","message":"Resource not found"}}`},
+		"access denied": {http.StatusForbidden, `{"error":{"code":"access_denied","message":"Access denied"}}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			api := newFakeAPI(t)
+			api.readStatus, api.readBody = fail.status, fail.body
+			s := NewServer(&config.Config{
+				AuthToken:     "test-token",
+				APIURL:        api.URL,
+				LogLevel:      "error",
+				TransportMode: config.TransportStdio,
+			}, "test")
+
+			for tool, args := range deleteToolArgs {
+				text, isErr := callTool(t, s, context.Background(), tool, args)
+				if !isErr || !strings.Contains(text, "Failed to look up") {
+					t.Errorf("%s: a %s lookup must fail the preview; isError=%v text=%q", tool, name, isErr, text)
+				}
+				if confirmTokenPattern.MatchString(text) {
+					t.Errorf("%s: issued a confirmation token after a %s lookup: %q", tool, name, text)
+				}
+			}
+			if _, deletes := api.counts(); deletes != 0 {
+				t.Errorf("deleted %d resources", deletes)
+			}
+		})
+	}
 }

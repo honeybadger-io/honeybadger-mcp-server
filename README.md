@@ -29,7 +29,7 @@ These steps run the server locally over stdio. Most people should use the [hoste
 First, pull the Docker image:
 
 ```bash
-docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
+docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
 ```
 
 Then, configure your MCP client(s). You can find your personal auth token under the "Authentication" tab in your [Honeybadger user settings](https://app.honeybadger.io/users/edit#authentication).
@@ -49,7 +49,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
         "--rm",
         "-e",
         "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-        "ghcr.io/honeybadger-io/honeybadger-mcp-server"
+        "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1"
       ],
       "env": {
         "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
@@ -64,7 +64,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
 Run this command to configure [Claude Code](https://www.anthropic.com/claude-code):
 
 ```bash
-claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="HONEYBADGER_PERSONAL_AUTH_TOKEN" ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
+claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="HONEYBADGER_PERSONAL_AUTH_TOKEN" ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
 ```
 
 ### VS Code
@@ -91,7 +91,7 @@ Add the following to your [user settings](https://code.visualstudio.com/docs/con
           "--rm",
           "-e",
           "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-          "ghcr.io/honeybadger-io/honeybadger-mcp-server"
+          "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1"
         ],
         "env": {
           "HONEYBADGER_PERSONAL_AUTH_TOKEN": "${input:honeybadger_auth_token}"
@@ -120,7 +120,7 @@ Add the following to your Zed settings file in `~/.config/zed/settings.json`:
           "--rm",
           "-e",
           "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-          "ghcr.io/honeybadger-io/honeybadger-mcp-server"
+          "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1"
         ],
         "env": {
           "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your personal auth token"
@@ -142,7 +142,7 @@ cd honeybadger-mcp-server
 docker build -t honeybadger-mcp-server .
 ```
 
-Then you can replace "ghcr.io/honeybadger-io/honeybadger-mcp-server" with
+Then you can replace "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1" with
 "honeybadger-mcp-server" in any of the configs above. Or you can run the image
 directly:
 
@@ -200,7 +200,7 @@ The server defaults to Honeybadger's US API (`https://app.honeybadger.io`). If y
 For example, with Claude Code:
 
 ```bash
-claude mcp add honeybadger-eu -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="your_eu_token" -e HONEYBADGER_API_URL="https://eu-app.honeybadger.io" ghcr.io/honeybadger-io/honeybadger-mcp-server:latest
+claude mcp add honeybadger-eu -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="your_eu_token" -e HONEYBADGER_API_URL="https://eu-app.honeybadger.io" ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
 ```
 
 To use both regions at once, run two servers with distinct names (for example `honeybadger-us` and `honeybadger-eu`), each with its own token and API URL.
@@ -235,7 +235,7 @@ read-only: true
 
 ## Tools
 
-Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller. Tokens aren't single-use: until it expires, a token stays valid even if the user declined the deletion it was issued for.
+Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`, `delete_integration`, `delete_project_key`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller. Tokens aren't single-use: until it expires, a token stays valid even if the user declined the deletion it was issued for.
 
 ### Reference
 
@@ -245,13 +245,12 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 ### Projects
 
 - **list_projects** - List all Honeybadger projects
-  - `account_id` : Account ID to filter projects by specific account (string, optional)
+  - `name` : Exact project name; returns only that project (string, optional)
 
 - **get_project** - Get detailed information for a single project by ID
-  - `id` : The ID of the project to retrieve (number, required)
+  - `id` : The ID of the project to retrieve (string, required)
 
 - **create_project** - Create a new Honeybadger project _(requires `read-only=false`)_
-  - `account_id` : The account ID to associate the project with. If omitted, the project is created in the first account your auth token has access to (string, optional)
   - `name` : The name of the new project (string, required)
   - `resolve_errors_on_deploy` : Whether all unresolved faults should be marked as resolved when a deploy is recorded (boolean, optional)
   - `disable_public_links` : Whether to allow fault details to be publicly shareable via a button on the fault detail page (boolean, optional)
@@ -261,7 +260,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `user_search_field` : A field such as 'context.user_email' that you provide in your error context (string, optional)
 
 - **update_project** - Update an existing Honeybadger project _(requires `read-only=false`)_
-  - `id` : The ID of the project to update (number, required)
+  - `id` : The ID of the project to update (string, required)
   - `name` : The name of the project (string, optional)
   - `resolve_errors_on_deploy` : Whether all unresolved faults should be marked as resolved when a deploy is recorded (boolean, optional)
   - `disable_public_links` : Whether to allow fault details to be publicly shareable via a button on the fault detail page (boolean, optional)
@@ -271,101 +270,110 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `user_search_field` : A field such as 'context.user_email' that you provide in your error context (string, optional)
 
 - **delete_project** - Delete a Honeybadger project _(requires `read-only=false`)_
-  - `id` : The ID of the project to delete (number, required)
+  - `id` : The ID of the project to delete (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 - **get_project_occurrence_counts** - Get occurrence counts for all projects or a specific project
-  - `project_id` : Project ID to get occurrence counts for a specific project (number, optional)
-  - `period` : Time period for grouping data: 'hour', 'day', 'week', or 'month'. Defaults to 'hour' (string, optional)
+  - `project_id` : Project ID to get occurrence counts for a specific project (string, optional)
+  - `period` : Window to report over: 'hour' (61 one-minute buckets), 'day' (25 hourly), 'week' (8 daily), or 'month' (31 daily). Defaults to 'hour' (string, optional)
   - `environment` : Environment name to filter results (string, optional)
 
 - **get_project_integrations** - Get a list of integrations (channels) for a Honeybadger project
-  - `project_id` : The ID of the project to get integrations for (number, required)
+  - `project_id` : The ID of the project to get integrations for (string, required)
 
-- **get_project_report** - Get report data for a Honeybadger project
-  - `project_id` : The ID of the project to get report data for (number, required)
-  - `report` : The type of report to get: 'notices_by_class', 'notices_by_location', 'notices_by_user', or 'notices_per_day' (string, required)
-  - `start` : Start date/time in ISO 8601 format for the beginning of the reporting period (string, optional)
-  - `stop` : Stop date/time in ISO 8601 format for the end of the reporting period (string, optional)
-  - `environment` : Environment name to filter results (string, optional)
+- **get_integration** - Get a single notification integration
+  - `project_id` : The ID of the project the integration belongs to (string, required)
+  - `integration_id` : The ID of the integration (string, required)
 
-### Faults
+- **create_integration** - Create a notification integration _(requires `read-only=false`)_
+  - `project_id` : The ID of the project to create the integration in (string, required)
+  - `type` : Integration type, such as `WebHook`, `Email`, `PagerDutyV2` or `Slack`. OAuth types start turned off and unconnected; the user connects them from the result's `links.web` (string, required)
+  - `config` : JSON object of the type's own settings, e.g. `{"url": "https://example.com/hook"}` for `WebHook` (string, optional)
+  - `active`, `events`, `rate`, `threshold`, `notification_limit`, `site_ids`, `check_in_ids`, `alarm_alert_ids`, `alarm_ok_ids`, `included_environments`, `excluded_environments`, `filter_events`, `filter_queries` : the settings every type shares, as their own parameters rather than inside `config` (optional)
+
+- **update_integration** - Update a notification integration _(requires `read-only=false`)_
+  - `project_id`, `integration_id` : Which integration (string, required)
+  - `config` and the shared settings as for `create_integration`; only those given change, and the type can't (optional)
+
+- **delete_integration** - Delete a notification integration and its tickets _(requires `read-only=false`)_
+  - `project_id`, `integration_id` : Which integration (string, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 - **list_faults** - Get a list of faults for a project with optional filtering and ordering. Fetch the `errors` reference topic (via `get_reference`) for the fault/notice model and the `q` search syntax.
-  - `project_id` : The ID of the project to get faults for (number, required)
+  - `project_id` : The ID of the project to get faults for (string, required)
   - `q` : Search string to filter faults (string, optional)
-  - `created_after` : Filter faults created after this timestamp (string, optional)
-  - `occurred_after` : Filter faults that occurred after this timestamp (string, optional)
-  - `occurred_before` : Filter faults that occurred before this timestamp (string, optional)
+  - `created_after` : Filter faults created after this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
+  - `occurred_after` : Filter faults that occurred after this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
+  - `occurred_before` : Filter faults that occurred before this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
   - `limit` : Maximum number of faults to return (max 25) (number, optional)
   - `order` : Order results by 'recent' or 'frequent' (string, optional)
   - `page` : Page number for pagination (number, optional)
 
 - **get_fault** - Get detailed information for a specific fault in a project
-  - `project_id` : The ID of the project containing the fault (number, required)
-  - `fault_id` : The ID of the fault to retrieve (number, required)
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault to retrieve (string, required)
 
 - **update_fault** - Update a fault's resolved, ignored, assignee, or resolve-on-deploy state. Only the provided fields are changed.
-  - `project_id` : The ID of the project containing the fault (number, required)
-  - `fault_id` : The ID of the fault to update (number, required)
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault to update (string, required)
   - `resolved` : Whether the fault is resolved (boolean, optional)
   - `ignored` : Whether the fault is ignored (boolean, optional)
-  - `assignee_id` : Positive integer to assign that user; null to remove the current assignee; omit to leave unchanged (integer or null, optional)
+  - `assignee_id` : Public ID of a project member to assign the fault to; null to remove the current assignee; omit to leave unchanged (string or null, optional)
   - `resolve_on_deploy` : Mark the fault to be resolved automatically on next deploy (boolean, optional)
 
 - **get_fault_counts** - Get fault count statistics for a project with optional filtering. Fetch the `errors` reference topic (via `get_reference`) for the `q` search syntax.
-  - `project_id` : The ID of the project to get fault counts for (number, required)
+  - `project_id` : The ID of the project to get fault counts for (string, required)
   - `q` : Search string to filter faults (string, optional)
-  - `created_after` : Filter faults created after this timestamp (string, optional)
-  - `occurred_after` : Filter faults that occurred after this timestamp (string, optional)
-  - `occurred_before` : Filter faults that occurred before this timestamp (string, optional)
+  - `created_after` : Filter faults created after this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
+  - `occurred_after` : Filter faults that occurred after this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
+  - `occurred_before` : Filter faults that occurred before this time: an RFC 3339 timestamp or a date (midnight UTC) (string, optional)
 
 - **list_fault_notices** - Get a list of notices (individual error events) for a specific fault
-  - `project_id` : The ID of the project containing the fault (number, required)
-  - `fault_id` : The ID of the fault to get notices for (number, required)
-  - `created_after` : Filter notices created after this timestamp (string, optional)
-  - `created_before` : Filter notices created before this timestamp (string, optional)
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault to get notices for (string, required)
+  - `before` : Cursor for older notices: `time_series.oldest_cursor` from the previous response (string, optional)
+  - `after` : Cursor for newer notices: `time_series.newest_cursor` from the previous response (string, optional)
   - `limit` : Maximum number of notices to return (max 25) (number, optional)
 
-- **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts
-  - `project_id` : The ID of the project containing the fault (number, required)
-  - `fault_id` : The ID of the fault to get affected users for (number, required)
+- **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without `q`.
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault to get affected users for (string, required)
   - `q` : Search string to filter affected users (string, optional)
 
 ### Fault Comments
 
-- **list_fault_comments** - List comments on a fault. Returns the first page of comments; pagination is not currently supported.
-  - `project_id` : The ID of the project containing the fault (integer, required)
-  - `fault_id` : The ID of the fault (integer, required)
+- **list_fault_comments** - List every comment on a fault, newest first.
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault (string, required)
 
 - **get_fault_comment** - Get a single comment on a fault by ID.
-  - `project_id` : The ID of the project containing the fault (integer, required)
-  - `fault_id` : The ID of the fault (integer, required)
-  - `comment_id` : The ID of the comment (integer, required)
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault (string, required)
+  - `comment_id` : The ID of the comment (string, required)
 
 - **create_fault_comment** - Add a comment to a fault.
-  - `project_id` : The ID of the project containing the fault (integer, required)
-  - `fault_id` : The ID of the fault (integer, required)
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault (string, required)
   - `body` : Non-blank comment text (string, required)
 
-- **update_fault_comment** - Replace the body of an existing fault comment.
-  - `project_id` : The ID of the project containing the fault (integer, required)
-  - `fault_id` : The ID of the fault (integer, required)
-  - `comment_id` : The ID of the comment (integer, required)
+- **update_fault_comment** - Replace the body of an existing fault comment. Returns the comment as stored.
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault (string, required)
+  - `comment_id` : The ID of the comment (string, required)
   - `body` : Non-blank comment text (string, required)
 
 - **delete_fault_comment** - Delete an existing comment from a fault.
-  - `project_id` : The ID of the project containing the fault (integer, required)
-  - `fault_id` : The ID of the fault (integer, required)
-  - `comment_id` : The ID of the comment (integer, required)
+  - `project_id` : The ID of the project containing the fault (string, required)
+  - `fault_id` : The ID of the fault (string, required)
+  - `comment_id` : The ID of the comment (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
-Creating, updating, and deleting comments require write access (`--read-only=false` in stdio mode or the `write` scope in HTTP mode).
+Creating, updating, and deleting comments require write access (`--read-only=false` in stdio mode or the `write` scope in HTTP mode). With an account token (`hba_`), a new comment is attributed to the token's name; updates are refused with `access_denied`, since only a comment's author can edit it; and deletes need permission to manage the project.
 
 ### Insights
 
 - **query_insights** - Execute a BadgerQL query against Insights data
-  - `project_id` : The ID of the project to query insights for (number, required)
+  - `project_id` : The ID of the project to query insights for (string, required)
   - `query` : BadgerQL query string to execute against your Insights data (string, required)
   - `ts` : Time range - shortcuts like 'today', 'week', or ISO 8601 duration (e.g., 'PT3H'). Defaults to PT3H (string, optional)
   - `timezone` : IANA timezone identifier (e.g., 'America/New_York') for timestamp interpretation (string, optional)
@@ -374,46 +382,48 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 ### Streams
 
 - **list_streams** - List Insights data streams for a project
-  - `project_id` : The ID of the project to list streams for (number, required)
+  - `project_id` : The ID of the project to list streams for (string, required)
 
 ### Dashboards
 
 - **list_dashboards** - List all Insights dashboards for a project
-  - `project_id` : The ID of the project to list dashboards for (number, required)
+  - `project_id` : The ID of the project to list dashboards for (string, required)
 
 - **get_dashboard** - Get a single Insights dashboard by ID
-  - `project_id` : The ID of the project the dashboard belongs to (number, required)
+  - `project_id` : The ID of the project the dashboard belongs to (string, required)
   - `dashboard_id` : The ID of the dashboard to retrieve (string, required)
 
 - **create_dashboard** - Create a new Insights dashboard _(requires `read-only=false`)_
-  - `project_id` : The ID of the project to create the dashboard in (number, required)
+  - `project_id` : The ID of the project to create the dashboard in (string, required)
   - `title` : The title of the dashboard (string, required)
   - `widgets` : JSON array of widget objects. The `dashboards` reference topic has the full widget schema and examples. Each widget needs a `type` (`insights_vis`, `alarms`, `errors`, `deployments`, `checkins`, `uptime`) and optionally `grid` ({x,y,w,h}), `presentation` ({title, subtitle}), and `config` (type-specific settings) (string, required)
   - `default_ts` : Default time range for the dashboard. ISO 8601 duration (e.g., P1D, PT3H) or keyword (today, yesterday, week, month) (string, optional)
 
 - **update_dashboard** - Update an existing Insights dashboard _(requires `read-only=false`)_
-  - `project_id` : The ID of the project the dashboard belongs to (number, required)
+  - `project_id` : The ID of the project the dashboard belongs to (string, required)
   - `dashboard_id` : The ID of the dashboard to update (string, required)
-  - `title` : The title of the dashboard (string, required)
-  - `widgets` : JSON array of widget objects (see `create_dashboard`) (string, required)
+  - `title` : A new title (string, optional)
+  - `widgets` : JSON array of widget objects that replaces the dashboard's widgets; keep each widget's `id` to keep its identity (string, optional)
   - `default_ts` : Default time range for the dashboard (string, optional)
 
+  Only the fields given change, so a rename needs only `title`.
+
 - **delete_dashboard** - Delete an Insights dashboard _(requires `read-only=false`)_
-  - `project_id` : The ID of the project the dashboard belongs to (number, required)
+  - `project_id` : The ID of the project the dashboard belongs to (string, required)
   - `dashboard_id` : The ID of the dashboard to delete (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 ### Alarms
 
 - **list_alarms** - List all Insights alarms for a project
-  - `project_id` : The ID of the project to list alarms for (number, required)
+  - `project_id` : The ID of the project to list alarms for (string, required)
 
 - **get_alarm** - Get a single Insights alarm by ID
-  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `project_id` : The ID of the project the alarm belongs to (string, required)
   - `alarm_id` : The ID of the alarm to retrieve (string, required)
 
 - **create_alarm** - Create a new Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms`, `queries`, and `badgerql` first (via `get_reference`) for the `trigger_config` schema and query guidelines.
-  - `project_id` : The ID of the project to create the alarm in (number, required)
+  - `project_id` : The ID of the project to create the alarm in (string, required)
   - `name` : The name of the alarm (string, required)
   - `query` : BadgerQL query for the alarm. The alarm system wraps the query to count results automatically (string, required)
   - `evaluation_period` : How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m (string, required)
@@ -423,37 +433,39 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `stream_ids` : Optional JSON array of stream IDs to query (defaults to `["default"]`) (string, optional)
 
 - **update_alarm** - Update an existing Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms`, `queries`, and `badgerql` first (via `get_reference`).
-  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `project_id` : The ID of the project the alarm belongs to (string, required)
   - `alarm_id` : The ID of the alarm to update (string, required)
-  - `name` : The name of the alarm (string, required)
-  - `query` : BadgerQL query for the alarm (string, required)
-  - `evaluation_period` : How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m (string, required)
-  - `trigger_config` : JSON object defining when to trigger the alarm (string, required)
-  - `lookback_lag` : Delay before evaluating to allow data to arrive (e.g., 1m, 0s for no lag) (string, required)
-  - `description` : Optional description of the alarm (string, optional)
-  - `stream_ids` : Optional JSON array of stream IDs to query (string, optional)
+  - `name` : A new name for the alarm (string, optional)
+  - `description` : A new description; an empty string clears it (string, optional)
+  - `query` : A new BadgerQL query (string, optional)
+  - `evaluation_period` : A new evaluation window, as a compact duration such as `5m` or `1h` (string, optional)
+  - `lookback_lag` : A new lookback lag, such as `1m` (string, optional)
+  - `stream_ids` : JSON array of stream IDs, replacing the current set (string, optional)
+  - `trigger_config` : JSON object replacing the whole trigger, in the same shape `create_alarm` takes (string, optional)
+
+  Provide at least one field.
 
 - **delete_alarm** - Delete an Insights alarm _(requires `read-only=false`)_
-  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `project_id` : The ID of the project the alarm belongs to (string, required)
   - `alarm_id` : The ID of the alarm to delete (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 - **get_alarm_history** - Get the trigger history for an Insights alarm
-  - `project_id` : The ID of the project the alarm belongs to (number, required)
+  - `project_id` : The ID of the project the alarm belongs to (string, required)
   - `alarm_id` : The ID of the alarm to get history for (string, required)
-  - `page` : Page number for pagination (default: 0) (number, optional)
+  - `page` : Page number, starting at 1 (default: 1). Pages hold 25 entries; a non-null `links.next` means there are more (number, optional)
 
 ### Check-Ins
 
 - **list_check_ins** - List check-ins (cron/scheduled task monitoring) for a project. Returns the first 25 check-ins; pagination is not currently supported
-  - `project_id` : The ID of the project to list check-ins for (number, required)
+  - `project_id` : The ID of the project to list check-ins for (string, required)
 
 - **get_check_in** - Get a single check-in by ID
-  - `project_id` : The ID of the project the check-in belongs to (number, required)
+  - `project_id` : The ID of the project the check-in belongs to (string, required)
   - `check_in_id` : The ID of the check-in to retrieve (string, required)
 
 - **create_check_in** - Create a new check-in for a project _(requires `read-only=false`)_
-  - `project_id` : The ID of the project to create the check-in in (number, required)
+  - `project_id` : The ID of the project to create the check-in in (string, required)
   - `name` : The name of the check-in (string, required)
   - `schedule_type` : The schedule type: `simple` (report every fixed period) or `cron` (report on a cron schedule) (string, required)
   - `slug` : Optional URL-friendly identifier used to report the check-in, e.g. `nightly-backups` (string, optional)
@@ -463,7 +475,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `cron_timezone` : Timezone for the cron schedule (defaults to UTC) (string, optional)
 
 - **update_check_in** - Update an existing check-in; only the provided fields are changed, and fields cannot be cleared once set. The schedule type cannot be changed after creation _(requires `read-only=false`)_
-  - `project_id` : The ID of the project the check-in belongs to (number, required)
+  - `project_id` : The ID of the project the check-in belongs to (string, required)
   - `check_in_id` : The ID of the check-in to update (string, required)
   - `name` : The name of the check-in (string, optional)
   - `slug` : URL-friendly identifier used to report the check-in (string, optional)
@@ -473,7 +485,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `cron_timezone` : Timezone for the cron schedule (string, optional)
 
 - **delete_check_in** - Delete a check-in and its reporting history _(requires `read-only=false`)_
-  - `project_id` : The ID of the project the check-in belongs to (number, required)
+  - `project_id` : The ID of the project the check-in belongs to (string, required)
   - `check_in_id` : The ID of the check-in to delete (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 

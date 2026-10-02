@@ -1,9 +1,11 @@
 package httptransport
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/honeybadger-io/api-go/apiv3"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbmcp"
 )
 
 func testKey(t *testing.T) (*rsa.PrivateKey, jwt.Keyfunc) {
@@ -88,7 +92,7 @@ func TestValidateMiddleware(t *testing.T) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	})
-	mw := ValidateMiddleware(prmURL, kf, "https://issuer.example", "https://host/mcp", next)
+	mw := ValidateMiddleware(prmURL, kf, "https://issuer.example", "https://host/mcp", nil, next)
 
 	expiredClaims := validClaims()
 	expiredClaims["exp"] = time.Now().Add(-time.Minute).Unix()
@@ -204,5 +208,232 @@ func TestHealthHandler(t *testing.T) {
 func TestPRMPathNotHealthz(t *testing.T) {
 	if WellKnownPRMPath == "/healthz" {
 		t.Fatal("WellKnownPRMPath collides with reserved /healthz")
+	}
+}
+
+// A scoped API token is opaque: it must be accepted and forwarded, because
+// nothing about it can be checked without asking the API.
+func TestValidateMiddlewareAcceptsOpaqueScopedTokens(t *testing.T) {
+	for _, raw := range []string{"hbt_personal123", "hba_account123"} {
+		var gotToken string
+		var gotKind hbmcp.CredentialKind
+		var gotClaims *hbmcp.Claims
+
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotToken = hbmcp.AuthTokenFromContext(r.Context())
+			gotKind = hbmcp.CredentialKindFromContext(r.Context())
+			gotClaims = hbmcp.ClaimsFromContext(r.Context())
+			w.WriteHeader(http.StatusOK)
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+raw)
+		rec := httptest.NewRecorder()
+
+		// A keyfunc that would fail if consulted: an opaque token must never
+		// reach JWT verification.
+		refuse := func(*jwt.Token) (interface{}, error) {
+			t.Fatalf("%s was sent to JWT verification", raw)
+			return nil, nil
+		}
+		// Introspection is what authenticates an opaque credential, so it has to
+		// succeed for the request to proceed.
+		stub := &stubIntrospector{info: &apiv3.TokenInfo{Kind: apiv3.TokenKindUser}}
+		ValidateMiddleware("https://mcp.test/prm", refuse, "https://issuer.test", "https://mcp.test", stub, next).
+			ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d, want 200", raw, rec.Code)
+		}
+		if gotToken != raw {
+			t.Errorf("%s: forwarded token = %q", raw, gotToken)
+		}
+		if gotKind.Verifiable() {
+			t.Errorf("%s: kind %q reports itself verifiable", raw, gotKind)
+		}
+		// No claims: inventing them would assert permissions nobody checked.
+		if gotClaims != nil {
+			t.Errorf("%s: claims = %+v, want none", raw, gotClaims)
+		}
+	}
+}
+
+// Anything outside the three documented prefixes is still refused at the edge,
+// so junk does not become upstream traffic.
+func TestValidateMiddlewareRejectsUnknownCredentialShapes(t *testing.T) {
+	for _, raw := range []string{"abc123", "hb_abc", "HBT_abc", "eyJhbGciOiJSUzI1NiJ9.e30.x"} {
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Fatalf("%q reached the handler", raw)
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+raw)
+		rec := httptest.NewRecorder()
+
+		ValidateMiddleware("https://mcp.test/prm", nil, "", "", nil, next).ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%q: status = %d, want 401", raw, rec.Code)
+		}
+		if got := rec.Header().Get("WWW-Authenticate"); !strings.Contains(got, "invalid_token") {
+			t.Errorf("%q: challenge = %q, want invalid_token", raw, got)
+		}
+	}
+}
+
+// stubIntrospector stands in for the cache.
+type stubIntrospector struct {
+	info  *apiv3.TokenInfo
+	err   error
+	calls int
+}
+
+func (s *stubIntrospector) Get(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+	s.calls++
+	return s.info, s.err
+}
+
+// Introspection is what gives an opaque credential a granular scope list.
+func TestValidateMiddlewareAttachesIntrospectedScopes(t *testing.T) {
+	var got *apiv3.TokenInfo
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = hbmcp.TokenInfoFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+
+	stub := &stubIntrospector{info: &apiv3.TokenInfo{
+		Kind:      apiv3.TokenKindAccount,
+		Scopes:    []string{"faults:read", "faults:write"},
+		AccountID: "Ab3kL9",
+	}}
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer hba_account123")
+	rec := httptest.NewRecorder()
+
+	ValidateMiddleware("https://mcp.test/prm", nil, "", "", stub, next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got == nil {
+		t.Fatal("no token info reached the handler")
+	}
+	if got.AccountID != "Ab3kL9" || len(got.Scopes) != 2 {
+		t.Errorf("token info = %+v", got)
+	}
+}
+
+// Introspection needs no scope, so a 401 from it means the credential itself is
+// bad — the one way an opaque token gets a challenge rather than failing later
+// inside a tool call.
+func TestValidateMiddlewareRejectsCredentialIntrospectionRefuses(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("a credential the API rejected reached the handler")
+	})
+
+	stub := &stubIntrospector{err: apiv3.ErrUnauthorized}
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer hbt_expired")
+	rec := httptest.NewRecorder()
+
+	ValidateMiddleware("https://mcp.test/prm", nil, "", "", stub, next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+	if got := rec.Header().Get("WWW-Authenticate"); !strings.Contains(got, "invalid_token") {
+		t.Errorf("challenge = %q, want invalid_token so clients refresh", got)
+	}
+}
+
+// An OAuth token proceeds through an introspection outage: its signature,
+// issuer, expiry and audience were already verified here, so an upstream blip
+// must not deny a request this server can vouch for. It simply carries no
+// granular scopes.
+func TestValidateMiddlewareOAuthProceedsWhenIntrospectionIsUnavailable(t *testing.T) {
+	key, keyfn := testKey(t)
+	token := signHBO(t, key, validClaims())
+
+	reached := false
+	var got *apiv3.TokenInfo
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		got = hbmcp.TokenInfoFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+
+	stub := &stubIntrospector{err: errors.New("dial tcp: connection refused")}
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	ValidateMiddleware("https://mcp.test/prm", keyfn, "https://issuer.example", "https://host/mcp",
+		stub, next).ServeHTTP(rec, req)
+
+	if !reached {
+		t.Fatal("an outage denied a request whose JWT this server had already verified")
+	}
+	// Unknown scopes, not absent ones: a caller must not read this as "no permissions".
+	if got != nil {
+		t.Errorf("token info = %+v, want none recorded", got)
+	}
+}
+
+// An opaque token is refused during an outage. Nothing about it has been checked,
+// so proceeding would treat any hbt_-prefixed string as authenticated for the
+// length of the outage. But it is refused as unavailable, not invalid: a 401
+// invalid_token would tell the client to discard a credential that may be fine.
+func TestValidateMiddlewareOpaqueFailsClosedWhenIntrospectionIsUnavailable(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("an unverifiable credential reached the handler during an outage")
+	})
+
+	for _, tc := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"transport failure", errors.New("dial tcp: connection refused"), http.StatusServiceUnavailable},
+		{"upstream 5xx", &apiv3.Error{StatusCode: http.StatusBadGateway}, http.StatusServiceUnavailable},
+		{"upstream rate limit", &apiv3.Error{StatusCode: http.StatusTooManyRequests}, http.StatusTooManyRequests},
+	} {
+		for _, raw := range []string{"hbt_anything", "hba_anything"} {
+			req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+			req.Header.Set("Authorization", "Bearer "+raw)
+			rec := httptest.NewRecorder()
+
+			ValidateMiddleware("https://mcp.test/prm", nil, "", "", &stubIntrospector{err: tc.err}, next).ServeHTTP(rec, req)
+
+			if rec.Code != tc.want {
+				t.Errorf("%s, %s: status = %d, want %d", tc.name, raw, rec.Code, tc.want)
+			}
+			if rec.Header().Get("Retry-After") == "" {
+				t.Errorf("%s, %s: no Retry-After", tc.name, raw)
+			}
+			if rec.Header().Get("WWW-Authenticate") != "" {
+				t.Errorf("%s, %s: challenged as invalid; the credential was never judged", tc.name, raw)
+			}
+		}
+	}
+}
+
+// Without an introspector there is no way to authenticate an opaque credential at
+// all, so it must not be accepted on its prefix alone.
+func TestValidateMiddlewareOpaqueRequiresAnIntrospector(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("an opaque credential was accepted with nothing able to verify it")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer hbt_anything")
+	rec := httptest.NewRecorder()
+
+	ValidateMiddleware("https://mcp.test/prm", nil, "", "", nil, next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }

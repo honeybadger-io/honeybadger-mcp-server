@@ -1,0 +1,359 @@
+package hbmcp
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/honeybadger-io/api-go/apiv3"
+)
+
+// countingFetcher records how often the API was actually asked.
+func countingFetcher(info *apiv3.TokenInfo, err error) (TokenInfoFetcher, *int) {
+	calls := 0
+	return func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		calls++
+		return info, err
+	}, &calls
+}
+
+// The whole point: repeated requests with the same credential must not each ask
+// the API.
+func TestIntrospectionCacheServesRepeatCalls(t *testing.T) {
+	fetch, calls := countingFetcher(&apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil)
+	c := NewIntrospectionCache(fetch, 0, 0, 0)
+
+	for i := 0; i < 10; i++ {
+		info, err := c.Get(context.Background(), "hbt_abc")
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if info.AccountID != "Ab3kL9" {
+			t.Fatalf("AccountID = %q", info.AccountID)
+		}
+	}
+	if *calls != 1 {
+		t.Errorf("fetched %d times, want 1", *calls)
+	}
+}
+
+// Different credentials must never share an entry.
+func TestIntrospectionCacheSeparatesCredentials(t *testing.T) {
+	var asked []string
+	c := NewIntrospectionCache(func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		asked = append(asked, token)
+		return &apiv3.TokenInfo{AccountID: "acct_for_" + token}, nil
+	}, 0, 0, 0)
+
+	first, _ := c.Get(context.Background(), "hbt_one")
+	second, _ := c.Get(context.Background(), "hbt_two")
+
+	if first.AccountID == second.AccountID {
+		t.Fatal("two credentials shared a cache entry")
+	}
+	if len(asked) != 2 {
+		t.Errorf("asked %v, want both credentials fetched", asked)
+	}
+}
+
+// A stale entry must be refetched, so a revoked scope stops applying.
+func TestIntrospectionCacheExpires(t *testing.T) {
+	fetch, calls := countingFetcher(&apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil)
+	c := NewIntrospectionCache(fetch, 60*time.Second, 0, 0)
+
+	base := time.Now()
+	c.now = func() time.Time { return base }
+
+	if _, err := c.Get(context.Background(), "hbt_abc"); err != nil {
+		t.Fatal(err)
+	}
+	c.now = func() time.Time { return base.Add(61 * time.Second) }
+	if _, err := c.Get(context.Background(), "hbt_abc"); err != nil {
+		t.Fatal(err)
+	}
+
+	if *calls != 2 {
+		t.Errorf("fetched %d times, want 2 — the entry should have expired", *calls)
+	}
+}
+
+// A rejected credential is cached only briefly, so fixing it takes effect
+// quickly, but a flood of bad tokens still cannot be amplified upstream.
+func TestIntrospectionCacheNegativeTTLIsShorter(t *testing.T) {
+	boom := errors.New("unauthorized")
+	fetch, calls := countingFetcher(nil, boom)
+	c := NewIntrospectionCache(fetch, 60*time.Second, 5*time.Second, 0)
+
+	base := time.Now()
+	c.now = func() time.Time { return base }
+
+	if _, err := c.Get(context.Background(), "hbt_bad"); !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want the fetch error", err)
+	}
+	// Still inside the negative window: no second call.
+	c.now = func() time.Time { return base.Add(3 * time.Second) }
+	if _, err := c.Get(context.Background(), "hbt_bad"); !errors.Is(err, boom) {
+		t.Fatalf("err = %v", err)
+	}
+	if *calls != 1 {
+		t.Errorf("fetched %d times inside the negative window, want 1", *calls)
+	}
+
+	// Past it, and well before the positive TTL, it asks again.
+	c.now = func() time.Time { return base.Add(6 * time.Second) }
+	if _, err := c.Get(context.Background(), "hbt_bad"); !errors.Is(err, boom) {
+		t.Fatalf("err = %v", err)
+	}
+	if *calls != 2 {
+		t.Errorf("fetched %d times, want 2 after the negative window", *calls)
+	}
+}
+
+// Unique tokens must not grow the cache without limit — that would be a memory
+// exhaustion vector rather than a cache.
+func TestIntrospectionCacheIsBounded(t *testing.T) {
+	c := NewIntrospectionCache(func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		return &apiv3.TokenInfo{AccountID: token}, nil
+	}, 0, 0, 8)
+
+	for i := 0; i < 100; i++ {
+		if _, err := c.Get(context.Background(), fmt.Sprintf("hbt_%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := c.Len(); got > 8 {
+		t.Errorf("cache holds %d entries, want at most 8", got)
+	}
+}
+
+// The cache key must not be the credential itself.
+func TestIntrospectionCacheDoesNotRetainTheToken(t *testing.T) {
+	c := NewIntrospectionCache(func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		return &apiv3.TokenInfo{}, nil
+	}, 0, 0, 0)
+
+	const secret = "hbt_super_secret_value"
+	if _, err := c.Get(context.Background(), secret); err != nil {
+		t.Fatal(err)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key := range c.entries {
+		if strings.Contains(key, "secret") || key == secret {
+			t.Fatalf("cache key %q contains the credential", key)
+		}
+		if len(key) != 64 {
+			t.Errorf("key %q is not a sha256 digest", key)
+		}
+	}
+}
+
+// An empty credential is not something to ask the API about.
+func TestIntrospectionCacheIgnoresEmptyToken(t *testing.T) {
+	fetch, calls := countingFetcher(&apiv3.TokenInfo{}, nil)
+	c := NewIntrospectionCache(fetch, 0, 0, 0)
+
+	info, err := c.Get(context.Background(), "")
+	if info != nil || err != nil {
+		t.Errorf("got (%v, %v), want (nil, nil)", info, err)
+	}
+	if *calls != 0 {
+		t.Errorf("fetched %d times for an empty credential, want 0", *calls)
+	}
+}
+
+// Hosted means concurrent. The cache must survive parallel use under -race.
+func TestIntrospectionCacheConcurrentUse(t *testing.T) {
+	c := NewIntrospectionCache(func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		return &apiv3.TokenInfo{AccountID: token}, nil
+	}, 0, 0, 64)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			token := fmt.Sprintf("hbt_%d", i%10)
+			for j := 0; j < 20; j++ {
+				info, err := c.Get(context.Background(), token)
+				if err != nil {
+					t.Errorf("Get: %v", err)
+					return
+				}
+				if info.AccountID != token {
+					t.Errorf("got %q for %q — entries crossed", info.AccountID, token)
+					return
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+}
+
+// One fetch per credential however many callers arrive together. Without this, a
+// burst on an uncached token becomes a burst upstream.
+func TestIntrospectionCacheCollapsesConcurrentMisses(t *testing.T) {
+	var calls int32
+	release := make(chan struct{})
+	c := NewIntrospectionCache(func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		atomic.AddInt32(&calls, 1)
+		<-release // hold the fetch open so every caller piles up behind it
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}, 0, 0, 0)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 25; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			info, err := c.Get(context.Background(), "hbt_same")
+			if err != nil {
+				t.Errorf("Get: %v", err)
+				return
+			}
+			if info.AccountID != "Ab3kL9" {
+				t.Errorf("AccountID = %q", info.AccountID)
+			}
+		}()
+	}
+
+	close(release)
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Errorf("fetched %d times for one credential, want 1", got)
+	}
+}
+
+// Refreshing an entry the cache already holds must not evict another tenant's.
+func TestIntrospectionCacheRefreshDoesNotEvictOthers(t *testing.T) {
+	c := NewIntrospectionCache(func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		return &apiv3.TokenInfo{AccountID: token}, nil
+	}, time.Second, 0, 2)
+
+	base := time.Now()
+	c.now = func() time.Time { return base }
+
+	for _, token := range []string{"hbt_a", "hbt_b"} {
+		if _, err := c.Get(context.Background(), token); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if c.Len() != 2 {
+		t.Fatalf("cache holds %d, want 2", c.Len())
+	}
+
+	// Expire only the first, then refresh it. The second must survive.
+	c.now = func() time.Time { return base.Add(2 * time.Second) }
+	if _, err := c.Get(context.Background(), "hbt_a"); err != nil {
+		t.Fatal(err)
+	}
+
+	c.mu.Lock()
+	_, bStillHeld := c.entries[digest("hbt_b")]
+	c.mu.Unlock()
+	if !bStillHeld {
+		t.Error("refreshing one credential evicted another tenant's entry")
+	}
+}
+
+// A caller joining a fetch already in flight stops waiting at its own deadline,
+// not the fetcher's: its request may have a shorter one.
+func TestIntrospectionWaiterHonoursItsOwnCancellation(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{})
+	fetch := func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		close(started)
+		<-release
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}
+	cache := NewIntrospectionCache(fetch, 0, 0, 0)
+	defer close(release)
+
+	go func() { _, _ = cache.Get(context.Background(), "hbt_x") }()
+	<-started
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := cache.Get(ctx, "hbt_x")
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("err = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a cancelled waiter stayed blocked on another caller's fetch")
+	}
+}
+
+// A fetch that panics must still settle its in-flight entry, or every later
+// caller for that credential would wait forever.
+func TestIntrospectionPanicDoesNotStrandLaterCallers(t *testing.T) {
+	calls := 0
+	fetch := func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		calls++
+		if calls == 1 {
+			panic("introspection blew up")
+		}
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}
+	cache := NewIntrospectionCache(fetch, time.Minute, time.Second, 10)
+
+	func() {
+		defer func() { _ = recover() }()
+		_, _ = cache.Get(context.Background(), "hbt_x")
+	}()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := cache.Get(context.Background(), "hbt_x")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("err = %v, want the retried fetch to succeed", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a caller after the panic stayed blocked on the abandoned fetch")
+	}
+}
+
+// A fetch cut short by its caller going away says nothing about the credential,
+// so it isn't cached: the next caller fetches afresh.
+func TestIntrospectionCancelledFetchIsNotCached(t *testing.T) {
+	calls := 0
+	fetch := func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		calls++
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}
+	cache := NewIntrospectionCache(fetch, time.Minute, time.Minute, 10)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := cache.Get(ctx, "hbt_x"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+
+	info, err := cache.Get(context.Background(), "hbt_x")
+	if err != nil || info == nil || info.AccountID != "Ab3kL9" {
+		t.Errorf("Get = %+v, %v; want a fresh fetch, not the cached cancellation", info, err)
+	}
+	if calls != 2 {
+		t.Errorf("fetch ran %d times, want 2", calls)
+	}
+}

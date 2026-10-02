@@ -4,30 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
 	"unicode"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func TestListFaultCommentsEmpty(t *testing.T) {
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"results":[]}`))
-	}))
-	defer api.Close()
-	client := hbapi.NewClient().WithBaseURL(api.URL).WithAuthToken("test-token")
-	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
-		"project_id": 123,
-		"fault_id":   456,
-	}}}
+const testComment = `{"id":"cmt1","fault_id":"456","body":"Investigation","created_at":"2026-09-26T00:00:00Z","author":{"name":"Kevin"}}`
 
-	result, err := handleListFaultComments(context.Background(), client, req)
+func TestListFaultCommentsEmpty(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusOK, `{"data":[],"pagination":{"has_older":false,"limit":25},"links":{"self":"/x"}}`)
+	})
+	result, err := handleListFaultComments(context.Background(), client, mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"project_id": "Xk9mZp",
+		"fault_id":   456,
+	}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,11 +32,39 @@ func TestListFaultCommentsEmpty(t *testing.T) {
 	}
 }
 
+// list_fault_comments returns every comment, not just the first page.
+func TestListFaultCommentsWalksEveryPage(t *testing.T) {
+	var calls int
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path == "/v3/older" {
+			v3JSON(w, http.StatusOK, `{"data":[{"id":"cmt0","fault_id":"456","created_at":"2026-09-25T00:00:00Z"}],
+			  "pagination":{"has_older":false,"limit":1},"links":{"self":"/v3/older"}}`)
+			return
+		}
+		v3JSON(w, http.StatusOK, `{"data":[`+testComment+`],
+		  "pagination":{"has_older":true,"limit":1},"links":{"self":"/x","older":"/v3/older"}}`)
+	})
+	result, err := handleListFaultComments(context.Background(), client, mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"project_id": "Xk9mZp", "fault_id": 456,
+	}}})
+	if err != nil || result.IsError {
+		t.Fatalf("result = %+v, err = %v", result, err)
+	}
+	var got []apiv3.Comment
+	if err := json.Unmarshal([]byte(getResultText(result)), &got); err != nil {
+		t.Fatalf("result is not a JSON array of comments: %v", err)
+	}
+	if len(got) != 2 || calls != 2 {
+		t.Errorf("got %d comments over %d requests, want 2 over 2", len(got), calls)
+	}
+}
+
 func TestFaultCommentTools(t *testing.T) {
 	const body = "  Investigated this fault.\nSee **details**.  "
 	cases := []struct {
 		name      string
-		handler   func(context.Context, *hbapi.Client, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+		handler   func(context.Context, *apiv3.Client, mcp.CallToolRequest) (*mcp.CallToolResult, error)
 		method    string
 		commentID bool
 		hasBody   bool
@@ -48,60 +72,57 @@ func TestFaultCommentTools(t *testing.T) {
 		status    int
 		want      string
 	}{
-		{"list", handleListFaultComments, "GET", false, false, `{"results":[{"id":789,"body":"Investigation"}]}`, 200, "Investigation"},
-		{"get", handleGetFaultComment, "GET", true, false, `{"id":789,"body":"Investigation"}`, 200, "Investigation"},
-		{"create", handleCreateFaultComment, "POST", false, true, `{"id":789,"body":"Investigation"}`, 201, "Investigation"},
-		{"update", handleUpdateFaultComment, "PUT", true, true, "", 204, "updated successfully"},
+		{"get", handleGetFaultComment, "GET", true, false, `{"data":` + testComment + `}`, 200, "Investigation"},
+		{"create", handleCreateFaultComment, "POST", false, true, `{"data":` + testComment + `}`, 201, "Investigation"},
+		// v3 answers an update with the comment as stored, so the tool returns it.
+		{"update", handleUpdateFaultComment, "PATCH", true, true, `{"data":` + testComment + `}`, 200, "Investigation"},
 		{"delete", handleDeleteFaultComment, "DELETE", true, false, "", 204, "deleted successfully"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			args := map[string]any{"project_id": 123, "fault_id": 456}
+			args := map[string]any{"project_id": "Xk9mZp", "fault_id": 456}
 			if tc.commentID {
-				args["comment_id"] = 789
+				args["comment_id"] = "cmt1"
 			}
 			if tc.hasBody {
 				args["body"] = body
 			}
 			if tc.name == "delete" {
-				args["confirm"] = validConfirm("delete_fault_comment", 123, 456, 789)
+				args["confirm"] = validConfirm("delete_fault_comment", "Xk9mZp", "456", "cmt1")
 			}
-			path := "/v2/projects/123/faults/456/comments"
+			path := "/v3/projects/Xk9mZp/faults/456/comments"
 			if tc.commentID {
-				path += "/789"
+				path += "/cmt1"
 			}
 			for _, fail := range []bool{false, true} {
 				t.Run(map[bool]string{false: "success", true: "api_error"}[fail], func(t *testing.T) {
 					calls := 0
-					api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 						calls++
 						if r.Method != tc.method || r.URL.Path != path {
 							t.Errorf("request = %s %s, want %s %s", r.Method, r.URL.Path, tc.method, path)
 						}
 						if tc.hasBody {
 							var payload struct {
-								Comment struct {
-									Body string `json:"body"`
-								} `json:"comment"`
+								Body string `json:"body"`
 							}
 							if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 								t.Errorf("decode request: %v", err)
 							}
-							if payload.Comment.Body != body {
-								t.Errorf("body = %q, want %q", payload.Comment.Body, body)
+							if payload.Body != body {
+								t.Errorf("body = %q, want %q", payload.Body, body)
 							}
 						}
-						w.Header().Set("Content-Type", "application/json")
 						if fail {
-							w.WriteHeader(http.StatusForbidden)
-							_, _ = w.Write([]byte(`{"error":"Forbidden"}`))
+							v3JSON(w, http.StatusForbidden, `{"error":{"code":"access_denied","message":"Forbidden"}}`)
 							return
 						}
-						w.WriteHeader(tc.status)
-						_, _ = w.Write([]byte(tc.response))
-					}))
-					defer api.Close()
-					client := hbapi.NewClient().WithBaseURL(api.URL).WithAuthToken("test-token")
+						if tc.response == "" {
+							w.WriteHeader(tc.status)
+							return
+						}
+						v3JSON(w, tc.status, tc.response)
+					})
 					result, err := tc.handler(context.Background(), client, mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}})
 					if err != nil {
 						t.Fatal(err)
@@ -118,19 +139,19 @@ func TestFaultCommentTools(t *testing.T) {
 					}
 				})
 			}
-			fields := []string{"project_id", "fault_id"}
+
+			invalid := map[string][]any{
+				"project_id": {nil, ""},
+				"fault_id":   {nil, 0, -1, 1.5, "", "   ", true, float64(maxSafeInteger * 2)},
+			}
 			if tc.commentID {
-				fields = append(fields, "comment_id")
+				invalid["comment_id"] = []any{nil, ""}
 			}
 			if tc.hasBody {
-				fields = append(fields, "body")
+				invalid["body"] = []any{nil, "", " \n\t ", 123, true}
 			}
-			for _, field := range fields {
-				invalid := []any{nil, 0, -1, 1.5, "123", true, float64(maxSafeInteger * 2)}
-				if field == "body" {
-					invalid = []any{nil, "", " \n\t ", 123, true}
-				}
-				for _, value := range invalid {
+			for field, values := range invalid {
+				for _, value := range values {
 					t.Run("invalid_"+field, func(t *testing.T) {
 						badArgs := make(map[string]any, len(args))
 						for k, v := range args {
@@ -196,5 +217,37 @@ func TestFaultCommentBodySchema(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// list_fault_comments reports an API failure as an error, and refuses bad ids
+// before any request.
+func TestListFaultCommentsFailures(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusForbidden, `{"error":{"code":"access_denied","message":"Forbidden"}}`)
+	})
+	result, err := handleListFaultComments(context.Background(), client, mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"project_id": "Xk9mZp", "fault_id": 456,
+	}}})
+	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "Failed to list fault comments") {
+		t.Fatalf("result = %+v, err = %v", result, err)
+	}
+
+	for field, values := range map[string][]any{
+		"project_id": {nil, ""},
+		"fault_id":   {nil, 0, -1, 1.5, "", "   ", true, float64(maxSafeInteger * 2)},
+	} {
+		for _, value := range values {
+			args := map[string]any{"project_id": "Xk9mZp", "fault_id": 456}
+			if value == nil {
+				delete(args, field)
+			} else {
+				args[field] = value
+			}
+			result, err := handleListFaultComments(context.Background(), noRequestClient(t), mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}})
+			if err != nil || !result.IsError || !strings.Contains(getResultText(result), field) {
+				t.Errorf("%s=%v: result = %+v, err = %v", field, value, result, err)
+			}
+		}
 	}
 }
