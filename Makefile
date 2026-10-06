@@ -12,7 +12,7 @@ MCP_PORT       ?= 9090
 MCP_PUBLIC_URL ?= http://localhost:$(MCP_PORT)
 MCP_URL        ?= $(MCP_PUBLIC_URL)/mcp
 
-.PHONY: build test verify-module docker docker-local docker-run claude-mcp-add claude-mcp-remove
+.PHONY: build test verify-module verify-module-local docker docker-local docker-run claude-mcp-add claude-mcp-remove
 
 build:
 	go build -o honeybadger-mcp-server ./cmd/honeybadger-mcp-server
@@ -59,8 +59,18 @@ claude-mcp-remove:
 docker:
 	docker build -t $(IMAGE):$(TAG) .
 
+# verify-module for docker-local: build the way Dockerfile.local does, with
+# api-go replaced by the local checkout, so an api-go change not yet pinned in
+# go.mod doesn't fail the check. The replace goes into a throwaway copy of
+# go.mod, never the real one.
+verify-module-local:
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+	cp go.mod "$$tmp/local.mod" && cp go.sum "$$tmp/local.sum" && \
+	GOWORK=off go mod edit -modfile="$$tmp/local.mod" -replace github.com/honeybadger-io/api-go=$(abspath $(APIGO_DIR)) && \
+	GOWORK=off go build -modfile="$$tmp/local.mod" -mod=readonly ./...
+
 # Image built against the local api-go checkout (whatever branch it has
 # checked out) instead of the go.mod release.
-docker-local: verify-module
+docker-local: verify-module-local
 	docker buildx build -f Dockerfile.local --build-context apigo=$(APIGO_DIR) \
 		-t $(IMAGE):$(TAG) --load .
