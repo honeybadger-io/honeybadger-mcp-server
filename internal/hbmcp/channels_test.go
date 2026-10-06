@@ -97,6 +97,7 @@ func TestIntegrationSettingsAreTypeChecked(t *testing.T) {
 		"fractional threshold": {map[string]any{"threshold": 2.5}, "threshold must be a whole number"},
 		"active as a string":   {map[string]any{"active": "yes"}, "active must be true or false"},
 		"events not a list":    {map[string]any{"events": "occurred"}, "events must be a list of strings"},
+		"filters not a list":   {map[string]any{"filters": "occurred"}, `filters must be a list of {"event"`},
 		"site id not a uuid":   {map[string]any{"site_ids": []any{"not-a-uuid"}}, "site_ids must be site IDs"},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -36,7 +36,7 @@ func rejectStaleSchemaFields(tool string, req mcp.CallToolRequest) string {
 		return ""
 	}
 	return rejectUnsupported(req, fields, "using this tool",
-		"they are no longer accepted; reconnect to refresh the tool schemas")
+		"They are no longer accepted; reconnect to refresh the tool schemas")
 }
 
 // requireProjectAndFault reads the two ids every fault tool needs.

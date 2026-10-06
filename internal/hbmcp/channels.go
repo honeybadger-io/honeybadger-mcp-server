@@ -242,6 +242,9 @@ func describeSettingError(err error) string {
 			want = "true or false"
 		case reflect.Slice:
 			want = "a list of strings"
+			if typeErr.Field == "filters" {
+				want = `a list of {"event": ..., "query": ...} objects`
+			}
 		}
 		return fmt.Sprintf("%s must be %s", typeErr.Field, want)
 	}
