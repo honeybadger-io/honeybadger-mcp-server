@@ -7,13 +7,14 @@ import (
 
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/oapi-codegen/nullable"
 )
 
 func RegisterProjectKeyTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_project_keys",
 			mcp.WithTitleAnnotation("List Project Keys"),
-			mcp.WithDescription("List ingestion keys for a Honeybadger project. Keys are the tokens notifiers use to send data — not API credentials."),
+			mcp.WithDescription("List a project's Project Keys: the hbp_ keys an app sends errors and events with. A Project Key isn't a secret, since it ships in apps, and it can't call the API; that takes an API Token."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id",
@@ -29,7 +30,7 @@ func RegisterProjectKeyTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("create_project_key",
 			mcp.WithTitleAnnotation("Create Project Key"),
-			mcp.WithDescription("Create a new ingestion key for a project. The key value is returned in the response."),
+			mcp.WithDescription("Create a new Project Key for a project. The key is returned in the response."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -72,7 +73,7 @@ func RegisterProjectKeyTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("delete_project_key",
 			mcp.WithTitleAnnotation("Delete Project Key"),
-			mcp.WithDescription("Delete a project ingestion key. Notifiers using this key will no longer be able to send data."+confirmNote),
+			mcp.WithDescription("Delete a Project Key. Apps sending with this key will no longer be able to send data."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
 			mcp.WithString("project_id",
@@ -115,10 +116,7 @@ func handleCreateProjectKey(ctx context.Context, client *apiv3.Client, req mcp.C
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	var params apiv3.ProjectKeyParams
-	if label := req.GetString("label", ""); label != "" {
-		params.Label = &label
-	}
+	params := apiv3.ProjectKeyParams{Label: setIfGiven(req, "label")}
 
 	key, err := client.ProjectKeys.Create(ctx, projectID, params)
 	if err != nil {
@@ -146,7 +144,7 @@ func handleUpdateProjectKey(ctx context.Context, client *apiv3.Client, req mcp.C
 		return mcp.NewToolResultError("label is required"), nil
 	}
 
-	params := apiv3.ProjectKeyParams{Label: &label}
+	params := apiv3.ProjectKeyParams{Label: nullable.NewNullableWithValue(label)}
 	key, err := client.ProjectKeys.Update(ctx, projectID, keyID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project key: %v", err)), nil
@@ -174,7 +172,7 @@ func handleDeleteProjectKey(ctx context.Context, client *apiv3.Client, req mcp.C
 		switch {
 		case err == nil:
 		case unreadable(err):
-			summary = fmt.Sprintf("delete ingestion key %s from project %s; notifiers sending with it will be refused", keyID, projectID) + unreadableNote
+			summary = fmt.Sprintf("delete Project Key %s from project %s; apps sending with it will be refused", keyID, projectID) + unreadableNote
 		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up project key: %v", err)), nil
 		}
@@ -198,5 +196,5 @@ func projectKeySummary(ctx context.Context, client *apiv3.Client, projectID, key
 	if name == "" {
 		name = "unlabelled"
 	}
-	return fmt.Sprintf("delete the %s ingestion key (id %s) from project %s; notifiers sending with it will be refused", name, keyID, projectID), nil
+	return fmt.Sprintf("delete the %s Project Key (id %s) from project %s; apps sending with it will be refused", name, keyID, projectID), nil
 }

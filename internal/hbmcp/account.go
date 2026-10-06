@@ -9,13 +9,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func derefInt(v *int) int {
-	if v == nil {
-		return 0
-	}
-	return *v
-}
-
 // staleSchemaFields are parameters this server no longer advertises but an older
 // client may still send, because MCP clients cache tool schemas until they
 // reconnect.
@@ -30,6 +23,9 @@ var staleSchemaFields = map[string][]string{
 	"list_projects":                 {"account_id"},
 	"create_project":                {"account_id"},
 	"get_project_occurrence_counts": {"account_id"},
+	// Replaced by filters, a list of event/query pairs.
+	"create_integration": {"filter_events", "filter_queries"},
+	"update_integration": {"filter_events", "filter_queries"},
 }
 
 // rejectStaleSchemaFields refuses a request carrying parameters this server used

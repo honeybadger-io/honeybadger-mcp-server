@@ -138,7 +138,7 @@ func TestHandleCreateAlarmRejectsInvalidTriggerJSON(t *testing.T) {
 	result, err := handleCreateAlarm(context.Background(), offlineV3Client(),
 		alarmArgs(map[string]interface{}{
 			"project_id": "Xk9mZp", "name": "Spike", "query": "count() > 1",
-			"trigger_config": "{not json",
+			"evaluation_period": "5m", "lookback_lag": "1m", "trigger_config": "{not json",
 		}))
 	if err != nil {
 		t.Fatalf("error = %v", err)

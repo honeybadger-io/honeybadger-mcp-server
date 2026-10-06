@@ -11,11 +11,11 @@ import (
 // without silent rounding and must be rejected rather than truncated.
 const maxSafeInteger = 1 << 53
 
-// nullable is an mcp.PropertyOption that makes a property schema accept JSON
+// acceptsNull is an mcp.PropertyOption that makes a property schema accept JSON
 // null in addition to its declared type, e.g. {"type": ["number", "null"]}.
 // Handlers must inspect the raw argument via req.GetArguments() to distinguish
 // an explicit null from an omitted key.
-func nullable(schema map[string]any) {
+func acceptsNull(schema map[string]any) {
 	if t, ok := schema["type"].(string); ok {
 		schema["type"] = []any{t, "null"}
 	}

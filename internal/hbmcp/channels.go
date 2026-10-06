@@ -45,7 +45,7 @@ func RegisterIntegrationTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 			),
 			mcp.WithString("type",
 				mcp.Required(),
-				mcp.Description("Integration type: WebHook, Email, PagerDutyV2, Slack, and so on. OAuth types (Slack, GitHub and the like) are created turned off and not connected: send the user to the result's links.web to connect it, then turn it on with update_integration active=true."),
+				mcp.Description("Integration type: WebHook, Email, PagerDutyV2, Slack, and so on. OAuth types (Slack, GitHub and the like) are created unconnected: send the user to the result's links.web to connect it. They can be active from the start; they send nothing until connected."),
 			),
 			mcp.WithString("config",
 				mcp.Description(`JSON object of the type's own settings, e.g. {"url":"https://example.com/hook","label":"Deploys"} for WebHook or {"integration_key":"..."} for PagerDutyV2. The shared settings (events, site_ids and the rest) are separate parameters, not part of config.`),
@@ -128,7 +128,7 @@ func handleGetIntegration(ctx context.Context, client *apiv3.Client, req mcp.Cal
 var integrationSettingFields = []string{
 	"active", "events", "rate", "threshold", "notification_limit",
 	"site_ids", "check_in_ids", "alarm_alert_ids", "alarm_ok_ids",
-	"included_environments", "excluded_environments", "filter_events", "filter_queries",
+	"included_environments", "excluded_environments", "filters", "all_sites", "all_check_ins",
 }
 
 // integrationSettingOptions declares the shared settings, in the same order, for
@@ -143,14 +143,25 @@ func integrationSettingOptions() []mcp.ToolOption {
 		mcp.WithString("rate", mcp.Description("Period for the rate_exceeded event: minute, hour, day, and so on")),
 		mcp.WithNumber("threshold", mcp.Description("Occurrences within rate before rate_exceeded fires; must be greater than 0")),
 		mcp.WithNumber("notification_limit", mcp.Description("Most notifications in a 10-minute window before flood control (the flooded event) steps in")),
-		list("site_ids", "Uptime sites whose up and down events notify. An empty list turns site notifications off; an ID from outside the project is refused."),
-		list("check_in_ids", "Check-ins whose events notify. An empty list turns check-in notifications off; an ID from outside the project is refused."),
+		list("site_ids", "Uptime sites whose up and down events notify, when all_sites is off. An empty list means none; an ID from outside the project is refused. Sending a non-empty list turns all_sites off."),
+		list("check_in_ids", "Check-ins whose events notify, when all_check_ins is off. An empty list means none; an ID from outside the project is refused. Sending a non-empty list turns all_check_ins off."),
 		list("alarm_alert_ids", "Alarms whose alert events notify"),
 		list("alarm_ok_ids", "Alarms whose recovery events notify"),
 		list("included_environments", "When non-empty, the only environments that notify, including ones that haven't reported yet. Empty means every environment not excluded."),
 		list("excluded_environments", "Environments that never notify; wins over included_environments. Names are stored as given, so one can be excluded before it first reports."),
-		list("filter_events", "Events to filter, paired by position with filter_queries. Replaces the stored filters; send [] to clear them."),
-		list("filter_queries", "The search query for the event at the same position in filter_events: that event notifies only when the error matches."),
+		mcp.WithArray("filters",
+			mcp.Description(`Ordered list of {"event": ..., "query": ...} objects: each event with a filter notifies only for errors matching its query. event is an event name, or "all" for every event. Replaces the stored filters; send [] or null to clear them.`),
+			mcp.Items(map[string]any{
+				"type":     "object",
+				"required": []string{"event", "query"},
+				"properties": map[string]any{
+					"event": map[string]any{"type": "string"},
+					"query": map[string]any{"type": "string"},
+				},
+			}),
+		),
+		mcp.WithBoolean("all_sites", mcp.Description("Follow every uptime site in the project, including ones added later. When true, leave site_ids out.")),
+		mcp.WithBoolean("all_check_ins", mcp.Description("Follow every check-in in the project, including ones added later. When true, leave check_in_ids out.")),
 	}
 }
 
@@ -190,6 +201,34 @@ func integrationBody(req mcp.CallToolRequest, extra map[string]any) ([]byte, str
 	return encoded, ""
 }
 
+// decodeSettings decodes an integration body into params, and on failure says
+// which setting was wrong in the tool's terms.
+//
+// A nullable field decodes through its own unmarshaler, so the type error it
+// returns doesn't name the field. When that happens, the settings are decoded
+// one at a time to find the one that fails.
+func decodeSettings(raw []byte, params any) string {
+	err := json.Unmarshal(raw, params)
+	if err == nil {
+		return ""
+	}
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) && typeErr.Field == "" {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(raw, &fields) == nil {
+			for name, value := range fields {
+				one, _ := json.Marshal(map[string]json.RawMessage{name: value})
+				scratch := reflect.New(reflect.TypeOf(params).Elem()).Interface()
+				if json.Unmarshal(one, scratch) != nil {
+					typeErr.Field = name
+					break
+				}
+			}
+		}
+	}
+	return describeSettingError(err)
+}
+
 // describeSettingError turns a decoding failure into the tool's terms. The raw
 // errors name Go types and struct fields, which mean nothing to the caller.
 func describeSettingError(err error) string {
@@ -223,14 +262,17 @@ func handleCreateIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 	if integrationType == "" {
 		return mcp.NewToolResultError("type is required"), nil
 	}
+	if msg := rejectStaleSchemaFields("create_integration", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 
 	raw, msg := integrationBody(req, map[string]any{"type": integrationType})
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
 	var params apiv3.IntegrationCreateParams
-	if err := json.Unmarshal(raw, &params); err != nil {
-		return mcp.NewToolResultError(describeSettingError(err)), nil
+	if msg := decodeSettings(raw, &params); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
 
 	integration, err := client.Integrations.Create(ctx, projectID, params)
@@ -255,15 +297,18 @@ func handleUpdateIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 		return mcp.NewToolResultError("integration_id is required"), nil
 	}
 
+	if msg := rejectStaleSchemaFields("update_integration", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	raw, msg := integrationBody(req, nil)
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
 	var params apiv3.IntegrationUpdateParams
-	if err := json.Unmarshal(raw, &params); err != nil {
-		return mcp.NewToolResultError(describeSettingError(err)), nil
+	if msg := decodeSettings(raw, &params); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
-	if params == (apiv3.IntegrationUpdateParams{}) {
+	if changesNothing(params) {
 		return mcp.NewToolResultError("provide at least one setting to change"), nil
 	}
 
@@ -320,16 +365,6 @@ func handleDeleteIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 // project can hold several integrations of one type, and the label is what tells
 // them apart in a deletion preview.
 func integrationLabel(integration *apiv3.Integration) string {
-	if integration.Config == nil {
-		return ""
-	}
-	raw, ok := (*integration.Config)["label"]
-	if !ok {
-		return ""
-	}
-	label, err := raw.AsIntegrationConfig1()
-	if err != nil {
-		return ""
-	}
+	label, _ := integration.Config["label"].(string)
 	return label
 }

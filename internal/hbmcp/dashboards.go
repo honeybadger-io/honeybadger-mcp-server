@@ -100,7 +100,7 @@ func RegisterDashboardTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("JSON array of widget objects that replaces the dashboard's widgets: a widget left out is removed, and a widget keeps its identity only if it's sent with the id get_dashboard returned. Omit to leave the widgets as they are. The dashboards reference topic has the schema."),
 			),
 			mcp.WithString("default_ts",
-				mcp.Description("Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month)."),
+				mcp.Description("Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month). Pass an empty string to clear it."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -217,10 +217,7 @@ func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	params := apiv3.DashboardCreateParams{Title: title, Widgets: widgets}
-	if ts := req.GetString("default_ts", ""); ts != "" {
-		params.DefaultTs = &ts
-	}
+	params := apiv3.DashboardCreateParams{Title: title, Widgets: widgets, DefaultTs: setIfGiven(req, "default_ts")}
 
 	dashboard, err := client.Dashboards.Create(ctx, projectID, params)
 	if err != nil {
@@ -251,10 +248,10 @@ func handleUpdateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	}
 	params := apiv3.DashboardUpdateParams{
 		Title:     optionalString(req, "title"),
-		DefaultTs: optionalString(req, "default_ts"),
+		DefaultTs: setOrClear(req, "default_ts"),
 		Widgets:   widgets,
 	}
-	if params.Title == nil && params.DefaultTs == nil && params.Widgets == nil {
+	if changesNothing(params) {
 		return mcp.NewToolResultError("provide at least one of title, default_ts or widgets"), nil
 	}
 

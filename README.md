@@ -266,9 +266,9 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 
 - **create_integration** - Create a notification integration _(requires `read-only=false`)_
   - `project_id` : The ID of the project to create the integration in (string, required)
-  - `type` : Integration type, such as `WebHook`, `Email`, `PagerDutyV2` or `Slack`. OAuth types start turned off and unconnected; the user connects them from the result's `links.web` (string, required)
+  - `type` : Integration type, such as `WebHook`, `Email`, `PagerDutyV2` or `Slack`. OAuth types start unconnected; the user connects them from the result's `links.web`, and they can be active from the start (string, required)
   - `config` : JSON object of the type's own settings, e.g. `{"url": "https://example.com/hook"}` for `WebHook` (string, optional)
-  - `active`, `events`, `rate`, `threshold`, `notification_limit`, `site_ids`, `check_in_ids`, `alarm_alert_ids`, `alarm_ok_ids`, `included_environments`, `excluded_environments`, `filter_events`, `filter_queries` : the settings every type shares, as their own parameters rather than inside `config` (optional)
+  - `active`, `events`, `rate`, `threshold`, `notification_limit`, `site_ids`, `check_in_ids`, `alarm_alert_ids`, `alarm_ok_ids`, `included_environments`, `excluded_environments`, `filters`, `all_sites`, `all_check_ins` : the settings every type shares, as their own parameters rather than inside `config`. `filters` is an ordered list of `{"event", "query"}` objects (`event` can be `all`); `all_sites`/`all_check_ins` follow every site or check-in, including ones added later (optional)
 
 - **update_integration** - Update a notification integration _(requires `read-only=false`)_
   - `project_id`, `integration_id` : Which integration (string, required)
@@ -347,7 +347,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `comment_id` : The ID of the comment (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
-Creating, updating, and deleting comments require write access (`--read-only=false` in stdio mode or the `write` scope in HTTP mode). With an account token (`hba_`), a new comment is attributed to the token's name; updates are refused with `access_denied`, since only a comment's author can edit it; and deletes need permission to manage the project.
+Creating, updating, and deleting comments require write access (`--read-only=false` in stdio mode or the `write` scope in HTTP mode). With an account-scoped API Token (`hba_`), a new comment is attributed to the token's name; updates are refused with `access_denied`, since only a comment's author can edit it; and deletes need permission to manage the project.
 
 ### Insights
 
@@ -383,7 +383,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `dashboard_id` : The ID of the dashboard to update (string, required)
   - `title` : A new title (string, optional)
   - `widgets` : JSON array of widget objects that replaces the dashboard's widgets; keep each widget's `id` to keep its identity (string, optional)
-  - `default_ts` : Default time range for the dashboard (string, optional)
+  - `default_ts` : Default time range for the dashboard; an empty string clears it (string, optional)
 
   Only the fields given change, so a rename needs only `title`.
 
@@ -409,7 +409,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `trigger_config` : JSON object defining when to trigger the alarm, e.g. `{"type": "alert_result_count", "config": {"operator": "gt", "value": 10}}` (string, required)
   - `lookback_lag` : Delay before evaluating to allow data to arrive (e.g., 1m, or 0s for no lag) (string, required)
   - `description` : Optional description of the alarm (string, optional)
-  - `stream_ids` : Optional JSON array of stream IDs to query (defaults to `["default"]`) (string, optional)
+  - `stream_ids` : JSON array of stream IDs to query, naming at least one; an empty array is refused. Omit to query every current stream (string, optional)
 
 - **update_alarm** - Update an existing Insights alarm _(requires `read-only=false`)_. Fetch reference topics `alarms`, `queries`, and `badgerql` first (via `get_reference`).
   - `project_id` : The ID of the project the alarm belongs to (string, required)
@@ -419,7 +419,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `query` : A new BadgerQL query (string, optional)
   - `evaluation_period` : A new evaluation window, as a compact duration such as `5m` or `1h` (string, optional)
   - `lookback_lag` : A new lookback lag, such as `1m` (string, optional)
-  - `stream_ids` : JSON array of stream IDs, replacing the current set (string, optional)
+  - `stream_ids` : JSON array of stream IDs, replacing the current set (at least one); `null` resets the alarm to every current stream (string, optional)
   - `trigger_config` : JSON object replacing the whole trigger, in the same shape `create_alarm` takes (string, optional)
 
   Provide at least one field.
@@ -445,7 +445,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 
 - **create_check_in** - Create a new check-in for a project _(requires `read-only=false`)_
   - `project_id` : The ID of the project to create the check-in in (string, required)
-  - `name` : The name of the check-in (string, required)
+  - `name` : The name of the check-in; an unnamed check-in shows its ID (string, optional)
   - `schedule_type` : The schedule type: `simple` (report every fixed period) or `cron` (report on a cron schedule) (string, required)
   - `slug` : Optional URL-friendly identifier used to report the check-in, e.g. `nightly-backups` (string, optional)
   - `report_period` : How often the check-in is expected to report, e.g. `1 day`, `30 minutes`. Required for simple schedules (string, optional)

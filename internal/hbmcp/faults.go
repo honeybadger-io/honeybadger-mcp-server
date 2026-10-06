@@ -58,7 +58,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("get_fault",
 			mcp.WithTitleAnnotation("Get Fault"),
-			mcp.WithDescription("Get detailed information for a specific fault in a project"),
+			mcp.WithDescription("Get detailed information for a specific fault in a project. last_notice_deploy is the newest deploy in the fault's environment before its last notice: a guess from timing, not the deploy that introduced or resolved the error."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id",
@@ -107,7 +107,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Description("Public ID of a project member to assign the fault to. "+
 					"Send null to unassign. A user who is not a member of the project is "+
 					"rejected rather than silently unassigning."),
-				nullable,
+				acceptsNull,
 			),
 			mcp.WithBoolean("resolve_on_deploy",
 				mcp.Description("Resolve this fault the next time a deploy is recorded. "+

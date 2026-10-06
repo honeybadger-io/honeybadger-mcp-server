@@ -8,6 +8,7 @@ import (
 
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/oapi-codegen/nullable"
 )
 
 // RegisterProjectTools registers all project-related MCP tools.
@@ -16,7 +17,7 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithTitleAnnotation("List Projects"),
-			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details)"),
+			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details). A project can have several Project Keys; list them with list_project_keys."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("name",
@@ -32,7 +33,7 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("get_project",
 			mcp.WithTitleAnnotation("Get Project"),
-			mcp.WithDescription("Get a single Honeybadger project by ID"),
+			mcp.WithDescription("Get a single Honeybadger project by ID. Its Project Keys aren't included; list them with list_project_keys."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("id",
@@ -190,7 +191,6 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 type projectSummary struct {
 	ID                   string     `json:"id"`
 	Name                 string     `json:"name"`
-	Token                string     `json:"token"`
 	Active               bool       `json:"active"`
 	CreatedAt            time.Time  `json:"created_at"`
 	LastNoticeAt         *time.Time `json:"last_notice_at"`
@@ -225,14 +225,9 @@ func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallT
 			ID:                   p.Id,
 			Name:                 p.Name,
 			Active:               p.Active,
-			FaultCount:           derefInt(p.FaultCount),
-			UnresolvedFaultCount: derefInt(p.UnresolvedFaultCount),
-		}
-		if tok, err := p.Token.Get(); err == nil {
-			summaries[i].Token = tok
-		}
-		if p.CreatedAt != nil {
-			summaries[i].CreatedAt = *p.CreatedAt
+			CreatedAt:            p.CreatedAt,
+			FaultCount:           p.FaultCount,
+			UnresolvedFaultCount: p.UnresolvedFaultCount,
 		}
 		// A nullable field distinguishes "never" from "not reported"; the summary
 		// only needs the value when there is one.
@@ -285,30 +280,21 @@ func projectParamsFrom(req mcp.CallToolRequest) apiv3.ProjectParams {
 	}
 
 	// Presence rather than emptiness: an empty string is how a caller clears a
-	// setting, so dropping it would make these fields impossible to unset.
-	for field, target := range map[string]**string{
-		"user_url":          &params.UserUrl,
-		"source_url":        &params.SourceUrl,
-		"user_search_field": &params.UserSearchField,
-		"language":          &params.Language,
-	} {
-		if v, ok := args[field].(string); ok {
-			value := v
-			*target = &value
-		}
-	}
-	for field, target := range map[string]**bool{
+	// setting, so it's sent as null rather than dropped.
+	params.UserUrl = setOrClear(req, "user_url")
+	params.SourceUrl = setOrClear(req, "source_url")
+	params.UserSearchField = setOrClear(req, "user_search_field")
+	params.Language = setOrClear(req, "language")
+	for field, target := range map[string]*nullable.Nullable[bool]{
 		"resolve_errors_on_deploy": &params.ResolveErrorsOnDeploy,
 		"disable_public_links":     &params.DisablePublicLinks,
 	} {
 		if v, ok := args[field].(bool); ok {
-			value := v
-			*target = &value
+			*target = nullable.NewNullableWithValue(v)
 		}
 	}
 	if v, ok := args["purge_days"].(float64); ok && v > 0 {
-		days := int(v)
-		params.PurgeDays = &days
+		params.PurgeDays = nullable.NewNullableWithValue(int(v))
 	}
 	return params
 }
@@ -353,7 +339,7 @@ func handleUpdateProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 		return mcp.NewToolResultError("id is required"), nil
 	}
 	params := projectParamsFrom(req)
-	if params == (apiv3.ProjectParams{}) {
+	if changesNothing(params) {
 		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
 

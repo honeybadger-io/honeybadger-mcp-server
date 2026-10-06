@@ -18,9 +18,9 @@ const nonBlankCommentPattern = "[^\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2
 // How each comment write behaves with an account token (hba_), which has no
 // user behind it.
 const (
-	commentCreateNote = " With an account token, the comment is attributed to the token's name."
-	commentUpdateNote = " Only the comment's author can edit it, so an account token, which has no author, is refused with access_denied."
-	commentDeleteNote = " An account token can delete a comment only when it can manage the project."
+	commentCreateNote = " With an account-scoped API Token, the comment is attributed to the token's name."
+	commentUpdateNote = " Only the comment's author can edit it, so an account-scoped API Token, which has no author, is refused with access_denied."
+	commentDeleteNote = " An account-scoped API Token can delete a comment only when it can manage the project."
 )
 
 // RegisterCommentTools registers the fault comment tools.
