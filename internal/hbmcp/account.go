@@ -23,9 +23,10 @@ var staleSchemaFields = map[string][]string{
 	"list_projects":                 {"account_id"},
 	"create_project":                {"account_id"},
 	"get_project_occurrence_counts": {"account_id"},
-	// Replaced by filters, a list of event/query pairs.
-	"create_integration": {"filter_events", "filter_queries"},
-	"update_integration": {"filter_events", "filter_queries"},
+	// filter_events/filter_queries were replaced by filters, a list of
+	// event/query pairs; all_sites/all_check_ins by site_ids/check_in_ids null.
+	"create_integration": {"filter_events", "filter_queries", "all_sites", "all_check_ins"},
+	"update_integration": {"filter_events", "filter_queries", "all_sites", "all_check_ins"},
 }
 
 // rejectStaleSchemaFields refuses a request carrying parameters this server used

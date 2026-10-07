@@ -268,7 +268,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `project_id` : The ID of the project to create the integration in (string, required)
   - `type` : Integration type, such as `WebHook`, `Email`, `PagerDutyV2` or `Slack`. OAuth types start unconnected; the user connects them from the result's `links.web`, and they can be active from the start (string, required)
   - `config` : JSON object of the type's own settings, e.g. `{"url": "https://example.com/hook"}` for `WebHook` (string, optional)
-  - `active`, `events`, `rate`, `threshold`, `notification_limit`, `site_ids`, `check_in_ids`, `alarm_alert_ids`, `alarm_ok_ids`, `included_environments`, `excluded_environments`, `filters`, `all_sites`, `all_check_ins` : the settings every type shares, as their own parameters rather than inside `config`. `filters` is an ordered list of `{"event", "query"}` objects (`event` can be `all`); `all_sites`/`all_check_ins` follow every site or check-in, including ones added later (optional)
+  - `active`, `events`, `rate`, `threshold`, `notification_limit`, `site_ids`, `check_in_ids`, `alarm_alert_ids`, `alarm_ok_ids`, `included_environments`, `excluded_environments`, `filters` : the settings every type shares, as their own parameters rather than inside `config`. `filters` is an ordered list of `{"event", "query"}` objects (`event` can be `all`). `site_ids`/`check_in_ids` take `null` to follow every site or check-in, including ones added later (the default on create), `[]` for none, or a list (optional)
 
 - **update_integration** - Update a notification integration _(requires `read-only=false`)_
   - `project_id`, `integration_id` : Which integration (string, required)

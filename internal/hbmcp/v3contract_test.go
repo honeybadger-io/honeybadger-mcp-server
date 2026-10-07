@@ -78,16 +78,20 @@ func TestCreateAlarmRequiresWindowAndTrigger(t *testing.T) {
 	}
 }
 
-// Filters are event/query pairs, and all_sites follows every site.
-func TestUpdateIntegrationSendsFiltersAndAllSites(t *testing.T) {
+// Filters are event/query pairs. site_ids null follows every site and
+// check_in_ids [] follows none, so each must reach the API exactly as sent.
+func TestUpdateIntegrationSendsFiltersAndSiteScope(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"i1","project_id":"Xk9mZp","type":"WebHook","active":true,"links":{"web":"https://app/x"}}}`)
 	result, err := handleUpdateIntegration(context.Background(), client, integrationArgs(map[string]any{
-		"project_id": "Xk9mZp", "integration_id": "i1", "all_sites": true,
+		"project_id": "Xk9mZp", "integration_id": "i1", "site_ids": nil, "check_in_ids": []any{},
 		"filters": []any{map[string]any{"event": "occurred", "query": "environment:production"}},
 	}))
 	mustSucceed(t, result, err)
-	if (*body)["all_sites"] != true {
-		t.Errorf("all_sites = %v, want true", (*body)["all_sites"])
+	if v, present := (*body)["site_ids"]; !present || v != nil {
+		t.Errorf("site_ids = %v (present %v), want an explicit null", v, present)
+	}
+	if v, ok := (*body)["check_in_ids"].([]any); !ok || len(v) != 0 {
+		t.Errorf("check_in_ids = %v, want []", (*body)["check_in_ids"])
 	}
 	filters, ok := (*body)["filters"].([]any)
 	if !ok || len(filters) != 1 || filters[0].(map[string]any)["event"] != "occurred" {

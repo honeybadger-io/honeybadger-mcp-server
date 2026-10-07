@@ -128,7 +128,7 @@ func handleGetIntegration(ctx context.Context, client *apiv3.Client, req mcp.Cal
 var integrationSettingFields = []string{
 	"active", "events", "rate", "threshold", "notification_limit",
 	"site_ids", "check_in_ids", "alarm_alert_ids", "alarm_ok_ids",
-	"included_environments", "excluded_environments", "filters", "all_sites", "all_check_ins",
+	"included_environments", "excluded_environments", "filters",
 }
 
 // integrationSettingOptions declares the shared settings, in the same order, for
@@ -143,8 +143,10 @@ func integrationSettingOptions() []mcp.ToolOption {
 		mcp.WithString("rate", mcp.Description("Period for the rate_exceeded event: minute, hour, day, and so on")),
 		mcp.WithNumber("threshold", mcp.Description("Occurrences within rate before rate_exceeded fires; must be greater than 0")),
 		mcp.WithNumber("notification_limit", mcp.Description("Most notifications in a 10-minute window before flood control (the flooded event) steps in")),
-		list("site_ids", "Uptime sites whose up and down events notify, when all_sites is off. An empty list means none; an ID from outside the project is refused. Sending a non-empty list turns all_sites off."),
-		list("check_in_ids", "Check-ins whose events notify, when all_check_ins is off. An empty list means none; an ID from outside the project is refused. Sending a non-empty list turns all_check_ins off."),
+		mcp.WithArray("site_ids", mcp.WithStringItems(), acceptsNull,
+			mcp.Description("Uptime sites whose up and down events notify. null follows every site in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every site; on update, omit to leave it as it is. An ID from outside the project is refused.")),
+		mcp.WithArray("check_in_ids", mcp.WithStringItems(), acceptsNull,
+			mcp.Description("Check-ins whose events notify. null follows every check-in in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every check-in; on update, omit to leave it as it is. An ID from outside the project is refused.")),
 		list("alarm_alert_ids", "Alarms whose alert events notify"),
 		list("alarm_ok_ids", "Alarms whose recovery events notify"),
 		list("included_environments", "When non-empty, the only environments that notify, including ones that haven't reported yet. Empty means every environment not excluded."),
@@ -160,8 +162,6 @@ func integrationSettingOptions() []mcp.ToolOption {
 				},
 			}),
 		),
-		mcp.WithBoolean("all_sites", mcp.Description("Follow every uptime site in the project, including ones added later. When true, leave site_ids out.")),
-		mcp.WithBoolean("all_check_ins", mcp.Description("Follow every check-in in the project, including ones added later. When true, leave check_in_ids out.")),
 	}
 }
 
