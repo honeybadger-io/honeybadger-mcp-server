@@ -15,9 +15,19 @@ const maxSafeInteger = 1 << 53
 // null in addition to its declared type, e.g. {"type": ["number", "null"]}.
 // Handlers must inspect the raw argument via req.GetArguments() to distinguish
 // an explicit null from an omitted key.
+//
+// An enum must list null too, or a schema-checking client still refuses it, so
+// acceptsNull adds it; pass acceptsNull after mcp.Enum.
 func acceptsNull(schema map[string]any) {
 	if t, ok := schema["type"].(string); ok {
 		schema["type"] = []any{t, "null"}
+	}
+	if values, ok := schema["enum"].([]string); ok {
+		withNull := make([]any, 0, len(values)+1)
+		for _, v := range values {
+			withNull = append(withNull, v)
+		}
+		schema["enum"] = append(withNull, nil)
 	}
 }
 

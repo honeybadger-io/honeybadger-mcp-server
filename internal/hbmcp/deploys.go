@@ -56,8 +56,12 @@ func handleListDeploys(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if who := req.GetString("local_username", ""); who != "" {
 		opts = append(opts, apiv3.DeployedBy(who))
 	}
-	if limit := req.GetInt("limit", 0); limit > 0 {
-		opts = append(opts, apiv3.Limit(limit))
+	limit, msg := pageLimit(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	if limit != nil {
+		opts = append(opts, limit)
 	}
 	if cursor := req.GetString("before", ""); cursor != "" {
 		opts = append(opts, apiv3.Before(cursor))

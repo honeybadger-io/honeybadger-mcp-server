@@ -278,9 +278,9 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		Description:      setIfGiven(req, "description"),
 	}
 
-	// stream_ids and trigger_config arrive as JSON strings, matching how v2's tool
-	// took them.
-	if raw := req.GetString("stream_ids", ""); raw != "" {
+	// stream_ids arrives as a JSON string, matching how v2's tool took it. On
+	// create, null means the same as leaving it out: every current stream.
+	if raw := strings.TrimSpace(req.GetString("stream_ids", "")); raw != "" && raw != "null" {
 		var ids []string
 		if err := json.Unmarshal([]byte(raw), &ids); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)), nil

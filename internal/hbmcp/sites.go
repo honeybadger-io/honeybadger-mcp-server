@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/honeybadger-io/api-go/apiv3"
@@ -92,7 +94,7 @@ func RegisterSiteTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_site_outages",
 			mcp.WithTitleAnnotation("List Site Outages"),
-			mcp.WithDescription("List an uptime site's outages, newest first: when it went down and came back up, with the status and reason from the failing check. Use it to explain a down or up event. To page back, pass created_before from the previous response's links.older."),
+			mcp.WithDescription("List an uptime site's outages, newest first: when it went down and came back up, with the status and reason from the failing check. Use it to explain a down or up event. To page back, pass the created_before value from the query string of the previous response's time_series_links.older, unchanged."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project the site belongs to")),
@@ -108,7 +110,7 @@ func RegisterSiteTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_uptime_checks",
 			mcp.WithTitleAnnotation("List Uptime Checks"),
-			mcp.WithDescription("List an uptime site's individual checks, newest first: each check's location, response status and duration. A busy site has many; keep limit small. To page back, pass created_before from the previous response's links.older."),
+			mcp.WithDescription("List an uptime site's individual checks, newest first: each check's location, response status and duration. A busy site has many; keep limit small. To page back, pass the created_before value from the query string of the previous response's time_series_links.older, unchanged."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project the site belongs to")),
@@ -138,10 +140,10 @@ func siteSettingOptions() []mcp.ToolOption {
 		mcp.WithArray("locations", acceptsNull,
 			mcp.Items(map[string]any{"type": "string", "enum": []string{"Virginia", "Oregon", "London", "Frankfurt", "Singapore"}}),
 			mcp.Description("Locations to check from. [] or null checks from every location.")),
-		mcp.WithString("match_type", acceptsNull, mcp.Enum("success", "exact", "include", "exclude", "jmespath"),
+		mcp.WithString("match_type", mcp.Enum("success", "exact", "include", "exclude", "jmespath"), acceptsNull,
 			mcp.Description("How a response passes: success (any 2xx; leave match out), exact (status code equals match), include or exclude (the body does or doesn't contain match), jmespath (match is a JMESPath expression over the JSON body). Defaults to success.")),
 		mcp.WithString("match", acceptsNull, mcp.Description("What match_type compares against. Required unless match_type is success; null clears it.")),
-		mcp.WithString("request_method", acceptsNull, mcp.Enum("GET", "POST", "PUT", "PATCH", "DELETE"), mcp.Description("Defaults to GET")),
+		mcp.WithString("request_method", mcp.Enum("GET", "POST", "PUT", "PATCH", "DELETE"), acceptsNull, mcp.Description("Defaults to GET")),
 		mcp.WithString("request_body", acceptsNull, mcp.Description("A body to send with the request, up to 32 KB; null clears it")),
 		mcp.WithObject("request_headers", acceptsNull, mcp.AdditionalProperties(map[string]any{"type": "string"}),
 			mcp.Description("Headers to send, as name to value. Replaces the stored headers; {} or null clears them.")),
@@ -255,6 +257,8 @@ func handleDeleteSite(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 		var summary string
 		site, err := client.Sites.Get(ctx, projectID, siteID)
 		switch {
+		case err == nil && site.Name == "":
+			summary = fmt.Sprintf("delete the unnamed site %s (id %s) from project %s and stop monitoring it", site.Url, id, projectID)
 		case err == nil:
 			summary = fmt.Sprintf("delete site %q (%s, id %s) from project %s and stop monitoring it", site.Name, site.Url, id, projectID)
 		case unreadable(err):
@@ -276,7 +280,11 @@ func handleListSiteOutages(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	outages, err := client.Sites.ListOutages(ctx, projectID, siteID, olderThanOptions(req)...)
+	opts, msg := olderThanOptions(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	outages, err := client.Sites.ListOutages(ctx, projectID, siteID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list outages: %v", err)), nil
 	}
@@ -288,7 +296,11 @@ func handleListUptimeChecks(ctx context.Context, client *apiv3.Client, req mcp.C
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	checks, err := client.Sites.ListUptimeChecks(ctx, projectID, siteID, olderThanOptions(req)...)
+	opts, msg := olderThanOptions(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	checks, err := client.Sites.ListUptimeChecks(ctx, projectID, siteID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list uptime checks: %v", err)), nil
 	}
@@ -298,22 +310,62 @@ func handleListUptimeChecks(ctx context.Context, client *apiv3.Client, req mcp.C
 // timeSeriesLimit and createdBeforeParam declare the paging parameters of the
 // collections that page back by timestamp.
 func timeSeriesLimit() mcp.ToolOption {
-	return mcp.WithNumber("limit", mcp.Min(1), mcp.Max(100), mcp.Description("Most items to return, up to 100 (default 25)"))
+	return mcp.WithInteger("limit", mcp.Min(1), mcp.Max(100), mcp.Description("Most items to return, up to 100 (default 25)"))
 }
 
 func createdBeforeParam() mcp.ToolOption {
 	return mcp.WithNumber("created_before",
-		mcp.Description("Page back: the created_before value from the previous response's links.older, passed unchanged"))
+		mcp.Description("Page back: the created_before value from the query string of the previous response's time_series_links.older, unchanged"))
 }
 
-// olderThanOptions reads limit and created_before.
-func olderThanOptions(req mcp.CallToolRequest) []apiv3.Option {
+// pageLimit reads limit. A fractional or non-positive value is refused rather
+// than truncated, as the API refuses it.
+func pageLimit(req mcp.CallToolRequest) (apiv3.Option, string) {
+	raw, present := req.GetArguments()["limit"]
+	if !present || raw == nil {
+		return nil, ""
+	}
+	var n float64
+	switch v := raw.(type) {
+	case float64:
+		n = v
+	case int:
+		n = float64(v)
+	case int64:
+		n = float64(v)
+	default:
+		return nil, "limit must be a whole number from 1 to 100"
+	}
+	if n < 1 || n != math.Trunc(n) {
+		return nil, "limit must be a whole number from 1 to 100"
+	}
+	return apiv3.Limit(int(n)), ""
+}
+
+// olderThanOptions reads limit and created_before. A created_before that isn't a
+// number is refused: dropping it would serve the newest page again, and a caller
+// paging back would loop on it.
+func olderThanOptions(req mcp.CallToolRequest) ([]apiv3.Option, string) {
 	var opts []apiv3.Option
-	if limit := req.GetInt("limit", 0); limit > 0 {
-		opts = append(opts, apiv3.Limit(limit))
+	limit, msg := pageLimit(req)
+	if msg != "" {
+		return nil, msg
 	}
-	if before := req.GetFloat("created_before", 0); before > 0 {
-		opts = append(opts, apiv3.OlderThan(before))
+	if limit != nil {
+		opts = append(opts, limit)
 	}
-	return opts
+	switch v := req.GetArguments()["created_before"].(type) {
+	case nil:
+	case float64:
+		opts = append(opts, apiv3.OlderThan(v))
+	case string:
+		n, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, "created_before must be the number from time_series_links.older's created_before, not the whole URL"
+		}
+		opts = append(opts, apiv3.OlderThan(n))
+	default:
+		return nil, "created_before must be a number"
+	}
+	return opts, ""
 }

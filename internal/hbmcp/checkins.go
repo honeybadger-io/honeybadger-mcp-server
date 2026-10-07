@@ -53,7 +53,7 @@ func RegisterCheckInTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_check_in_events",
 			mcp.WithTitleAnnotation("List Check-In Events"),
-			mcp.WithDescription("List a check-in's history, newest first: each time it reported, went missing or was paused. Use it to explain a check_in_missing or check_in_reporting event. To page back, pass created_before from the previous response's links.older."),
+			mcp.WithDescription("List a check-in's history, newest first: each time it reported, went missing or was paused. Use it to explain a check_in_missing or check_in_reporting event. To page back, pass the created_before value from the query string of the previous response's time_series_links.older, unchanged."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project the check-in belongs to")),
@@ -323,7 +323,11 @@ func handleListCheckInEvents(ctx context.Context, client *apiv3.Client, req mcp.
 	if checkInID == "" {
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
-	events, err := client.CheckIns.ListEvents(ctx, projectID, checkInID, olderThanOptions(req)...)
+	opts, msg := olderThanOptions(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	events, err := client.CheckIns.ListEvents(ctx, projectID, checkInID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list check-in events: %v", err)), nil
 	}

@@ -436,7 +436,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
 
 ### Check-Ins
 
-- **list_check_ins** - List check-ins (cron/scheduled task monitoring) for a project. Returns the first 25 check-ins; pagination is not currently supported
+- **list_check_ins** - List check-ins (cron/scheduled task monitoring) for a project. Returns every check-in, following pagination
   - `project_id` : The ID of the project to list check-ins for (string, required)
 
 - **get_check_in** - Get a single check-in by ID
@@ -472,7 +472,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `project_id` : The ID of the project the check-in belongs to (string, required)
   - `check_in_id` : The ID of the check-in (string, required)
   - `limit` : Most events to return, up to 100 (number, optional)
-  - `created_before` : Page back: the `created_before` value from the previous response's `links.older` (number, optional)
+  - `created_before` : Page back: the `created_before` value from the query string of the previous response's `time_series_links.older`, unchanged (number, optional)
 
 ### Uptime Sites
 

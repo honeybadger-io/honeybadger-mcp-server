@@ -21,18 +21,22 @@ func setIfGiven(req mcp.CallToolRequest, name string) nullable.Nullable[string] 
 }
 
 // setOrClear returns name as a value when the caller sent one, null when the
-// caller sent an empty string, and unset when the parameter is absent. It's for
-// parameters whose description says an empty string clears the setting.
+// caller sent null or an empty string, and unset when the parameter is absent.
+// It's for parameters whose description says an empty string or null clears the
+// setting.
 func setOrClear(req mcp.CallToolRequest, name string) nullable.Nullable[string] {
-	v, ok := req.GetArguments()[name].(string)
-	switch {
-	case !ok:
-		return nullable.Nullable[string]{}
-	case v == "":
-		return nullable.NewNullNullable[string]()
-	default:
+	switch v := req.GetArguments()[name].(type) {
+	case nil:
+		if _, present := req.GetArguments()[name]; present {
+			return nullable.NewNullNullable[string]()
+		}
+	case string:
+		if v == "" {
+			return nullable.NewNullNullable[string]()
+		}
 		return nullable.NewNullableWithValue(v)
 	}
+	return nullable.Nullable[string]{}
 }
 
 // changesNothing reports whether an update's parameters would send an empty

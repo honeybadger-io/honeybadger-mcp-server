@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/honeybadger-io/api-go/apiv3"
@@ -134,15 +136,17 @@ var integrationSettingFields = []string{
 // integrationSettingOptions declares the shared settings, in the same order, for
 // create_integration and update_integration.
 func integrationSettingOptions() []mcp.ToolOption {
+	// Every shared setting is nullable in the API: null clears a list or resets a
+	// setting to the type's default.
 	list := func(name, description string) mcp.ToolOption {
-		return mcp.WithArray(name, mcp.WithStringItems(), mcp.Description(description))
+		return mcp.WithArray(name, mcp.WithStringItems(), acceptsNull, mcp.Description(description))
 	}
 	return []mcp.ToolOption{
 		mcp.WithBoolean("active", mcp.Description("Whether the integration sends notifications")),
-		list("events", "Event names to notify on, e.g. occurred, resolved, assigned, down, check_in_missing. Adding one the type doesn't support is refused. On create, omit for the type's defaults."),
-		mcp.WithString("rate", mcp.Description("Period for the rate_exceeded event: minute, hour, day, and so on")),
-		mcp.WithNumber("threshold", mcp.Description("Occurrences within rate before rate_exceeded fires; must be greater than 0")),
-		mcp.WithNumber("notification_limit", mcp.Description("Most notifications in a 10-minute window before flood control (the flooded event) steps in")),
+		list("events", "Event names to notify on, e.g. occurred, resolved, assigned, down, check_in_missing. Adding one the type doesn't support is refused. Omit on create, or send null, for the type's defaults."),
+		mcp.WithString("rate", acceptsNull, mcp.Description("Period for the rate_exceeded event: minute, hour, day, and so on")),
+		mcp.WithNumber("threshold", acceptsNull, mcp.Description("Occurrences within rate before rate_exceeded fires; must be greater than 0")),
+		mcp.WithNumber("notification_limit", acceptsNull, mcp.Description("Most notifications in a 10-minute window before flood control (the flooded event) steps in")),
 		mcp.WithArray("site_ids", mcp.WithStringItems(), acceptsNull,
 			mcp.Description("Uptime sites whose up and down events notify. null follows every site in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every site; on update, omit to leave it as it is. An ID from outside the project is refused.")),
 		mcp.WithArray("check_in_ids", mcp.WithStringItems(), acceptsNull,
@@ -151,7 +155,7 @@ func integrationSettingOptions() []mcp.ToolOption {
 		list("alarm_ok_ids", "Alarms whose recovery events notify"),
 		list("included_environments", "When non-empty, the only environments that notify, including ones that haven't reported yet. Empty means every environment not excluded."),
 		list("excluded_environments", "Environments that never notify; wins over included_environments. Names are stored as given, so one can be excluded before it first reports."),
-		mcp.WithArray("filters",
+		mcp.WithArray("filters", acceptsNull,
 			mcp.Description(`Ordered list of {"event": ..., "query": ...} objects: each event with a filter notifies only for errors matching its query. event is an event name, or "all" for every event. Replaces the stored filters; send [] or null to clear them.`),
 			mcp.Items(map[string]any{
 				"type":     "object",
@@ -216,12 +220,16 @@ func decodeSettings(raw []byte, params any) string {
 	if errors.As(err, &typeErr) && typeErr.Field == "" {
 		var fields map[string]json.RawMessage
 		if json.Unmarshal(raw, &fields) == nil {
-			for name, value := range fields {
-				one, _ := json.Marshal(map[string]json.RawMessage{name: value})
+			// Sorted, so the same bad request always names the same setting.
+			for _, name := range slices.Sorted(maps.Keys(fields)) {
+				one, _ := json.Marshal(map[string]json.RawMessage{name: fields[name]})
 				scratch := reflect.New(reflect.TypeOf(params).Elem()).Interface()
-				if json.Unmarshal(one, scratch) != nil {
-					typeErr.Field = name
-					break
+				var fieldErr *json.UnmarshalTypeError
+				if errors.As(json.Unmarshal(one, scratch), &fieldErr) {
+					// Describe this field's own error, so the name and the
+					// expected type can't come from two different settings.
+					fieldErr.Field = name
+					return describeSettingError(fieldErr)
 				}
 			}
 		}
