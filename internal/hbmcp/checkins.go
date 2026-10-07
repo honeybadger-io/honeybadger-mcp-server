@@ -278,6 +278,9 @@ func handleDeleteCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 		checkIn, err := client.CheckIns.Get(ctx, projectID, checkInID)
 		var summary string
 		switch {
+		case err == nil && nullableString(checkIn.Name) == "":
+			// An unnamed check-in shows its ID, so there's no name to quote.
+			summary = fmt.Sprintf("delete the unnamed check-in %s from project %s, along with its reporting history", checkInID, projectID)
 		case err == nil:
 			summary = fmt.Sprintf("delete check-in %q (id %s) from project %s, along with its reporting history", nullableString(checkIn.Name), checkInID, projectID)
 		case unreadable(err):

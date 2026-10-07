@@ -259,3 +259,22 @@ func TestHandleUpdateCheckInNothingToChange(t *testing.T) {
 		t.Errorf("expected an error, got %s", getResultText(result))
 	}
 }
+
+// An unnamed check-in has no name to quote, so the preview calls it unnamed.
+func TestDeleteCheckInPreviewForAnUnnamedCheckIn(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s; the preview should only read", r.Method)
+		}
+		v3JSON(w, http.StatusOK, `{"data":{"id":"c1","project_id":"Xk9mZp","name":null,"schedule_type":"simple"}}`)
+	})
+
+	result, err := handleDeleteCheckIn(context.Background(), client,
+		checkInArgs(map[string]interface{}{"project_id": "Xk9mZp", "check_in_id": "c1"}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(getResultText(result), "delete the unnamed check-in c1 from project Xk9mZp") {
+		t.Errorf("preview = %s", getResultText(result))
+	}
+}
