@@ -472,7 +472,7 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `project_id` : The ID of the project the check-in belongs to (string, required)
   - `check_in_id` : The ID of the check-in (string, required)
   - `limit` : Most events to return, up to 100 (number, optional)
-  - `created_before` : Page back: the `created_before` value from the query string of the previous response's `time_series_links.older`, unchanged (number, optional)
+  - `created_before` : Page back: the previous response's `next_created_before`, unchanged (number, optional)
 
 ### Uptime Sites
 

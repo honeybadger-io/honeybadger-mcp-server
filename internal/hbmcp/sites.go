@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -94,7 +95,7 @@ func RegisterSiteTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_site_outages",
 			mcp.WithTitleAnnotation("List Site Outages"),
-			mcp.WithDescription("List an uptime site's outages, newest first: when it went down and came back up, with the status and reason from the failing check. Use it to explain a down or up event. To page back, pass the created_before value from the query string of the previous response's time_series_links.older, unchanged."),
+			mcp.WithDescription("List an uptime site's outages, newest first: when it went down and came back up, with the status and reason from the failing check. Use it to explain a down or up event. To page back, pass the previous response's next_created_before as created_before."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project the site belongs to")),
@@ -110,7 +111,7 @@ func RegisterSiteTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_uptime_checks",
 			mcp.WithTitleAnnotation("List Uptime Checks"),
-			mcp.WithDescription("List an uptime site's individual checks, newest first: each check's location, response status and duration. A busy site has many; keep limit small. To page back, pass the created_before value from the query string of the previous response's time_series_links.older, unchanged."),
+			mcp.WithDescription("List an uptime site's individual checks, newest first: each check's location, response status and duration. A busy site has many; keep limit small. To page back, pass the previous response's next_created_before as created_before."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project the site belongs to")),
@@ -288,7 +289,7 @@ func handleListSiteOutages(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list outages: %v", err)), nil
 	}
-	return jsonResult(outages)
+	return jsonResult(timestampPageOf(outages))
 }
 
 func handleListUptimeChecks(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -304,7 +305,7 @@ func handleListUptimeChecks(ctx context.Context, client *apiv3.Client, req mcp.C
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list uptime checks: %v", err)), nil
 	}
-	return jsonResult(checks)
+	return jsonResult(timestampPageOf(checks))
 }
 
 // timeSeriesLimit and createdBeforeParam declare the paging parameters of the
@@ -315,7 +316,44 @@ func timeSeriesLimit() mcp.ToolOption {
 
 func createdBeforeParam() mcp.ToolOption {
 	return mcp.WithNumber("created_before",
-		mcp.Description("Page back: the created_before value from the query string of the previous response's time_series_links.older, unchanged"))
+		mcp.Description("Page back: the previous response's next_created_before, unchanged"))
+}
+
+// timestampPage is what the outage, uptime check and check-in event tools
+// return. Those collections page back by a Unix timestamp the API puts only
+// inside links.older's URL, so the position is lifted out once here and handed
+// back as next_created_before; callers never handle a URL.
+type timestampPage[T any] struct {
+	Data     []T  `json:"data"`
+	HasOlder bool `json:"has_older"`
+	// NextCreatedBefore is the link's created_before verbatim. It's a number
+	// with significant microseconds, so it's passed through as written rather
+	// than reformatted.
+	NextCreatedBefore json.Number `json:"next_created_before,omitempty"`
+}
+
+func timestampPageOf[T any](resp *apiv3.ListResponse[T]) timestampPage[T] {
+	page := timestampPage[T]{Data: resp.Data}
+	if resp.TimeSeries != nil {
+		page.HasOlder = resp.TimeSeries.HasOlder
+	}
+	if resp.TimeSeriesLinks == nil {
+		return page
+	}
+	older, err := resp.TimeSeriesLinks.Older.Get()
+	if err != nil {
+		return page
+	}
+	link, err := url.Parse(older)
+	if err != nil {
+		return page
+	}
+	if v := link.Query().Get("created_before"); v != "" {
+		if _, err := strconv.ParseFloat(v, 64); err == nil {
+			page.NextCreatedBefore = json.Number(v)
+		}
+	}
+	return page
 }
 
 // pageLimit reads limit. A fractional or non-positive value is refused rather
@@ -361,7 +399,7 @@ func olderThanOptions(req mcp.CallToolRequest) ([]apiv3.Option, string) {
 	case string:
 		n, err := strconv.ParseFloat(v, 64)
 		if err != nil {
-			return nil, "created_before must be the number from time_series_links.older's created_before, not the whole URL"
+			return nil, "created_before must be the previous response's next_created_before, a number"
 		}
 		opts = append(opts, apiv3.OlderThan(n))
 	default:

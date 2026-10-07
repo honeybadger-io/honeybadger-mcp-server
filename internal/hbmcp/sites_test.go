@@ -2,8 +2,10 @@ package hbmcp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -50,7 +52,7 @@ func TestListSiteOutagesPagesBackExactly(t *testing.T) {
 			t.Errorf("path = %s, want %s", r.URL.Path, want)
 		}
 		query = r.URL.Query()
-		v3JSON(w, http.StatusOK, `{"data":[],"time_series":{"has_older":false}}`)
+		v3JSON(w, http.StatusOK, `{"data":[],"pagination":{"has_older":false}}`)
 	})
 	result, err := handleListSiteOutages(context.Background(), client, mcpRequest(map[string]any{
 		"project_id": "Xk9mZp", "site_id": siteUUID, "limit": 10, "created_before": 1704153600.123456,
@@ -65,7 +67,7 @@ func TestListDeploysFilters(t *testing.T) {
 	var query url.Values
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		query = r.URL.Query()
-		v3JSON(w, http.StatusOK, `{"data":[],"time_series":{"has_older":false}}`)
+		v3JSON(w, http.StatusOK, `{"data":[],"pagination":{"has_older":false}}`)
 	})
 	result, err := handleListDeploys(context.Background(), client, mcpRequest(map[string]any{
 		"project_id": "Xk9mZp", "environment": "production", "local_username": "ci", "before": "cur1",
@@ -83,7 +85,7 @@ func TestListCheckInEventsPagesBack(t *testing.T) {
 	var query url.Values
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		path, query = r.URL.Path, r.URL.Query()
-		v3JSON(w, http.StatusOK, `{"data":[],"time_series":{"has_older":false}}`)
+		v3JSON(w, http.StatusOK, `{"data":[],"pagination":{"has_older":false}}`)
 	})
 	result, err := handleListCheckInEvents(context.Background(), client, mcpRequest(map[string]any{
 		"project_id": "Xk9mZp", "check_in_id": "c1", "created_before": 1704153600.5,
@@ -91,5 +93,39 @@ func TestListCheckInEventsPagesBack(t *testing.T) {
 	mustSucceed(t, result, err)
 	if path != "/v3/projects/Xk9mZp/check_ins/c1/events" || query.Get("created_before") != "1704153600.5" {
 		t.Errorf("request = %s?%s", path, query.Encode())
+	}
+}
+
+// The position comes out as next_created_before, digits intact and with no URL
+// in the output, and goes back in to fetch exactly the next older page.
+func TestOutagesHandBackTheirPagingPosition(t *testing.T) {
+	var sent []string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		sent = append(sent, r.URL.Query().Get("created_before"))
+		v3JSON(w, http.StatusOK, `{"data":[],"pagination":{"has_older":true,"has_newer":false,"limit":2},
+			"links":{"self":"/v3/x","older":"/v3/projects/Xk9mZp/sites/`+siteUUID+`/outages?created_before=1704153600.123456&limit=2"}}`)
+	})
+	args := map[string]any{"project_id": "Xk9mZp", "site_id": siteUUID, "limit": 2}
+
+	result, err := handleListSiteOutages(context.Background(), client, mcpRequest(args))
+	mustSucceed(t, result, err)
+	text := getResultText(result)
+	if !strings.Contains(text, `"next_created_before":1704153600.123456`) {
+		t.Fatalf("output = %s", text)
+	}
+	var page map[string]any
+	if err := json.Unmarshal([]byte(text), &page); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := page["time_series_links"]; present {
+		t.Errorf("output carries the links: %s", text)
+	}
+
+	// An agent reads the number as JSON and passes it straight back.
+	args["created_before"] = page["next_created_before"]
+	result, err = handleListSiteOutages(context.Background(), client, mcpRequest(args))
+	mustSucceed(t, result, err)
+	if len(sent) != 2 || sent[1] != "1704153600.123456" {
+		t.Errorf("created_before sent = %q, want the second request to carry 1704153600.123456", sent)
 	}
 }
