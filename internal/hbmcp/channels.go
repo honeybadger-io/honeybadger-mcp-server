@@ -144,7 +144,7 @@ func integrationSettingOptions() []mcp.ToolOption {
 	return []mcp.ToolOption{
 		mcp.WithBoolean("active", mcp.Description("Whether the integration sends notifications")),
 		list("events", "Event names to notify on, e.g. occurred, resolved, assigned, down, check_in_missing. Adding one the type doesn't support is refused. Omit on create, or send null, for the type's defaults."),
-		mcp.WithString("rate", acceptsNull, mcp.Description("Period for the rate_exceeded event: minute, hour, day, and so on")),
+		mcp.WithString("rate", mcp.Enum("min", "hour", "wday", "week"), acceptsNull, mcp.Description("Period the rate_exceeded threshold counts over")),
 		mcp.WithNumber("threshold", acceptsNull, mcp.Description("Occurrences within rate before rate_exceeded fires; must be greater than 0")),
 		mcp.WithNumber("notification_limit", acceptsNull, mcp.Description("Most notifications in a 10-minute window before flood control (the flooded event) steps in")),
 		mcp.WithArray("site_ids", mcp.WithStringItems(), acceptsNull,
