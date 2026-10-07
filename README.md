@@ -214,7 +214,7 @@ read-only: true
 
 ## Tools
 
-Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`, `delete_integration`, `delete_project_key`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller. Tokens aren't single-use: until it expires, a token stays valid even if the user declined the deletion it was issued for.
+Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`, `delete_integration`, `delete_project_key`, `delete_site`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller. Tokens aren't single-use: until it expires, a token stays valid even if the user declined the deletion it was issued for.
 
 ### Reference
 
@@ -467,6 +467,54 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `project_id` : The ID of the project the check-in belongs to (string, required)
   - `check_in_id` : The ID of the check-in to delete (string, required)
   - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
+
+- **list_check_in_events** - List a check-in's history, newest first: each time it reported, went missing or was paused
+  - `project_id` : The ID of the project the check-in belongs to (string, required)
+  - `check_in_id` : The ID of the check-in (string, required)
+  - `limit` : Most events to return, up to 100 (number, optional)
+  - `created_before` : Page back: the `created_before` value from the previous response's `links.older` (number, optional)
+
+### Uptime Sites
+
+- **list_sites** - List a project's uptime sites and their current state
+  - `project_id` : The ID of the project (string, required)
+
+- **get_site** - Get an uptime site's URL, check settings and state
+  - `project_id` : The ID of the project (string, required)
+  - `site_id` : The ID of the site, a UUID (string, required)
+
+- **create_site** - Start uptime monitoring for a URL _(requires `read-only=false`)_
+  - `project_id` : The ID of the project (string, required)
+  - `url` : The URL to check, starting with http:// or https:// (string, required)
+  - `name`, `frequency` (1, 2, 5 or 15 minutes), `locations` (Virginia, Oregon, London, Frankfurt, Singapore; `[]` or `null` for every location), `match_type` (`success`, `exact`, `include`, `exclude`, `jmespath`), `match`, `request_method`, `request_body`, `request_headers`, `timeout`, `outage_threshold`, `validate_ssl`, `active` : check settings (optional)
+
+- **update_site** - Change an uptime site's settings; `null` resets a setting to its default _(requires `read-only=false`)_
+  - `project_id`, `site_id` (required), and any of `url` and the settings `create_site` takes (optional)
+
+- **delete_site** - Stop monitoring an uptime site and delete it _(requires `read-only=false`)_
+  - `project_id`, `site_id` (string, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
+
+- **list_site_outages** - List a site's outages, newest first, with the status and reason from the failing check
+  - `project_id`, `site_id` (string, required)
+  - `limit`, `created_before` : paging, as for `list_check_in_events` (number, optional)
+
+- **list_uptime_checks** - List a site's individual checks, newest first: location, response status and duration
+  - `project_id`, `site_id` (string, required)
+  - `limit`, `created_before` : paging, as for `list_check_in_events` (number, optional)
+
+### Deploys
+
+- **list_deploys** - List a project's deploys, newest first
+  - `project_id` : The ID of the project (string, required)
+  - `environment` : Only deploys to this environment (string, optional)
+  - `local_username` : Only deploys recorded under this username (string, optional)
+  - `limit` : Most deploys to return, up to 100 (number, optional)
+  - `before` / `after` : Cursors from the previous response's `time_series.oldest_cursor` / `newest_cursor` (string, optional)
+
+- **get_deploy** - Get a deploy by ID, e.g. one a `deployed` event or a fault's `last_notice_deploy` names
+  - `project_id` : The ID of the project (string, required)
+  - `deploy_id` : The ID of the deploy (string, required)
 
 ### Tool Search
 

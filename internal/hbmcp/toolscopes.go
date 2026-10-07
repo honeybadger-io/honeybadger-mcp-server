@@ -47,6 +47,19 @@ var toolOperations = map[string][]string{
 	"update_check_in": {"updateCheckIn"},
 	"delete_check_in": {"deleteCheckIn"},
 
+	"list_check_in_events": {"listCheckInEvents"},
+
+	"list_sites":         {"listSites"},
+	"get_site":           {"getSite"},
+	"create_site":        {"createSite"},
+	"update_site":        {"updateSite"},
+	"delete_site":        {"deleteSite"},
+	"list_site_outages":  {"listOutages"},
+	"list_uptime_checks": {"listUptimeChecks"},
+
+	"list_deploys": {"listDeploys"},
+	"get_deploy":   {"getDeploy"},
+
 	"list_dashboards":  {"listDashboards"},
 	"get_dashboard":    {"getDashboard"},
 	"create_dashboard": {"createDashboard"},

@@ -55,7 +55,7 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		// One shape that decodes as any of the resources a delete previews.
-		thing := `{"id":"x","project_id":"Xk9mZp","fault_id":"456","name":"Thing","title":"Thing","label":"Thing","type":"Thing","key":"k","active":true,"author":{"name":"Thing"},"body":"Looked into it","created_at":"2026-01-01T00:00:00Z"}`
+		thing := `{"id":"9f8b6d2e-4c1a-4b7f-9e35-2a6c8d0f1b47","project_id":"Xk9mZp","fault_id":"456","name":"Thing","title":"Thing","label":"Thing","type":"Thing","key":"k","active":true,"author":{"name":"Thing"},"body":"Looked into it","created_at":"2026-01-01T00:00:00Z"}`
 		_, _ = w.Write([]byte(`{"data":` + thing + `}`))
 	}))
 	t.Cleanup(f.Close)
@@ -110,6 +110,7 @@ var deleteToolArgs = map[string]map[string]any{
 	"delete_dashboard":     {"project_id": "Xk9mZp", "dashboard_id": "dash1"},
 	"delete_alarm":         {"project_id": "Xk9mZp", "alarm_id": "alarm1"},
 	"delete_check_in":      {"project_id": "Xk9mZp", "check_in_id": "chk1"},
+	"delete_site":          {"project_id": "Xk9mZp", "site_id": "9f8b6d2e-4c1a-4b7f-9e35-2a6c8d0f1b47"},
 	"delete_fault_comment": {"project_id": "Xk9mZp", "fault_id": 456, "comment_id": "cmt1"},
 	"delete_integration":   {"project_id": "Xk9mZp", "integration_id": "int1"},
 	"delete_project_key":   {"project_id": "Xk9mZp", "key_id": "key1"},

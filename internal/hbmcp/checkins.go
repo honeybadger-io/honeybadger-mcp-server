@@ -50,6 +50,22 @@ func RegisterCheckInTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 		},
 	)
 
+	r.AddTool(
+		mcp.NewTool("list_check_in_events",
+			mcp.WithTitleAnnotation("List Check-In Events"),
+			mcp.WithDescription("List a check-in's history, newest first: each time it reported, went missing or was paused. Use it to explain a check_in_missing or check_in_reporting event. To page back, pass created_before from the previous response's links.older."),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
+			mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project the check-in belongs to")),
+			mcp.WithString("check_in_id", mcp.Required(), mcp.Description("The ID of the check-in")),
+			timeSeriesLimit(),
+			createdBeforeParam(),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleListCheckInEvents(ctx, v3ClientFor(ctx), req)
+		},
+	)
+
 	// create_check_in tool
 	r.AddTool(
 		mcp.NewTool("create_check_in",
@@ -296,4 +312,20 @@ func handleDeleteCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Check-in %s deleted successfully", checkInID)), nil
+}
+
+func handleListCheckInEvents(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
+		return mcp.NewToolResultError("project_id is required"), nil
+	}
+	checkInID := req.GetString("check_in_id", "")
+	if checkInID == "" {
+		return mcp.NewToolResultError("check_in_id is required"), nil
+	}
+	events, err := client.CheckIns.ListEvents(ctx, projectID, checkInID, olderThanOptions(req)...)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to list check-in events: %v", err)), nil
+	}
+	return jsonResult(events)
 }

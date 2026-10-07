@@ -5,6 +5,7 @@ go 1.27.1
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/uuid v1.6.0
 	github.com/honeybadger-io/api-go v0.9.1-0.20260929225423-c934ab888aff
 	github.com/mark3labs/mcp-go v0.55.1
 	github.com/oapi-codegen/nullable v1.1.0
@@ -19,7 +20,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/oapi-codegen/runtime v1.6.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect

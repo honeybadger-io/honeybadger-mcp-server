@@ -144,6 +144,8 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	RegisterCheckInTools(r, v3ClientFor)
 	RegisterIntegrationTools(r, v3ClientFor)
 	RegisterProjectKeyTools(r, v3ClientFor)
+	RegisterSiteTools(r, v3ClientFor)
+	RegisterDeployTools(r, v3ClientFor)
 	registerSearchTool(s, r.catalog, cfg)
 
 	return s, append(r.catalog, searchToolInfo)
