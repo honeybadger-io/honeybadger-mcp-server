@@ -85,7 +85,7 @@ func rejectUnsupported(req mcp.CallToolRequest, fields []string, action, advice 
 	if len(present) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("The v3 API does not support %s when %s, so they would be ignored. %s.",
+	return fmt.Sprintf("The v3 Data API does not support %s when %s, so they would be ignored. %s.",
 		strings.Join(present, ", "), action, advice)
 }
 

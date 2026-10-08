@@ -32,7 +32,7 @@ var (
 		Use:   "honeybadger-mcp-server",
 		Short: "MCP server for Honeybadger",
 		Long: `Honeybadger MCP Server provides a machine-readable interface to the
-Honeybadger API using the MCP protocol. It's designed for use with LLM agents
+Honeybadger Data API using the MCP protocol. It's designed for use with LLM agents
 and supports STDIO and Streamable HTTP transports.`,
 		// main() prints the error Execute returns; without this cobra
 		// prints its own copy first.
@@ -85,8 +85,8 @@ func init() {
 }
 
 func addCommonFlags(cmd *cobra.Command) {
-	cmd.Flags().String("auth-token", "", "Honeybadger API token (required)")
-	cmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger API URL")
+	cmd.Flags().String("auth-token", "", "Honeybadger API Token (required)")
+	cmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger Data API URL")
 	cmd.Flags().String("instructions-url", config.DefaultInstructionsURL, "Base URL the LLM reference topics are fetched from")
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
 }

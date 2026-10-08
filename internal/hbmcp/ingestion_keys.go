@@ -14,7 +14,7 @@ func RegisterIngestionKeyTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_ingestion_keys",
 			mcp.WithTitleAnnotation("List Ingestion Keys"),
-			mcp.WithDescription("List a project's Ingestion Keys: the hbp_ keys an app sends errors and events with, set as api_key in a notifier's config. An Ingestion Key isn't a secret, since it ships in apps, and it can't call the API; that takes an API Token."),
+			mcp.WithDescription("List a project's Ingestion Keys: the hbp_ keys an app uses to send errors and events to Honeybadger, set as ingestion_key in the client's config (api_key in older clients). An Ingestion Key isn't a secret, since it ships in apps, and it can't call the Data API; that takes an API Token."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("project_id",

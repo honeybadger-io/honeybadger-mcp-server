@@ -161,7 +161,7 @@ And then configure your MCP client to run the server directly:
 
 | Environment Variable              | Required | Default                    | Description                                                             |
 | --------------------------------- | -------- | -------------------------- | ----------------------------------------------------------------------- |
-| `HONEYBADGER_PERSONAL_AUTH_TOKEN` | yes      | —                          | API token for Honeybadger                                               |
+| `HONEYBADGER_PERSONAL_AUTH_TOKEN` | yes      | —                          | API Token for the Data API                                              |
 | `HONEYBADGER_READ_ONLY`           | no       | true                       | Run in read-only mode, excluding write operations like `delete_project` |
 | `LOG_LEVEL`                       | no       | info                       | Log verbosity (debug, info, warn, error)                                |
 | `HONEYBADGER_API_URL`             | no       | https://app.honeybadger.io | Override the base URL for Honeybadger's API                             |
@@ -257,7 +257,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `period` : Window to report over: 'hour' (61 one-minute buckets), 'day' (25 hourly), 'week' (8 daily), or 'month' (31 daily). Defaults to 'hour' (string, optional)
   - `environment` : Environment name to filter results (string, optional)
 
-- **list_ingestion_keys** - List a project's Ingestion Keys: the `hbp_` keys an app sends errors and events with, set as `api_key` in a notifier's config. An Ingestion Key isn't a secret and can't call the API; that takes an API Token.
+- **list_ingestion_keys** - List a project's Ingestion Keys: the `hbp_` keys an app uses to send errors and events to Honeybadger, set as `ingestion_key` in the client's config (`api_key` in older clients). An Ingestion Key isn't a secret and can't call the Data API; that takes an API Token.
   - `project_id` : The ID of the project to list Ingestion Keys for (string, required)
 
 - **create_ingestion_key** - Create a new Ingestion Key for a project; the key is returned in the response _(requires `read-only=false`)_
