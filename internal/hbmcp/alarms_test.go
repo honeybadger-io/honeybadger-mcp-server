@@ -273,7 +273,7 @@ func TestHandleGetAlarmHistory(t *testing.T) {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		query = r.URL.RawQuery
-		v3JSON(w, http.StatusOK, `{"data":[{"id":"t1","observer_root_id":"a1","observer_id":"v7","status":"alarm",
+		v3JSON(w, http.StatusOK, `{"data":[{"id":"t1","alarm_id":"a1","alarm_version_id":"v7","status":"alarm",
 		    "created_at":"2026-09-26T00:00:00Z","evaluation_started_at":"2026-09-25T23:55:00Z","evaluation_result":91.5}],
 		  "pagination":{"page":2,"per_page":25},
 		  "links":{"self":"/x?page=2","next":"/x?page=3"}}`)
