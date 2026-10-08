@@ -131,7 +131,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 
 	s := server.NewMCPServer("honeybadger-mcp-server", version, serverOptions...)
 
-	v3ClientFor := newV3ClientFactory(cfg)
+	v3ClientFor := newV3ClientFactory(cfg, version)
 	r := newToolRegistrar(s)
 	RegisterReferenceTools(r, newReferenceFetcher(cfg.InstructionsURL, logger))
 	RegisterProjectTools(r, v3ClientFor)
@@ -151,14 +151,20 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	return s, append(r.catalog, searchToolInfo)
 }
 
+// UserAgent is the product token this server puts ahead of api-go's in each
+// request's User-Agent, so Honeybadger can tell its traffic and version apart.
+func UserAgent(version string) string {
+	return "honeybadger-mcp-server/" + version
+}
+
 // newV3ClientFactory builds the per-request v3 client.
 //
 // The base client is built once and each request derives from it. apiv3 clients
 // are immutable, so WithBearerToken returns a fresh client rather than mutating a
 // shared one — which is what keeps one request's credential from reaching
 // another's in http mode.
-func newV3ClientFactory(cfg *config.Config) V3ClientFactory {
-	base := apiv3.NewClient().WithBaseURL(cfg.APIURL)
+func newV3ClientFactory(cfg *config.Config, version string) V3ClientFactory {
+	base := apiv3.NewClient().WithBaseURL(cfg.APIURL).WithUserAgent(UserAgent(version))
 
 	if cfg.TransportMode == config.TransportHTTP {
 		return func(ctx context.Context) *apiv3.Client {

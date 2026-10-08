@@ -330,7 +330,7 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	// per request.
 	introspector := hbmcp.NewIntrospectionCache(
 		func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
-			return apiv3.NewClient().WithBaseURL(cfg.APIURL).WithBearerToken(token).Tokens.Get(ctx)
+			return apiv3.NewClient().WithBaseURL(cfg.APIURL).WithUserAgent(hbmcp.UserAgent(version)).WithBearerToken(token).Tokens.Get(ctx)
 		}, 0, 0, 0)
 
 	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, resource, introspector, mcpHandler))
