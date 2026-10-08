@@ -27,8 +27,8 @@ github.com/google/jsonschema-go v0.4.2 h1:tmrUohrwoLZZS/P3x7ex0WAVknEkBZM46iALbc
 github.com/google/jsonschema-go v0.4.2/go.mod h1:r5quNTdLOYEz95Ru18zA0ydNbBuYoo9tgaYcxEYhJVE=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/honeybadger-io/api-go v0.9.1-0.20261008091927-e8288cbc9cb8 h1:Zn/j9CTAypdYbnhKAcAiCwXi2Nf1YOs9naRUjAMV4c8=
-github.com/honeybadger-io/api-go v0.9.1-0.20261008091927-e8288cbc9cb8/go.mod h1:8xHktvfvDGEbdQa0iEY4uNnNK/jceI3XLuQ3vdnR/R8=
+github.com/honeybadger-io/api-go v0.9.1-0.20261008175434-a02a6857a617 h1:yeoXIX6iVZoFhZU4Lsheov0dd2VPDX/oEG/CAIlm3ms=
+github.com/honeybadger-io/api-go v0.9.1-0.20261008175434-a02a6857a617/go.mod h1:8xHktvfvDGEbdQa0iEY4uNnNK/jceI3XLuQ3vdnR/R8=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/juju/gnuflag v0.0.0-20171113085948-2ce1bb71843d/go.mod h1:2PavIy+JPciBPrBUjwbNvtwB6RQlve+hkpll6QSNmOE=

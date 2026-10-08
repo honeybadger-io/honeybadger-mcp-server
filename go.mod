@@ -6,7 +6,7 @@ require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/honeybadger-io/api-go v0.9.1-0.20261008091927-e8288cbc9cb8
+	github.com/honeybadger-io/api-go v0.9.1-0.20261008175434-a02a6857a617
 	github.com/mark3labs/mcp-go v0.55.1
 	github.com/oapi-codegen/nullable v1.1.0
 	github.com/spf13/cobra v1.9.1
