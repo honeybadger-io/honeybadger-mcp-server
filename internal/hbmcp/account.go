@@ -98,6 +98,9 @@ func rejectUnsupported(req mcp.CallToolRequest, fields []string, action, advice 
 // API's validation — it would just run the query unfiltered and return more than
 // was asked for.
 func timeFilters(req mcp.CallToolRequest) ([]apiv3.Option, string) {
+	if msg := refuseNonStrings(req, "created_after", "occurred_after", "occurred_before"); msg != "" {
+		return nil, msg
+	}
 	var opts []apiv3.Option
 	for _, f := range []struct {
 		field string

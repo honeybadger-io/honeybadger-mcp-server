@@ -271,6 +271,9 @@ func handleGetProject(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 // distinguish false from absent, and false is a real value here — it is how a
 // caller turns a setting off.
 func projectParamsFrom(req mcp.CallToolRequest) (apiv3.ProjectParams, string) {
+	if msg := refuseNonStrings(req, "user_url", "source_url", "user_search_field", "language"); msg != "" {
+		return apiv3.ProjectParams{}, msg
+	}
 	args := req.GetArguments()
 	var params apiv3.ProjectParams
 
@@ -408,6 +411,9 @@ func handleDeleteProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 }
 
 func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := refuseNonStrings(req, "project_id", "environment", "period"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	o := apiv3.OccurrenceOptions{
 		Period:      apiv3.OccurrencePeriod(req.GetString("period", "")),
 		Environment: req.GetString("environment", ""),

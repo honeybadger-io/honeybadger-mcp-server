@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // toolSchemas lists every registered tool's input schema properties.
@@ -277,5 +278,50 @@ func TestUpdateProjectRefusesNonBooleanFlags(t *testing.T) {
 	}))
 	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "disable_public_links") {
 		t.Errorf("result = %s, want disable_public_links refused", getResultText(result))
+	}
+}
+
+// A trigger with a misspelt or missing value is refused rather than stored as
+// "greater than 0".
+func TestAlarmTriggerNeedsItsValue(t *testing.T) {
+	for _, trigger := range []string{
+		`{"type":"alert_result_count","config":{"operator":"gt","threshold":10}}`,
+		`{"type":"alert_result_count","config":{"operator":"gt"}}`,
+	} {
+		result, err := handleUpdateAlarm(context.Background(), offlineV3Client(), alarmArgs(map[string]any{
+			"project_id": "Xk9mZp", "alarm_id": "a1", "trigger_config": trigger,
+		}))
+		if err != nil || !result.IsError {
+			t.Errorf("%s: result = %s, want it refused", trigger, getResultText(result))
+		}
+	}
+}
+
+// A string parameter sent as another type is refused, not read as absent: an
+// absent project_id widens occurrence counts to every project, an absent time
+// filter returns everything, an absent period leaves a check-in unchanged.
+func TestStringParametersRefuseOtherTypes(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name string
+		call func() (*mcp.CallToolResult, error)
+	}{
+		{"occurrence counts project_id", func() (*mcp.CallToolResult, error) {
+			return handleGetProjectOccurrenceCounts(ctx, offlineV3Client(), mcpRequest(map[string]any{"project_id": 12345.0}))
+		}},
+		{"list_faults created_after", func() (*mcp.CallToolResult, error) {
+			return handleListFaults(ctx, offlineV3Client(), mcpRequest(map[string]any{"project_id": "Xk9mZp", "created_after": 1767225600.0}))
+		}},
+		{"update_check_in report_period", func() (*mcp.CallToolResult, error) {
+			return handleUpdateCheckIn(ctx, offlineV3Client(), mcpRequest(map[string]any{
+				"project_id": "Xk9mZp", "check_in_id": "c1", "name": "nightly", "report_period": 3600.0,
+			}))
+		}},
+	}
+	for _, c := range cases {
+		result, err := c.call()
+		if err != nil || !result.IsError || !strings.Contains(getResultText(result), "must be a string") {
+			t.Errorf("%s: result = %s, want a type error", c.name, getResultText(result))
+		}
 	}
 }

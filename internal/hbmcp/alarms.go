@@ -232,15 +232,33 @@ func handleGetAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolR
 
 // parseTrigger reads a trigger_config argument. Create and update take the same
 // shape, as the API does, and it's sent whole.
+//
+// Unknown keys are refused, and config must name its value: a misspelt key such
+// as "threshold" would otherwise decode as a value of 0 and store an alarm that
+// fires on any result.
 func parseTrigger(raw string) (*apiv3.AlarmTriggerConfig, error) {
+	dec := json.NewDecoder(strings.NewReader(raw))
+	dec.DisallowUnknownFields()
 	var trigger apiv3.AlarmTriggerConfig
-	if err := json.Unmarshal([]byte(raw), &trigger); err != nil {
+	if err := dec.Decode(&trigger); err != nil {
 		return nil, err
+	}
+	var present struct {
+		Config map[string]json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal([]byte(raw), &present); err != nil {
+		return nil, err
+	}
+	if _, ok := present.Config["value"]; !ok {
+		return nil, fmt.Errorf("config.value is required")
 	}
 	return &trigger, nil
 }
 
 func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := refuseNonStrings(req, "description"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
@@ -316,6 +334,9 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	// Presence, not emptiness: an empty description clears it, while omitting a
 	// field leaves it alone.
 	args := req.GetArguments()
+	if msg := refuseNonStrings(req, "name", "query", "evaluation_period", "lookback_lag", "description"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	params := apiv3.AlarmUpdateParams{Description: setOrClear(req, "description")}
 	for field, target := range map[string]**string{
 		"name":              &params.Name,

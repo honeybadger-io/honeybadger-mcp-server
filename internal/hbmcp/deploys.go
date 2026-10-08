@@ -45,6 +45,9 @@ func RegisterDeployTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 }
 
 func handleListDeploys(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := refuseNonStrings(req, "environment", "local_username"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil

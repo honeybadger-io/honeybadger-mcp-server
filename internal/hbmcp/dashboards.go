@@ -200,6 +200,9 @@ func optionalString(req mcp.CallToolRequest, name string) *string {
 }
 
 func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := refuseNonStrings(req, "title", "name", "default_ts"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
@@ -234,6 +237,9 @@ func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 // handleUpdateDashboard changes whichever of a dashboard's title, time range and
 // widgets the caller supplies; the rest keep their values.
 func handleUpdateDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := refuseNonStrings(req, "title", "default_ts"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil

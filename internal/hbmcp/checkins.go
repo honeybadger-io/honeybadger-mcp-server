@@ -235,6 +235,9 @@ func handleCreateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
+	if msg := refuseNonStrings(req, "name", "report_period", "grace_period", "cron_schedule", "cron_timezone", "slug", "schedule_type"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	params := checkInParamsFrom(req)
 	if params.ScheduleType != nil && *params.ScheduleType == apiv3.ScheduleCron && !params.CronSchedule.IsSpecified() {
 		return mcp.NewToolResultError("cron_schedule is required when schedule_type is cron"), nil
@@ -262,6 +265,9 @@ func handleUpdateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.Call
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
 
+	if msg := refuseNonStrings(req, "name", "report_period", "grace_period", "cron_schedule", "cron_timezone", "slug", "schedule_type"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	params := checkInParamsFrom(req)
 	if changesNothing(params) {
 		return mcp.NewToolResultError("provide at least one field to change"), nil

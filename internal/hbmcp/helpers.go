@@ -57,6 +57,22 @@ func requireFaultID(args map[string]any, name string) (string, bool) {
 	return "", false
 }
 
+// refuseNonStrings refuses any of the named parameters sent as something other
+// than a string or null. mcp-go's GetString reads a number, boolean, array or
+// object as absent, so without this a filter or setting sent in the wrong type
+// would be skipped while the call reported success.
+func refuseNonStrings(req mcp.CallToolRequest, names ...string) string {
+	args := req.GetArguments()
+	for _, name := range names {
+		switch args[name].(type) {
+		case nil, string:
+		default:
+			return fmt.Sprintf("%s must be a string; got %T", name, args[name])
+		}
+	}
+	return ""
+}
+
 // jsonTextArg reads a parameter whose schema says a string holding JSON. Clients
 // also send the JSON value itself, an object or an array, and reading only
 // strings would drop it while the call reported success; so a value is encoded

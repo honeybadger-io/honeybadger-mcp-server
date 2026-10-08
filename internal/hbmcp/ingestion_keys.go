@@ -111,6 +111,9 @@ func handleListIngestionKeys(ctx context.Context, client *apiv3.Client, req mcp.
 }
 
 func handleCreateIngestionKey(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := refuseNonStrings(req, "label"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
