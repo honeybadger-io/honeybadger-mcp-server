@@ -18,6 +18,8 @@ import (
 // that never happened.
 var staleSchemaFields = map[string][]string{
 	"list_fault_notices": {"created_after", "created_before"},
+	// v3 lists a project's streams without a filter.
+	"list_streams": {"query"},
 	// v3 resolves the account from the credential and takes no account id, so a
 	// project "created in account B" would silently land in the credential's.
 	"list_projects":                 {"account_id"},

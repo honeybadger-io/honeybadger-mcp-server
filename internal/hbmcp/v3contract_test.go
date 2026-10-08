@@ -35,13 +35,37 @@ func mustSucceed(t *testing.T, result *mcp.CallToolResult, err error) {
 // null resets an alarm to every current stream, so it must reach the API as
 // null rather than being dropped or sent as [].
 func TestUpdateAlarmResetsStreamsWithNull(t *testing.T) {
-	client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
+	for _, sent := range []any{"null", nil} {
+		client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
+		result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]any{
+			"project_id": "Xk9mZp", "alarm_id": "a1", "stream_ids": sent,
+		}))
+		mustSucceed(t, result, err)
+		if v, present := (*body)["stream_ids"]; !present || v != nil {
+			t.Errorf("sent %#v: stream_ids = %v (present %v), want an explicit null", sent, v, present)
+		}
+	}
+}
+
+// Clients send stream_ids as the array itself as well as a JSON string; both
+// reach the API. Anything else is refused rather than dropped.
+func TestUpdateAlarmTakesStreamIDsAsAnArray(t *testing.T) {
+	for _, sent := range []any{`["s1","s2"]`, []any{"s1", "s2"}} {
+		client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
+		result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]any{
+			"project_id": "Xk9mZp", "alarm_id": "a1", "stream_ids": sent,
+		}))
+		mustSucceed(t, result, err)
+		if got, _ := json.Marshal((*body)["stream_ids"]); string(got) != `["s1","s2"]` {
+			t.Errorf("sent %#v: stream_ids = %s", sent, got)
+		}
+	}
+	client, _ := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
 	result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]any{
-		"project_id": "Xk9mZp", "alarm_id": "a1", "stream_ids": "null",
+		"project_id": "Xk9mZp", "alarm_id": "a1", "name": "Spike v2", "stream_ids": 42.0,
 	}))
-	mustSucceed(t, result, err)
-	if v, present := (*body)["stream_ids"]; !present || v != nil {
-		t.Errorf("stream_ids = %v (present %v), want an explicit null", v, present)
+	if err != nil || !result.IsError {
+		t.Errorf("stream_ids 42: result = %s, want an error", getResultText(result))
 	}
 }
 

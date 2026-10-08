@@ -30,6 +30,9 @@ func RegisterStreamTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 }
 
 func handleListStreams(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := rejectStaleSchemaFields("list_streams", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil

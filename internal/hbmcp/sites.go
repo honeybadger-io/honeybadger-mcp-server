@@ -64,7 +64,7 @@ func RegisterSiteTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 		mcp.NewTool("update_site",
 			append([]mcp.ToolOption{
 				mcp.WithTitleAnnotation("Update Site"),
-				mcp.WithDescription("Change an uptime site's settings. Only the parameters given are changed, and null resets a setting to its default."),
+				mcp.WithDescription("Change an uptime site's settings. Only the parameters given are changed, and null resets a setting to its default; name and url have no default, so they can be changed but not reset."),
 				mcp.WithReadOnlyHintAnnotation(false),
 				mcp.WithDestructiveHintAnnotation(true),
 				mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project the site belongs to")),
@@ -232,6 +232,13 @@ func handleUpdateSite(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 	projectID, siteID, msg := requireSite(req)
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
+	}
+	// name and url have no default to reset to, so a null for either would
+	// otherwise be dropped while the rest of the update reported success.
+	for _, field := range []string{"name", "url"} {
+		if v, present := req.GetArguments()[field]; present && v == nil {
+			return mcp.NewToolResultError(field + " can't be reset; omit it to keep the current value"), nil
+		}
 	}
 	var params apiv3.SiteUpdateParams
 	if msg := decodeSettings(siteBody(req), &params); msg != "" {

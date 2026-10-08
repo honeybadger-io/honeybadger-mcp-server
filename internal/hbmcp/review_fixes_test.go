@@ -170,3 +170,49 @@ func TestCreateAlarmTreatsNullStreamsAsOmitted(t *testing.T) {
 		t.Errorf("stream_ids = %v, want it left out", (*body)["stream_ids"])
 	}
 }
+
+// purge_days arrives as a number or a numeric string; anything else is refused
+// rather than dropped while the rest of the update succeeds.
+func TestProjectPurgeDays(t *testing.T) {
+	for _, sent := range []any{30.0, "30"} {
+		client, body := bodyCapture(t, `{"data":{"id":"Xk9mZp","name":"New"}}`)
+		result, err := handleUpdateProject(context.Background(), client, mcpRequest(map[string]any{
+			"id": "Xk9mZp", "name": "New", "purge_days": sent,
+		}))
+		mustSucceed(t, result, err)
+		if got := (*body)["purge_days"]; got != 30.0 {
+			t.Errorf("sent %#v: purge_days = %#v, want 30", sent, got)
+		}
+	}
+	for _, sent := range []any{0.0, -5.0, 2.5, "thirty", true} {
+		result, err := handleUpdateProject(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
+			"id": "Xk9mZp", "name": "New", "purge_days": sent,
+		}))
+		if err != nil || !result.IsError {
+			t.Errorf("sent %#v: result = %s, want an error", sent, getResultText(result))
+		}
+	}
+}
+
+// list_streams no longer filters; a cached schema's query is refused, not ignored.
+func TestListStreamsRefusesQuery(t *testing.T) {
+	result, err := handleListStreams(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
+		"project_id": "Xk9mZp", "query": "prod",
+	}))
+	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "query") {
+		t.Errorf("result = %s, want query refused", getResultText(result))
+	}
+}
+
+// name and url can't be reset, so null for either is refused rather than
+// dropped while the rest of the update goes through.
+func TestUpdateSiteRefusesNullNameAndURL(t *testing.T) {
+	for _, field := range []string{"name", "url"} {
+		result, err := handleUpdateSite(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
+			"project_id": "Xk9mZp", "site_id": "9f8b6d2e-4c1a-4b7f-9e35-2a6c8d0f1b47", field: nil, "frequency": 1.0,
+		}))
+		if err != nil || !result.IsError || !strings.Contains(getResultText(result), field) {
+			t.Errorf("%s: null: result = %s, want it refused", field, getResultText(result))
+		}
+	}
+}

@@ -357,3 +357,48 @@ func TestIntrospectionCancelledFetchIsNotCached(t *testing.T) {
 		t.Errorf("fetch ran %d times, want 2", calls)
 	}
 }
+
+// A waiter whose fetcher's request went away fetches for itself rather than
+// failing with someone else's cancellation.
+func TestIntrospectionWaiterOutlivesAnAbandonedFetch(t *testing.T) {
+	var calls atomic.Int32
+	firstStarted := make(chan struct{})
+	fetch := func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+		if calls.Add(1) == 1 {
+			close(firstStarted)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		return &apiv3.TokenInfo{AccountID: "Ab3kL9"}, nil
+	}
+	cache := NewIntrospectionCache(fetch, 0, 0, 0)
+
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	go func() { _, _ = cache.Get(leaderCtx, "hbt_x") }()
+	<-firstStarted
+
+	type result struct {
+		info *apiv3.TokenInfo
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		info, err := cache.Get(context.Background(), "hbt_x")
+		done <- result{info, err}
+	}()
+	// Let the waiter find the leader's fetch before the leader goes away.
+	time.Sleep(50 * time.Millisecond)
+	cancelLeader()
+
+	select {
+	case r := <-done:
+		if r.err != nil || r.info == nil || r.info.AccountID != "Ab3kL9" {
+			t.Errorf("waiter got %+v, %v; want its own successful fetch", r.info, r.err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the waiter never finished")
+	}
+	if n := calls.Load(); n != 2 {
+		t.Errorf("fetches = %d, want 2", n)
+	}
+}

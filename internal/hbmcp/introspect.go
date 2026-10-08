@@ -47,6 +47,9 @@ type inFlight struct {
 	done chan struct{}
 	info *apiv3.TokenInfo
 	err  error
+	// abandoned is set when the fetching caller went away mid-fetch, so its
+	// error is about that caller rather than the credential.
+	abandoned bool
 }
 
 // IntrospectionCache remembers what a credential permits, briefly.
@@ -115,14 +118,22 @@ func (c *IntrospectionCache) Get(ctx context.Context, token string) (*apiv3.Toke
 	if cached != nil {
 		return cached.info, cached.err
 	}
-	if waiter != nil {
+	for waiter != nil {
 		// Wait for the fetch already running, but no longer than this caller's own
 		// deadline: its request may have a shorter one than the fetcher's.
 		select {
 		case <-waiter.done:
-			return waiter.info, waiter.err
 		case <-ctx.Done():
 			return nil, ctx.Err()
+		}
+		if !waiter.abandoned {
+			return waiter.info, waiter.err
+		}
+		// The fetcher's own request went away, which says nothing about this
+		// credential. Claim again: this caller may become the fetcher.
+		cached, waiter = c.claim(key)
+		if cached != nil {
+			return cached.info, cached.err
 		}
 	}
 	call := c.inFlightFor(key)
@@ -140,6 +151,7 @@ func (c *IntrospectionCache) Get(ctx context.Context, token string) (*apiv3.Toke
 		c.mu.Unlock()
 
 		call.info, call.err = info, err
+		call.abandoned = ctx.Err() != nil
 		close(call.done)
 	}()
 

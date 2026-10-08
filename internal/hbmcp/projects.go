@@ -270,7 +270,7 @@ func handleGetProject(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 // alone. Booleans come from the raw arguments because the typed getter cannot
 // distinguish false from absent, and false is a real value here — it is how a
 // caller turns a setting off.
-func projectParamsFrom(req mcp.CallToolRequest) apiv3.ProjectParams {
+func projectParamsFrom(req mcp.CallToolRequest) (apiv3.ProjectParams, string) {
 	args := req.GetArguments()
 	var params apiv3.ProjectParams
 
@@ -293,10 +293,14 @@ func projectParamsFrom(req mcp.CallToolRequest) apiv3.ProjectParams {
 			*target = nullable.NewNullableWithValue(v)
 		}
 	}
-	if v, ok := args["purge_days"].(float64); ok && v > 0 {
-		params.PurgeDays = nullable.NewNullableWithValue(int(v))
+	days, given, problem := positiveIntArg(args, "purge_days")
+	if problem != "" {
+		return params, problem
 	}
-	return params
+	if given {
+		params.PurgeDays = nullable.NewNullableWithValue(days)
+	}
+	return params, ""
 }
 
 func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -307,7 +311,10 @@ func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-	p := projectParamsFrom(req)
+	p, problem := projectParamsFrom(req)
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
 	params := apiv3.ProjectCreateParams{
 		Name:                  name,
 		UserUrl:               p.UserUrl,
@@ -338,7 +345,10 @@ func handleUpdateProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
 	}
-	params := projectParamsFrom(req)
+	params, problem := projectParamsFrom(req)
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
 	if changesNothing(params) {
 		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
