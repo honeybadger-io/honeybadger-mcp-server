@@ -287,6 +287,7 @@ func TestAlarmTriggerNeedsItsValue(t *testing.T) {
 	for _, trigger := range []string{
 		`{"type":"alert_result_count","config":{"operator":"gt","threshold":10}}`,
 		`{"type":"alert_result_count","config":{"operator":"gt"}}`,
+		`{"type":"alert_result_count","config":{"operator":"gt","value":null}}`,
 	} {
 		result, err := handleUpdateAlarm(context.Background(), offlineV3Client(), alarmArgs(map[string]any{
 			"project_id": "Xk9mZp", "alarm_id": "a1", "trigger_config": trigger,

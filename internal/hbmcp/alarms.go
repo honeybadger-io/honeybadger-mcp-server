@@ -249,7 +249,7 @@ func parseTrigger(raw string) (*apiv3.AlarmTriggerConfig, error) {
 	if err := json.Unmarshal([]byte(raw), &present); err != nil {
 		return nil, err
 	}
-	if _, ok := present.Config["value"]; !ok {
+	if v, ok := present.Config["value"]; !ok || string(v) == "null" {
 		return nil, fmt.Errorf("config.value is required")
 	}
 	return &trigger, nil
