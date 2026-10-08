@@ -217,7 +217,6 @@ read-only: true
 This version talks to Honeybadger's v3 Data API. If you're upgrading:
 
 - **Credential**: use an API Token (`hbt_` or `hba_`). The legacy personal auth token no longer works. See [Installation](#installation).
-- **Project Keys are now Ingestion Keys**: `list_project_keys`, `create_project_key`, `update_project_key` and `delete_project_key` are now `list_ingestion_keys`, `create_ingestion_key`, `update_ingestion_key` and `delete_ingestion_key`, and `key_id` is `ingestion_key_id`.
 - **`get_project_report` is removed**: v3 has no project reports. Ask the same questions with `query_insights`, since every error occurrence is a `notice` event on the project's internal stream. Set the window with `ts` (for example `P7D`) and add `| filter environment::str == "production"` to narrow to one environment:
 
   | Old report | BadgerQL |
