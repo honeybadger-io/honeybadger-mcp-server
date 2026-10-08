@@ -84,10 +84,10 @@ var toolOperations = map[string][]string{
 	"update_integration": {"updateIntegration"},
 	"delete_integration": {"deleteIntegration"},
 
-	"list_project_keys":  {"listProjectKeys"},
-	"create_project_key": {"createProjectKey"},
-	"update_project_key": {"updateProjectKey"},
-	"delete_project_key": {"deleteProjectKey"},
+	"list_ingestion_keys":  {"listIngestionKeys"},
+	"create_ingestion_key": {"createIngestionKey"},
+	"update_ingestion_key": {"updateIngestionKey"},
+	"delete_ingestion_key": {"deleteIngestionKey"},
 
 	"query_insights": {"runInsightsQuery"},
 	"list_streams":   {"listStreams"},

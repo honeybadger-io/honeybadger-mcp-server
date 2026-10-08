@@ -17,7 +17,7 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithTitleAnnotation("List Projects"),
-			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details). A project can have several Project Keys; list them with list_project_keys."),
+			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details). A project can have several Ingestion Keys; list them with list_ingestion_keys."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("name",
@@ -33,7 +33,7 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("get_project",
 			mcp.WithTitleAnnotation("Get Project"),
-			mcp.WithDescription("Get a single Honeybadger project by ID. Its Project Keys aren't included; list them with list_project_keys."),
+			mcp.WithDescription("Get a single Honeybadger project by ID. Its Ingestion Keys aren't included; list them with list_ingestion_keys."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithString("id",

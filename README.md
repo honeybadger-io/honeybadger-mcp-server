@@ -214,7 +214,7 @@ read-only: true
 
 ## Tools
 
-Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`, `delete_integration`, `delete_project_key`, `delete_site`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller. Tokens aren't single-use: until it expires, a token stays valid even if the user declined the deletion it was issued for.
+Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`, `delete_integration`, `delete_ingestion_key`, `delete_site`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller. Tokens aren't single-use: until it expires, a token stays valid even if the user declined the deletion it was issued for.
 
 ### Reference
 
@@ -256,6 +256,23 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `project_id` : Project ID to get occurrence counts for a specific project (string, optional)
   - `period` : Window to report over: 'hour' (61 one-minute buckets), 'day' (25 hourly), 'week' (8 daily), or 'month' (31 daily). Defaults to 'hour' (string, optional)
   - `environment` : Environment name to filter results (string, optional)
+
+- **list_ingestion_keys** - List a project's Ingestion Keys: the `hbp_` keys an app sends errors and events with, set as `api_key` in a notifier's config. An Ingestion Key isn't a secret and can't call the API; that takes an API Token.
+  - `project_id` : The ID of the project to list Ingestion Keys for (string, required)
+
+- **create_ingestion_key** - Create a new Ingestion Key for a project; the key is returned in the response _(requires `read-only=false`)_
+  - `project_id` : The ID of the project to create the Ingestion Key in (string, required)
+  - `label` : Human-readable name for the key (string, optional)
+
+- **update_ingestion_key** - Update an Ingestion Key's label _(requires `read-only=false`)_
+  - `project_id` : The ID of the project the Ingestion Key belongs to (string, required)
+  - `ingestion_key_id` : The ID of the Ingestion Key to update (string, required)
+  - `label` : New label for the key (string, required)
+
+- **delete_ingestion_key** - Delete an Ingestion Key; apps sending with it will be refused _(requires `read-only=false`)_
+  - `project_id` : The ID of the project the Ingestion Key belongs to (string, required)
+  - `ingestion_key_id` : The ID of the Ingestion Key to delete (string, required)
+  - `confirm` : Confirmation token from the preview returned by the first call (string, optional)
 
 - **get_project_integrations** - Get a list of integrations (channels) for a Honeybadger project
   - `project_id` : The ID of the project to get integrations for (string, required)

@@ -113,7 +113,7 @@ var deleteToolArgs = map[string]map[string]any{
 	"delete_site":          {"project_id": "Xk9mZp", "site_id": "9f8b6d2e-4c1a-4b7f-9e35-2a6c8d0f1b47"},
 	"delete_fault_comment": {"project_id": "Xk9mZp", "fault_id": 456, "comment_id": "cmt1"},
 	"delete_integration":   {"project_id": "Xk9mZp", "integration_id": "int1"},
-	"delete_project_key":   {"project_id": "Xk9mZp", "key_id": "key1"},
+	"delete_ingestion_key": {"project_id": "Xk9mZp", "ingestion_key_id": "key1"},
 }
 
 // Every delete_* tool must go through deletionConfirmed/deletionPreview.
