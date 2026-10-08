@@ -212,6 +212,23 @@ api-url: "https://app.honeybadger.io"
 read-only: true
 ```
 
+## Upgrading to the v3 Data API
+
+This version talks to Honeybadger's v3 Data API. If you're upgrading:
+
+- **Credential**: use an API Token (`hbt_` or `hba_`). The legacy personal auth token no longer works. See [Installation](#installation).
+- **Project Keys are now Ingestion Keys**: `list_project_keys`, `create_project_key`, `update_project_key` and `delete_project_key` are now `list_ingestion_keys`, `create_ingestion_key`, `update_ingestion_key` and `delete_ingestion_key`, and `key_id` is `ingestion_key_id`.
+- **`get_project_report` is removed**: v3 has no project reports. Ask the same questions with `query_insights`, since every error occurrence is a `notice` event on the project's internal stream. Set the window with `ts` (for example `P7D`) and add `| filter environment::str == "production"` to narrow to one environment:
+
+  | Old report | BadgerQL |
+  | --- | --- |
+  | `notices_by_class` | `filter event_type::str == "notice" \| stats count() as notices by klass::str as klass \| sort notices desc` |
+  | `notices_by_user` | `filter event_type::str == "notice" \| stats count() as notices by user::str as user \| sort notices desc` |
+  | `notices_per_day` | `filter event_type::str == "notice" \| stats count() as notices by bin(1d) as day \| sort day` |
+  | `notices_by_location` | Notice events have no component or action. The nearest grouping is the top backtrace file: `filter event_type::str == "notice" \| stats count() as notices by file::str as file \| sort notices desc` |
+
+- **Parameters v3 can't honour are refused**, not ignored: `account_id` (the account comes from the credential), `created_after`/`created_before` on `list_fault_notices`, `query` on `list_streams`, and an integration's `filter_events`, `filter_queries`, `all_sites` and `all_check_ins` (now `filters`, and `site_ids`/`check_in_ids` set to null).
+
 ## Tools
 
 Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_check_in`, `delete_fault_comment`, `delete_integration`, `delete_ingestion_key`, `delete_site`) take two calls. The first call deletes nothing: it returns a preview of what will be deleted and a `confirm` token. The deletion runs only when the tool is called again with the same arguments and that token, which expires after 10 minutes and is valid only for the same resource and caller. Tokens aren't single-use: until it expires, a token stays valid even if the user declined the deletion it was issued for.
