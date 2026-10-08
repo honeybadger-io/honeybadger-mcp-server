@@ -1,9 +1,13 @@
 package hbmcp
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // maxSafeInteger is the largest integer a float64 can represent exactly
@@ -51,6 +55,28 @@ func requireFaultID(args map[string]any, name string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// jsonTextArg reads a parameter whose schema says a string holding JSON. Clients
+// also send the JSON value itself, an object or an array, and reading only
+// strings would drop it while the call reported success; so a value is encoded
+// back to JSON text. Absent, null and an empty string all come back as "". Any
+// other type is refused.
+func jsonTextArg(req mcp.CallToolRequest, name string) (text, problem string) {
+	switch v := req.GetArguments()[name].(type) {
+	case nil:
+		return "", ""
+	case string:
+		return strings.TrimSpace(v), ""
+	case map[string]any, []any:
+		encoded, err := json.Marshal(v)
+		if err != nil {
+			return "", fmt.Sprintf("%s could not be read as JSON: %v", name, err)
+		}
+		return string(encoded), ""
+	default:
+		return "", name + " must be JSON: an object or array, or a string holding one"
+	}
 }
 
 // positiveIntArg reads a whole number of at least 1. JSON numbers arrive as

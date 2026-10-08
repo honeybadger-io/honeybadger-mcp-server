@@ -289,7 +289,14 @@ func projectParamsFrom(req mcp.CallToolRequest) (apiv3.ProjectParams, string) {
 		"resolve_errors_on_deploy": &params.ResolveErrorsOnDeploy,
 		"disable_public_links":     &params.DisablePublicLinks,
 	} {
-		if v, ok := args[field].(bool); ok {
+		if args[field] == nil {
+			continue // null isn't advertised; treat it as not given
+		}
+		v, present, err := optionalBool(args, field)
+		if err != nil {
+			return params, err.Error()
+		}
+		if present {
 			*target = nullable.NewNullableWithValue(v)
 		}
 	}

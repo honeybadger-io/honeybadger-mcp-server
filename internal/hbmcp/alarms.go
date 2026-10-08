@@ -261,7 +261,10 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if lag == "" {
 		return mcp.NewToolResultError("lookback_lag is required ('0s' for none)"), nil
 	}
-	rawTrigger := req.GetString("trigger_config", "")
+	rawTrigger, problem := jsonTextArg(req, "trigger_config")
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
 	if rawTrigger == "" {
 		return mcp.NewToolResultError("trigger_config is required"), nil
 	}
@@ -334,7 +337,11 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	case given:
 		params.StreamIds = nullable.NewNullableWithValue(ids)
 	}
-	if raw := req.GetString("trigger_config", ""); raw != "" {
+	rawTrigger, problem := jsonTextArg(req, "trigger_config")
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
+	if raw := rawTrigger; raw != "" {
 		trigger, err := parseTrigger(raw)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil

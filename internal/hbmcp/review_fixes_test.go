@@ -216,3 +216,66 @@ func TestUpdateSiteRefusesNullNameAndURL(t *testing.T) {
 		}
 	}
 }
+
+// Parameters documented as a string holding JSON also take the JSON value
+// itself; reading only strings dropped it while the call reported success.
+func TestJSONParametersTakeNativeValues(t *testing.T) {
+	ctx := context.Background()
+
+	client, body := bodyCapture(t, `{"data":{"id":"d1","title":"Ops","widgets":[]}}`)
+	result, err := handleUpdateDashboard(ctx, client, mcpRequest(map[string]any{
+		"project_id": "Xk9mZp", "dashboard_id": "d1", "widgets": []any{map[string]any{"type": "errors"}},
+	}))
+	mustSucceed(t, result, err)
+	if w, _ := (*body)["widgets"].([]any); len(w) != 1 {
+		t.Errorf("update_dashboard widgets = %v, want the one widget sent", (*body)["widgets"])
+	}
+
+	client, body = bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
+	result, err = handleUpdateAlarm(ctx, client, alarmArgs(map[string]any{
+		"project_id": "Xk9mZp", "alarm_id": "a1",
+		"trigger_config": map[string]any{"type": "alert_result_count", "config": map[string]any{"operator": "gt", "value": 10.0}},
+	}))
+	mustSucceed(t, result, err)
+	if _, sent := (*body)["trigger_config"]; !sent {
+		t.Error("update_alarm trigger_config object was dropped")
+	}
+
+	client, body = bodyCapture(t, `{"data":{"id":"i1","type":"WebHook","active":true}}`)
+	result, err = handleUpdateIntegration(ctx, client, mcpRequest(map[string]any{
+		"project_id": "Xk9mZp", "integration_id": "i1", "config": map[string]any{"url": "https://new.example.com"},
+	}))
+	mustSucceed(t, result, err)
+	if config, _ := (*body)["config"].(map[string]any); config["url"] != "https://new.example.com" {
+		t.Errorf("update_integration config = %v, want the url sent", (*body)["config"])
+	}
+
+	result, err = handleUpdateAlarm(ctx, offlineV3Client(), alarmArgs(map[string]any{
+		"project_id": "Xk9mZp", "alarm_id": "a1", "name": "x", "trigger_config": 42.0,
+	}))
+	if err != nil || !result.IsError {
+		t.Errorf("trigger_config 42 was accepted: %s", getResultText(result))
+	}
+}
+
+// query_insights takes stream_ids as the alarm tools do, as a JSON string too,
+// rather than running over every stream.
+func TestQueryInsightsTakesStreamIDsAsAString(t *testing.T) {
+	client, body := bodyCapture(t, `{"data":{"results":[],"fields":[],"meta":{}}}`)
+	_, _ = handleQueryInsights(context.Background(), client, mcpRequest(map[string]any{
+		"project_id": "Xk9mZp", "query": "fields @ts", "stream_ids": `["s1"]`,
+	}))
+	if ids, _ := (*body)["stream_ids"].([]any); len(ids) != 1 || ids[0] != "s1" {
+		t.Errorf("stream_ids = %v, want [s1]", (*body)["stream_ids"])
+	}
+}
+
+// Project flags that aren't booleans are refused rather than dropped.
+func TestUpdateProjectRefusesNonBooleanFlags(t *testing.T) {
+	result, err := handleUpdateProject(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
+		"id": "Xk9mZp", "name": "X", "disable_public_links": "true",
+	}))
+	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "disable_public_links") {
+		t.Errorf("result = %s, want disable_public_links refused", getResultText(result))
+	}
+}
