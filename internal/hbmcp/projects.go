@@ -6,25 +6,26 @@ import (
 	"fmt"
 	"time"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/oapi-codegen/nullable"
 )
 
-// RegisterProjectTools registers all project-related MCP tools
-func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
+// RegisterProjectTools registers all project-related MCP tools.
+func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_projects tool
 	r.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithTitleAnnotation("List Projects"),
-			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details)"),
+			mcp.WithDescription("List all Honeybadger projects (returns summary info; use get_project for full details). A project can have several Ingestion Keys; list them with list_ingestion_keys."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("account_id",
-				mcp.Description("Optional account ID to filter projects by specific account"),
+			mcp.WithString("name",
+				mcp.Description("Optional exact project name; returns only the project with that name"),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListProjects(ctx, clientFor(ctx), req)
+			return handleListProjects(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -32,17 +33,16 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("get_project",
 			mcp.WithTitleAnnotation("Get Project"),
-			mcp.WithDescription("Get a single Honeybadger project by ID"),
+			mcp.WithDescription("Get a single Honeybadger project by ID. Its Ingestion Keys aren't included; list them with list_ingestion_keys."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("id",
+			mcp.WithString("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to retrieve"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProject(ctx, clientFor(ctx), req)
+			return handleGetProject(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -53,10 +53,6 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Create a new Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithString("account_id",
-				mcp.Description("The account ID to associate the project with. If omitted, the project is created in the first account your auth token has access to."),
-				mcp.MinLength(1),
-			),
 			mcp.WithString("name",
 				mcp.Required(),
 				mcp.Description("The name of the new project"),
@@ -84,7 +80,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreateProject(ctx, clientFor(ctx), req)
+			return handleCreateProject(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -95,13 +91,12 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Update an existing Honeybadger project"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("id",
+			mcp.WithString("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to update"),
-				mcp.Min(1),
 			),
 			mcp.WithString("name",
-				mcp.Description("The name of the project"),
+				mcp.Description("A new name for the project"),
 				mcp.MinLength(1),
 				mcp.MaxLength(255),
 			),
@@ -111,22 +106,22 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithBoolean("disable_public_links",
 				mcp.Description("Whether to allow fault details to be publicly shareable via a button on the fault detail page"),
 			),
-			mcp.WithString("user_url",
-				mcp.Description("A URL format like 'http://example.com/admin/users/[user_id]' that will be displayed on the fault detail page"),
+			mcp.WithString("user_url", acceptsNull,
+				mcp.Description("A URL format like 'http://example.com/admin/users/[user_id]' that will be displayed on the fault detail page. An empty string or null clears it."),
 			),
-			mcp.WithString("source_url",
-				mcp.Description("A URL format like 'https://gitlab.com/username/reponame/blob/[sha]/[file]#L[line]' that is used to link lines in the backtrace to your git browser"),
+			mcp.WithString("source_url", acceptsNull,
+				mcp.Description("A URL format like 'https://gitlab.com/username/reponame/blob/[sha]/[file]#L[line]' that is used to link lines in the backtrace to your git browser. An empty string or null clears it."),
 			),
 			mcp.WithNumber("purge_days",
 				mcp.Description("The number of days to retain data (up to the max number of days available to your subscription plan)"),
 				mcp.Min(1),
 			),
-			mcp.WithString("user_search_field",
-				mcp.Description("A field such as 'context.user_email' that you provide in your error context"),
+			mcp.WithString("user_search_field", acceptsNull,
+				mcp.Description("A field such as 'context.user_email' that you provide in your error context. An empty string or null clears it."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateProject(ctx, clientFor(ctx), req)
+			return handleUpdateProject(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -137,15 +132,14 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Delete a Honeybadger project and all of its data."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("id",
+			mcp.WithString("id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to delete"),
-				mcp.Min(1),
 			),
 			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteProject(ctx, clientFor(ctx), req)
+			return handleDeleteProject(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -153,15 +147,14 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("get_project_occurrence_counts",
 			mcp.WithTitleAnnotation("Get Project Occurrence Counts"),
-			mcp.WithDescription("Get occurrence counts for all projects or a specific project"),
+			mcp.WithDescription("Get occurrence counts over time, for one project or across every project the credential can reach."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
-				mcp.Description("Optional project ID to get occurrence counts for a specific project"),
-				mcp.Min(1),
+			mcp.WithString("project_id",
+				mcp.Description("Optional project ID. Omit to report across every project the credential can reach."),
 			),
 			mcp.WithString("period",
-				mcp.Description("Time period for grouping data: 'hour', 'day', 'week', or 'month'. Defaults to 'hour'"),
+				mcp.Description("Window to report over: 'hour' (61 one-minute buckets), 'day' (25 hourly), 'week' (8 daily), or 'month' (31 daily). Defaults to 'hour'"),
 				mcp.Enum("hour", "day", "week", "month"),
 			),
 			mcp.WithString("environment",
@@ -169,7 +162,7 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectOccurrenceCounts(ctx, clientFor(ctx), req)
+			return handleGetProjectOccurrenceCounts(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -177,60 +170,27 @@ func RegisterProjectTools(r *toolRegistrar, clientFor ClientFactory) {
 	r.AddTool(
 		mcp.NewTool("get_project_integrations",
 			mcp.WithTitleAnnotation("Get Project Integrations"),
-			mcp.WithDescription("Get a list of integrations (channels) for a Honeybadger project"),
+			mcp.WithDescription("List notification integrations for a Honeybadger project. To interpret integration types and config fields, fetch reference topic: integrations (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to get integrations for"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectIntegrations(ctx, clientFor(ctx), req)
+			return handleGetProjectIntegrations(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
-	// get_project_report tool
-	r.AddTool(
-		mcp.NewTool("get_project_report",
-			mcp.WithTitleAnnotation("Get Project Report"),
-			mcp.WithDescription("Get report data for a Honeybadger project"),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to get report data for"),
-				mcp.Min(1),
-			),
-			mcp.WithString("report",
-				mcp.Required(),
-				mcp.Description("The type of report to get: 'notices_by_class', 'notices_by_location', 'notices_by_user', or 'notices_per_day'"),
-				mcp.Enum("notices_by_class", "notices_by_location", "notices_by_user", "notices_per_day"),
-			),
-			mcp.WithString("start",
-				mcp.Description("Start date/time in ISO 8601 format for the beginning of the reporting period"),
-			),
-			mcp.WithString("stop",
-				mcp.Description("Stop date/time in ISO 8601 format for the end of the reporting period"),
-			),
-			mcp.WithString("environment",
-				mcp.Description("Optional environment name to filter results"),
-			),
-		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetProjectReport(ctx, clientFor(ctx), req)
-		},
-	)
 }
 
 // projectSummary is a lightweight representation of a project for list results.
 // It omits large nested arrays (sites, teams, users, environments) that can
 // cause the response to exceed MCP token limits. Use get_project for full details.
 type projectSummary struct {
-	ID                   int        `json:"id"`
+	ID                   string     `json:"id"`
 	Name                 string     `json:"name"`
-	Token                string     `json:"token"`
 	Active               bool       `json:"active"`
 	CreatedAt            time.Time  `json:"created_at"`
 	LastNoticeAt         *time.Time `json:"last_notice_at"`
@@ -238,49 +198,45 @@ type projectSummary struct {
 	UnresolvedFaultCount int        `json:"unresolved_fault_count"`
 }
 
-// projectSummaryResponse wraps summary results with pagination links,
-// preserving the same envelope shape as the upstream API response.
+// projectSummaryResponse wraps the summaries. ListAll has already walked every
+// page, so there is no pagination to report.
 type projectSummaryResponse struct {
-	Results []projectSummary      `json:"results"`
-	Links   hbapi.PaginationLinks `json:"links"`
+	Results []projectSummary `json:"results"`
 }
 
-func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Extract account_id parameter (optional)
-	var response *hbapi.ProjectsResponse
-	var err error
-
-	accountID := req.GetString("account_id", "")
-	if accountID != "" {
-		response, err = client.Projects.ListByAccountID(ctx, accountID)
-	} else {
-		response, err = client.Projects.ListAll(ctx)
+func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := rejectStaleSchemaFields("list_projects", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
-
+	var opts []apiv3.ListAllOption
+	if name := req.GetString("name", ""); name != "" {
+		opts = append(opts, apiv3.Named(name))
+	}
+	projects, err := client.Projects.ListAll(ctx, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
 	}
 
 	// Map to lightweight summaries to reduce token usage.
 	// Full project details are available via get_project.
-	summaries := make([]projectSummary, len(response.Results))
-	for i, p := range response.Results {
+	summaries := make([]projectSummary, len(projects))
+	for i, p := range projects {
 		summaries[i] = projectSummary{
-			ID:                   p.ID,
+			ID:                   p.Id,
 			Name:                 p.Name,
-			Token:                p.Token,
 			Active:               p.Active,
 			CreatedAt:            p.CreatedAt,
-			LastNoticeAt:         p.LastNoticeAt,
 			FaultCount:           p.FaultCount,
 			UnresolvedFaultCount: p.UnresolvedFaultCount,
 		}
+		// A nullable field distinguishes "never" from "not reported"; the summary
+		// only needs the value when there is one.
+		if last, err := p.LastNoticeAt.Get(); err == nil {
+			summaries[i].LastNoticeAt = &last
+		}
 	}
 
-	jsonBytes, err := json.Marshal(projectSummaryResponse{
-		Results: summaries,
-		Links:   response.Links,
-	})
+	jsonBytes, err := json.Marshal(projectSummaryResponse{Results: summaries})
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
@@ -288,9 +244,9 @@ func handleListProjects(ctx context.Context, client *hbapi.Client, req mcp.CallT
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id := req.GetInt("id", 0)
-	if id == 0 {
+func handleGetProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetString("id", "")
+	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
 	}
 
@@ -308,41 +264,79 @@ func handleGetProject(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleCreateProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Optional: the API associates the project with the token's first
-	// accessible account when account_id is absent.
-	accountID := req.GetString("account_id", "")
+// projectParamsFrom reads the writable project fields out of a request.
+//
+// Only fields the caller actually sent are set, so an update leaves the rest
+// alone. Booleans come from the raw arguments because the typed getter cannot
+// distinguish false from absent, and false is a real value here — it is how a
+// caller turns a setting off.
+func projectParamsFrom(req mcp.CallToolRequest) (apiv3.ProjectParams, string) {
+	if msg := refuseNonStrings(req, "user_url", "source_url", "user_search_field", "language"); msg != "" {
+		return apiv3.ProjectParams{}, msg
+	}
+	args := req.GetArguments()
+	var params apiv3.ProjectParams
 
-	// Build project request using typed getters
-	projectReq := hbapi.ProjectRequest{
-		Name: req.GetString("name", ""),
+	// A name is never blank, so an empty one is treated as absent.
+	if name := req.GetString("name", ""); name != "" {
+		params.Name = &name
 	}
 
-	if projectReq.Name == "" {
+	// Presence rather than emptiness: an empty string is how a caller clears a
+	// setting, so it's sent as null rather than dropped.
+	params.UserUrl = setOrClear(req, "user_url")
+	params.SourceUrl = setOrClear(req, "source_url")
+	params.UserSearchField = setOrClear(req, "user_search_field")
+	params.Language = setOrClear(req, "language")
+	for field, target := range map[string]*nullable.Nullable[bool]{
+		"resolve_errors_on_deploy": &params.ResolveErrorsOnDeploy,
+		"disable_public_links":     &params.DisablePublicLinks,
+	} {
+		if args[field] == nil {
+			continue // null isn't advertised; treat it as not given
+		}
+		v, present, err := optionalBool(args, field)
+		if err != nil {
+			return params, err.Error()
+		}
+		if present {
+			*target = nullable.NewNullableWithValue(v)
+		}
+	}
+	days, given, problem := positiveIntArg(args, "purge_days")
+	if problem != "" {
+		return params, problem
+	}
+	if given {
+		params.PurgeDays = nullable.NewNullableWithValue(days)
+	}
+	return params, ""
+}
+
+func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := rejectStaleSchemaFields("create_project", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	name := req.GetString("name", "")
+	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-
-	// Handle optional parameters
-	if resolveErrors := req.GetString("resolve_errors_on_deploy", ""); resolveErrors != "" {
-		val := req.GetBool("resolve_errors_on_deploy", false)
-		projectReq.ResolveErrorsOnDeploy = &val
+	p, problem := projectParamsFrom(req)
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
+	params := apiv3.ProjectCreateParams{
+		Name:                  name,
+		UserUrl:               p.UserUrl,
+		SourceUrl:             p.SourceUrl,
+		UserSearchField:       p.UserSearchField,
+		Language:              p.Language,
+		ResolveErrorsOnDeploy: p.ResolveErrorsOnDeploy,
+		DisablePublicLinks:    p.DisablePublicLinks,
+		PurgeDays:             p.PurgeDays,
 	}
 
-	if disableLinks := req.GetString("disable_public_links", ""); disableLinks != "" {
-		val := req.GetBool("disable_public_links", false)
-		projectReq.DisablePublicLinks = &val
-	}
-
-	projectReq.UserURL = req.GetString("user_url", "")
-	projectReq.SourceURL = req.GetString("source_url", "")
-
-	if purgeDays := req.GetInt("purge_days", 0); purgeDays > 0 {
-		projectReq.PurgeDays = &purgeDays
-	}
-
-	projectReq.UserSearchField = req.GetString("user_search_field", "")
-
-	project, err := client.Projects.Create(ctx, accountID, projectReq)
+	project, err := client.Projects.Create(ctx, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
@@ -356,38 +350,20 @@ func handleCreateProject(ctx context.Context, client *hbapi.Client, req mcp.Call
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id := req.GetInt("id", 0)
-	if id == 0 {
+func handleUpdateProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetString("id", "")
+	if id == "" {
 		return mcp.NewToolResultError("id is required"), nil
 	}
-
-	// Build project request using typed getters - name not required for updates
-	projectReq := hbapi.ProjectRequest{
-		Name: req.GetString("name", ""),
+	params, problem := projectParamsFrom(req)
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
+	if changesNothing(params) {
+		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
 
-	// Handle optional parameters
-	if resolveErrors := req.GetString("resolve_errors_on_deploy", ""); resolveErrors != "" {
-		val := req.GetBool("resolve_errors_on_deploy", false)
-		projectReq.ResolveErrorsOnDeploy = &val
-	}
-
-	if disableLinks := req.GetString("disable_public_links", ""); disableLinks != "" {
-		val := req.GetBool("disable_public_links", false)
-		projectReq.DisablePublicLinks = &val
-	}
-
-	projectReq.UserURL = req.GetString("user_url", "")
-	projectReq.SourceURL = req.GetString("source_url", "")
-
-	if purgeDays := req.GetInt("purge_days", 0); purgeDays > 0 {
-		projectReq.PurgeDays = &purgeDays
-	}
-
-	projectReq.UserSearchField = req.GetString("user_search_field", "")
-
-	result, err := client.Projects.Update(ctx, id, projectReq)
+	result, err := client.Projects.Update(ctx, id, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
@@ -401,28 +377,32 @@ func handleUpdateProject(ctx context.Context, client *hbapi.Client, req mcp.Call
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleDeleteProject(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id, ok := requireID(req.GetArguments(), "id")
-	if !ok {
-		return mcp.NewToolResultError("id must be a positive integer"), nil
+func handleDeleteProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetString("id", "")
+	if id == "" {
+		return mcp.NewToolResultError("id is required"), nil
 	}
 
 	if !deletionConfirmed(ctx, req, "delete_project", id) {
 		project, err := client.Projects.Get(ctx, id)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil:
+			summary = fmt.Sprintf("delete project %q (id %s) and all of its data", project.Name, id)
+		case unreadable(err):
+			summary = fmt.Sprintf("delete project %s and all of its data", id) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up project: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete project %q (id %d) and all of its data", project.Name, id)
 		return deletionPreview(ctx, req, "delete_project", summary, id), nil
 	}
 
-	result, err := client.Projects.Delete(ctx, id)
+	err := client.Projects.Delete(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete project: %v", err)), nil
 	}
 
-	// Return JSON response
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(map[string]any{"deleted": true, "id": id})
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
@@ -430,102 +410,55 @@ func handleDeleteProject(ctx context.Context, client *hbapi.Client, req mcp.Call
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectOccurrenceCounts(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Build options struct using typed getters
-	options := hbapi.ProjectGetOccurrenceCountsOptions{
-		Period:      req.GetString("period", ""),
+func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := refuseNonStrings(req, "project_id", "environment", "period"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	o := apiv3.OccurrenceOptions{
+		Period:      apiv3.OccurrencePeriod(req.GetString("period", "")),
 		Environment: req.GetString("environment", ""),
 	}
+	projectID := req.GetString("project_id", "")
 
-	// Check if project_id is provided
-	var result interface{}
-	var err error
-
-	projectID := req.GetInt("project_id", 0)
-	if projectID > 0 {
-		// Get occurrence counts for specific project
-		result, err = client.Projects.GetOccurrenceCounts(ctx, projectID, options)
-	} else {
-		// Get occurrence counts for all projects
-		result, err = client.Projects.GetAllOccurrenceCounts(ctx, options)
+	// Omitting the project reports across every project the credential reaches,
+	// returning a series per project rather than one object.
+	if msg := rejectStaleSchemaFields("get_project_occurrence_counts", req); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
-
+	var (
+		counts any
+		err    error
+	)
+	if projectID == "" {
+		counts, err = client.Projects.AccountOccurrences(ctx, o)
+	} else {
+		counts, err = client.Projects.Occurrences(ctx, projectID, o)
+	}
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get occurrence counts: %v", err)), nil
 	}
 
-	// Return JSON response
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(counts)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetProjectIntegrations(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleGetProjectIntegrations(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	integrations, err := client.Projects.GetIntegrations(ctx, projectID)
+	integrations, err := client.Integrations.ListAll(ctx, projectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project integrations: %v", err)), nil
 	}
 
-	// Return JSON response
 	jsonBytes, err := json.Marshal(integrations)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
-	return mcp.NewToolResultText(string(jsonBytes)), nil
-}
-
-func handleGetProjectReport(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
-		return mcp.NewToolResultError("project_id is required"), nil
-	}
-
-	reportStr := req.GetString("report", "")
-	if reportStr == "" {
-		return mcp.NewToolResultError("report is required"), nil
-	}
-
-	// Convert report type - MCP enum constraint should handle validation
-	var reportType hbapi.ProjectReportType
-	switch reportStr {
-	case "notices_by_class":
-		reportType = hbapi.ProjectNoticesByClass
-	case "notices_by_location":
-		reportType = hbapi.ProjectNoticesByLocation
-	case "notices_by_user":
-		reportType = hbapi.ProjectNoticesByUser
-	case "notices_per_day":
-		reportType = hbapi.ProjectNoticesPerDay
-	default:
-		reportType = hbapi.ProjectReportType(reportStr) // Let the API handle unknown types
-	}
-
-	// Build options struct using typed getters
-	options := hbapi.ProjectGetReportOptions{
-		Start:       parseTimestamp(req.GetString("start", "")),
-		Stop:        parseTimestamp(req.GetString("stop", "")),
-		Environment: req.GetString("environment", ""),
-	}
-
-	report, err := client.Projects.GetReport(ctx, projectID, reportType, options)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project report: %v", err)), nil
-	}
-
-	// Return JSON response
-	jsonBytes, err := json.Marshal(report)
-	if err != nil {
-		return mcp.NewToolResultError("Failed to marshal response"), nil
-	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }

@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/oapi-codegen/nullable"
 )
 
 // RegisterAlarmTools registers all alarm-related MCP tools
-func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
+// RegisterAlarmTools registers the alarm tools, all on v3.
+func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_alarms tool
 	r.AddTool(
 		mcp.NewTool("list_alarms",
@@ -18,14 +21,13 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("List all Insights alarms for a Honeybadger project. To interpret alarm configuration, fetch reference topic: alarms (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to list alarms for"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListAlarms(ctx, clientFor(ctx), req)
+			return handleListAlarms(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -36,10 +38,9 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get a single Insights alarm by ID. To interpret alarm configuration, fetch reference topic: alarms (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the alarm belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("alarm_id",
 				mcp.Required(),
@@ -47,7 +48,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetAlarm(ctx, clientFor(ctx), req)
+			return handleGetAlarm(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -58,10 +59,9 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Create a new Insights alarm for a Honeybadger project. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. Verify the query returns the expected results via query_insights before creating the alarm."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to create the alarm in"),
-				mcp.Min(1),
 			),
 			mcp.WithString("name",
 				mcp.Required(),
@@ -69,29 +69,31 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 			mcp.WithString("query",
 				mcp.Required(),
-				mcp.Description("BadgerQL query for the alarm (e.g., 'filter event_type::str == \"notice\"'). The alarm system wraps the query to count results automatically."),
+				mcp.Description("BadgerQL query evaluated on each check. Requires reference topics: alarms, badgerql (fetch via get_reference)."),
 			),
 			mcp.WithString("evaluation_period",
 				mcp.Required(),
-				mcp.Description("How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m."),
+				mcp.Description("Window each evaluation covers, as a compact duration in "+
+					"minutes, hours or days: '5m', '10m', '1h', '1d'. Spelled-out forms like '5 minutes' are rejected."),
+			),
+			mcp.WithString("lookback_lag",
+				mcp.Required(),
+				mcp.Description("How far behind now the evaluation window ends, allowing for "+
+					"ingestion delay, in the same compact format ('1m'; weeks allowed too). '0s' for none."),
 			),
 			mcp.WithString("trigger_config",
 				mcp.Required(),
-				mcp.Description("JSON object defining when to trigger the alarm. Example: {\"type\": \"alert_result_count\", \"config\": {\"operator\": \"gt\", \"value\": 10}}"),
+				mcp.Description(`JSON object describing what turns the alarm on, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}. Operators are named (gt, lt) rather than symbolic. The alarms reference topic has the full list of types.`),
+			),
+			mcp.WithString("stream_ids",
+				mcp.Description("JSON array of stream IDs the query runs against, naming at least one: an empty array is refused. Omit to query every current stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": an ID that isn't one of the project's streams is refused with 422."),
 			),
 			mcp.WithString("description",
 				mcp.Description("Optional description of the alarm"),
 			),
-			mcp.WithString("stream_ids",
-				mcp.Description("Optional JSON array of stream IDs to query. Omit to query every stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": unrecognized IDs are silently dropped, and if none survive the API returns 422 \"stream_ids: cannot be empty\"."),
-			),
-			mcp.WithString("lookback_lag",
-				mcp.Required(),
-				mcp.Description("Delay before evaluating to allow data to arrive (e.g., 1m, or 0s for no lag)."),
-			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreateAlarm(ctx, clientFor(ctx), req)
+			return handleCreateAlarm(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -102,44 +104,39 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Update an existing Insights alarm. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the alarm belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("alarm_id",
 				mcp.Required(),
 				mcp.Description("The ID of the alarm to update"),
 			),
 			mcp.WithString("name",
-				mcp.Required(),
-				mcp.Description("The name of the alarm"),
-			),
-			mcp.WithString("query",
-				mcp.Required(),
-				mcp.Description("BadgerQL query for the alarm"),
-			),
-			mcp.WithString("evaluation_period",
-				mcp.Required(),
-				mcp.Description("How often the alarm is evaluated (e.g., 5m, 1h, 1d). Minimum 1m."),
-			),
-			mcp.WithString("trigger_config",
-				mcp.Required(),
-				mcp.Description("JSON object defining when to trigger the alarm"),
+				mcp.Description("A new name for the alarm"),
 			),
 			mcp.WithString("description",
-				mcp.Description("Optional description of the alarm"),
+				mcp.Description("A new description. Pass an empty string to clear it."),
 			),
-			mcp.WithString("stream_ids",
-				mcp.Description("Optional JSON array of stream IDs to query. Omit to query every stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": unrecognized IDs are silently dropped, and if none survive the API returns 422 \"stream_ids: cannot be empty\"."),
+			mcp.WithString("query",
+				mcp.Description("A new BadgerQL query. Verify it via query_insights first."),
+			),
+			mcp.WithString("evaluation_period",
+				mcp.Description("A new evaluation window, as a compact duration: '5m', '10m', '1h', '1d'."),
 			),
 			mcp.WithString("lookback_lag",
-				mcp.Required(),
-				mcp.Description("Delay before evaluating to allow data to arrive (e.g., 1m, 0s for no lag)"),
+				mcp.Description("A new lookback lag, in the same compact format ('1m')."),
+			),
+			mcp.WithString("stream_ids",
+				mcp.Description("JSON array of stream IDs, replacing the current set; it must name at least one. Send null to reset the alarm to every current stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": an ID that isn't one of the project's streams is refused with 422."),
+				acceptsNull,
+			),
+			mcp.WithString("trigger_config",
+				mcp.Description(`JSON object replacing the whole trigger, in the same shape create_alarm takes, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}.`),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateAlarm(ctx, clientFor(ctx), req)
+			return handleUpdateAlarm(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -150,10 +147,9 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Delete an Insights alarm."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the alarm belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("alarm_id",
 				mcp.Required(),
@@ -162,7 +158,7 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteAlarm(ctx, clientFor(ctx), req)
+			return handleDeleteAlarm(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -173,28 +169,27 @@ func RegisterAlarmTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get the trigger history for an Insights alarm. To interpret trigger records and alarm states, fetch reference topic: alarms (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the alarm belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("alarm_id",
 				mcp.Required(),
 				mcp.Description("The ID of the alarm to get history for"),
 			),
 			mcp.WithNumber("page",
-				mcp.Description("Page number for pagination (default: 0)"),
+				mcp.Description("Page number, starting at 1 (default: 1). Pages hold 25 entries; a non-null links.next means there are more."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetAlarmHistory(ctx, clientFor(ctx), req)
+			return handleGetAlarmHistory(ctx, v3ClientFor(ctx), req)
 		},
 	)
 }
 
-func handleListAlarms(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleListAlarms(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
@@ -211,9 +206,9 @@ func handleListAlarms(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleGetAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
@@ -235,62 +230,86 @@ func handleGetAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallToolR
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleCreateAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+// parseTrigger reads a trigger_config argument. Create and update take the same
+// shape, as the API does, and it's sent whole.
+//
+// Unknown keys are refused, and config must name its value: a misspelt key such
+// as "threshold" would otherwise decode as a value of 0 and store an alarm that
+// fires on any result.
+func parseTrigger(raw string) (*apiv3.AlarmTriggerConfig, error) {
+	dec := json.NewDecoder(strings.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var trigger apiv3.AlarmTriggerConfig
+	if err := dec.Decode(&trigger); err != nil {
+		return nil, err
+	}
+	var present struct {
+		Config map[string]json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal([]byte(raw), &present); err != nil {
+		return nil, err
+	}
+	if v, ok := present.Config["value"]; !ok || string(v) == "null" {
+		return nil, fmt.Errorf("config.value is required")
+	}
+	return &trigger, nil
+}
+
+func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if msg := refuseNonStrings(req, "description"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-
 	name := req.GetString("name", "")
 	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-
 	query := req.GetString("query", "")
 	if query == "" {
 		return mcp.NewToolResultError("query is required"), nil
 	}
-
-	evaluationPeriod := req.GetString("evaluation_period", "")
-	if evaluationPeriod == "" {
+	period := req.GetString("evaluation_period", "")
+	if period == "" {
 		return mcp.NewToolResultError("evaluation_period is required"), nil
 	}
-
-	triggerConfigJSON := req.GetString("trigger_config", "")
-	if triggerConfigJSON == "" {
+	lag := req.GetString("lookback_lag", "")
+	if lag == "" {
+		return mcp.NewToolResultError("lookback_lag is required ('0s' for none)"), nil
+	}
+	rawTrigger, problem := jsonTextArg(req, "trigger_config")
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
+	if rawTrigger == "" {
 		return mcp.NewToolResultError("trigger_config is required"), nil
 	}
-
-	var triggerConfig map[string]interface{}
-	if err := json.Unmarshal([]byte(triggerConfigJSON), &triggerConfig); err != nil {
+	trigger, err := parseTrigger(rawTrigger)
+	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
 	}
 
-	lookbackLag := req.GetString("lookback_lag", "")
-	if lookbackLag == "" {
-		return mcp.NewToolResultError("lookback_lag is required"), nil
-	}
-
-	alarmReq := hbapi.AlarmRequest{
+	params := apiv3.AlarmCreateParams{
 		Name:             name,
 		Query:            query,
-		EvaluationPeriod: evaluationPeriod,
-		TriggerConfig:    triggerConfig,
-		Description:      req.GetString("description", ""),
-		LookbackLag:      lookbackLag,
+		EvaluationPeriod: period,
+		LookbackLag:      lag,
+		TriggerConfig:    *trigger,
+		Description:      setIfGiven(req, "description"),
 	}
 
-	// Parse optional stream_ids
-	streamIDsJSON := req.GetString("stream_ids", "")
-	if streamIDsJSON != "" {
-		var streamIDs []string
-		if err := json.Unmarshal([]byte(streamIDsJSON), &streamIDs); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)), nil
-		}
-		alarmReq.StreamIDs = streamIDs
+	// On create, null means the same as leaving it out: every current stream.
+	ids, isNull, given, problem := streamIDsArg(req)
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
+	if given && !isNull {
+		params.StreamIds = &ids
 	}
 
-	alarm, err := client.Alarms.Create(ctx, projectID, alarmReq)
+	alarm, err := client.Alarms.Create(ctx, projectID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create alarm: %v", err)), nil
 	}
@@ -299,87 +318,77 @@ func handleCreateAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallTo
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+// handleUpdateAlarm changes whichever of an alarm's fields the caller supplies.
+func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-
 	alarmID := req.GetString("alarm_id", "")
 	if alarmID == "" {
 		return mcp.NewToolResultError("alarm_id is required"), nil
 	}
-
-	name := req.GetString("name", "")
-	if name == "" {
-		return mcp.NewToolResultError("name is required"), nil
+	// Presence, not emptiness: an empty description clears it, while omitting a
+	// field leaves it alone.
+	args := req.GetArguments()
+	if msg := refuseNonStrings(req, "name", "query", "evaluation_period", "lookback_lag", "description"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
-
-	query := req.GetString("query", "")
-	if query == "" {
-		return mcp.NewToolResultError("query is required"), nil
-	}
-
-	evaluationPeriod := req.GetString("evaluation_period", "")
-	if evaluationPeriod == "" {
-		return mcp.NewToolResultError("evaluation_period is required"), nil
-	}
-
-	triggerConfigJSON := req.GetString("trigger_config", "")
-	if triggerConfigJSON == "" {
-		return mcp.NewToolResultError("trigger_config is required"), nil
-	}
-
-	var triggerConfig map[string]interface{}
-	if err := json.Unmarshal([]byte(triggerConfigJSON), &triggerConfig); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
-	}
-
-	lookbackLag := req.GetString("lookback_lag", "")
-	if lookbackLag == "" {
-		return mcp.NewToolResultError("lookback_lag is required"), nil
-	}
-
-	alarmReq := hbapi.AlarmRequest{
-		Name:             name,
-		Query:            query,
-		EvaluationPeriod: evaluationPeriod,
-		TriggerConfig:    triggerConfig,
-		Description:      req.GetString("description", ""),
-		LookbackLag:      lookbackLag,
-	}
-
-	// Parse optional stream_ids
-	streamIDsJSON := req.GetString("stream_ids", "")
-	if streamIDsJSON != "" {
-		var streamIDs []string
-		if err := json.Unmarshal([]byte(streamIDsJSON), &streamIDs); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)), nil
+	params := apiv3.AlarmUpdateParams{Description: setOrClear(req, "description")}
+	for field, target := range map[string]**string{
+		"name":              &params.Name,
+		"query":             &params.Query,
+		"evaluation_period": &params.EvaluationPeriod,
+		"lookback_lag":      &params.LookbackLag,
+	} {
+		if v, ok := args[field].(string); ok {
+			value := v
+			*target = &value
 		}
-		alarmReq.StreamIDs = streamIDs
+	}
+	ids, isNull, given, problem := streamIDsArg(req)
+	switch {
+	case problem != "":
+		return mcp.NewToolResultError(problem), nil
+	case isNull:
+		params.StreamIds = nullable.NewNullNullable[[]string]()
+	case given:
+		params.StreamIds = nullable.NewNullableWithValue(ids)
+	}
+	rawTrigger, problem := jsonTextArg(req, "trigger_config")
+	if problem != "" {
+		return mcp.NewToolResultError(problem), nil
+	}
+	if raw := rawTrigger; raw != "" {
+		trigger, err := parseTrigger(raw)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
+		}
+		params.TriggerConfig = trigger
+	}
+	if changesNothing(params) {
+		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
 
-	result, err := client.Alarms.Update(ctx, projectID, alarmID, alarmReq)
+	alarm, err := client.Alarms.Update(ctx, projectID, alarmID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update alarm: %v", err)), nil
 	}
 
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(alarm)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleDeleteAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID, ok := requireID(req.GetArguments(), "project_id")
-	if !ok {
-		return mcp.NewToolResultError("project_id must be a positive integer"), nil
+func handleDeleteAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
+		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
 	alarmID := req.GetString("alarm_id", "")
@@ -389,19 +398,24 @@ func handleDeleteAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallTo
 
 	if !deletionConfirmed(ctx, req, "delete_alarm", projectID, alarmID) {
 		alarm, err := client.Alarms.Get(ctx, projectID, alarmID)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil:
+			summary = fmt.Sprintf("delete alarm %q (id %s) from project %s", alarm.Name, alarmID, projectID)
+		case unreadable(err):
+			summary = fmt.Sprintf("delete alarm %s from project %s", alarmID, projectID) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up alarm: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete alarm %q (id %s) from project %d", alarm.Name, alarmID, projectID)
 		return deletionPreview(ctx, req, "delete_alarm", summary, projectID, alarmID), nil
 	}
 
-	result, err := client.Alarms.Delete(ctx, projectID, alarmID)
+	err := client.Alarms.Delete(ctx, projectID, alarmID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete alarm: %v", err)), nil
 	}
 
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(map[string]any{"deleted": true, "alarm_id": alarmID})
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
@@ -409,9 +423,9 @@ func handleDeleteAlarm(ctx context.Context, client *hbapi.Client, req mcp.CallTo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetAlarmHistory(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleGetAlarmHistory(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
@@ -420,17 +434,61 @@ func handleGetAlarmHistory(ctx context.Context, client *hbapi.Client, req mcp.Ca
 		return mcp.NewToolResultError("alarm_id is required"), nil
 	}
 
-	page := req.GetInt("page", 0)
+	// Page size is fixed at 25, so this endpoint takes page but no per_page.
+	var opts []apiv3.Option
+	if page := req.GetInt("page", 0); page > 0 {
+		opts = append(opts, apiv3.Page(page, 0))
+	}
 
-	response, err := client.Alarms.History(ctx, projectID, alarmID, page)
+	history, err := client.Alarms.ListHistory(ctx, projectID, alarmID, opts...)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get alarm history: %v", err)), nil
 	}
 
-	jsonBytes, err := json.Marshal(response)
+	jsonBytes, err := json.Marshal(history)
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// streamIDsArg reads stream_ids. Its schema says a string holding a JSON array,
+// as v2's tool took it, but clients also send the array itself, and JSON null
+// (or the string "null") means every current stream. Anything else is refused
+// rather than dropped, so an alarm isn't left on streams the caller meant to
+// change.
+func streamIDsArg(req mcp.CallToolRequest) (ids []string, isNull, given bool, problem string) {
+	raw, present := req.GetArguments()["stream_ids"]
+	if !present {
+		return nil, false, false, ""
+	}
+	switch v := raw.(type) {
+	case nil:
+		return nil, true, true, ""
+	case string:
+		v = strings.TrimSpace(v)
+		switch v {
+		case "":
+			return nil, false, false, ""
+		case "null":
+			return nil, true, true, ""
+		}
+		if err := json.Unmarshal([]byte(v), &ids); err != nil {
+			return nil, false, false, fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)
+		}
+		return ids, false, true, ""
+	case []any:
+		ids = make([]string, 0, len(v))
+		for _, item := range v {
+			id, ok := item.(string)
+			if !ok {
+				return nil, false, false, fmt.Sprintf("stream_ids must be a list of stream ID strings; got %v", item)
+			}
+			ids = append(ids, id)
+		}
+		return ids, false, true, ""
+	default:
+		return nil, false, false, "stream_ids must be a JSON array of stream IDs, or null"
+	}
 }

@@ -12,13 +12,25 @@ MCP_PORT       ?= 9090
 MCP_PUBLIC_URL ?= http://localhost:$(MCP_PORT)
 MCP_URL        ?= $(MCP_PUBLIC_URL)/mcp
 
-.PHONY: build test docker docker-local docker-run claude-mcp-add claude-mcp-remove
+.PHONY: build test verify-module verify-module-local docker docker-local docker-run claude-mcp-add claude-mcp-remove
 
 build:
 	go build -o honeybadger-mcp-server ./cmd/honeybadger-mcp-server
 
 test:
 	go test ./...
+
+# Build the way Docker does: no workspace, no go.mod writes.
+#
+# ../go.work covers this module and api-go, so a local build resolves api-go's
+# dependencies through the workspace and never records them here. Docker copies
+# the two module directories and no go.work, so it falls back to module mode and
+# fails on go.sum entries that were never added. This catches that on the host,
+# where the error is one line instead of a failed image build.
+#
+# The fix when it fails is GOWORK=off go mod tidy.
+verify-module:
+	GOWORK=off go build -mod=readonly ./...
 
 # A single container needs no shared secret, so an unset MCP_CONFIRM_SECRET
 # gets a fresh random one per run; a known default would let any caller forge
@@ -47,8 +59,18 @@ claude-mcp-remove:
 docker:
 	docker build -t $(IMAGE):$(TAG) .
 
+# verify-module for docker-local: build the way Dockerfile.local does, with
+# api-go replaced by the local checkout, so an api-go change not yet pinned in
+# go.mod doesn't fail the check. The replace goes into a throwaway copy of
+# go.mod, never the real one.
+verify-module-local:
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+	cp go.mod "$$tmp/local.mod" && cp go.sum "$$tmp/local.sum" && \
+	GOWORK=off go mod edit -modfile="$$tmp/local.mod" -replace github.com/honeybadger-io/api-go=$(abspath $(APIGO_DIR)) && \
+	GOWORK=off go build -modfile="$$tmp/local.mod" -mod=readonly ./...
+
 # Image built against the local api-go checkout (whatever branch it has
 # checked out) instead of the go.mod release.
-docker-local:
+docker-local: verify-module-local
 	docker buildx build -f Dockerfile.local --build-context apigo=$(APIGO_DIR) \
 		-t $(IMAGE):$(TAG) --load .

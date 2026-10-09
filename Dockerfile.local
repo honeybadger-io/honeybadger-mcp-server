@@ -5,7 +5,7 @@
 # Usage (the apigo build context is required):
 #   docker buildx build -f Dockerfile.local --build-context apigo=../api-go \
 #     -t honeybadger-mcp-server:local --load .
-FROM golang:1.25.5-alpine AS build
+FROM golang:1.27.1-alpine AS build
 WORKDIR /build
 COPY . .
 COPY --from=apigo / /apigo
