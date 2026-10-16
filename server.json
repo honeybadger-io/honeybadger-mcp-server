@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.honeybadger/mcp",
+  "title": "Honeybadger",
+  "description": "Debug errors, query logs, create alarms, and monitor cron jobs from your agent",
+  "repository": {
+    "url": "https://github.com/honeybadger-io/honeybadger-mcp-server",
+    "source": "github"
+  },
+  "version": "1.5.1",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{host}.honeybadger.io/mcp",
+      "variables": {
+        "host": {
+          "description": "Region: mcp (US) or eu-mcp (EU)",
+          "isRequired": true,
+          "choices": ["mcp", "eu-mcp"],
+          "default": "mcp"
+        }
+      }
+    }
+  ]
+}
