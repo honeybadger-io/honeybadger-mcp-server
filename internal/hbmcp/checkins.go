@@ -5,27 +5,27 @@ import (
 	"encoding/json"
 	"fmt"
 
-	hbapi "github.com/honeybadger-io/api-go"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // RegisterCheckInTools registers all check-in-related MCP tools
-func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
+// RegisterCheckInTools registers the check-in tools, all on v3.
+func RegisterCheckInTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_check_ins tool
 	r.AddTool(
 		mcp.NewTool("list_check_ins",
 			mcp.WithTitleAnnotation("List Check-Ins"),
-			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns the first 25 check-ins; pagination is not currently supported. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
+			mcp.WithDescription("List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns every check-in, following pagination. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to list check-ins for"),
-				mcp.Min(1),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListCheckIns(ctx, clientFor(ctx), req)
+			return handleListCheckIns(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -36,10 +36,9 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Get a single check-in by ID. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."),
 			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the check-in belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("check_in_id",
 				mcp.Required(),
@@ -47,7 +46,23 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetCheckIn(ctx, clientFor(ctx), req)
+			return handleGetCheckIn(ctx, v3ClientFor(ctx), req)
+		},
+	)
+
+	r.AddTool(
+		mcp.NewTool("list_check_in_events",
+			mcp.WithTitleAnnotation("List Check-In Events"),
+			mcp.WithDescription("List a check-in's history, newest first: each time it reported, went missing or was paused. Use it to explain a check_in_missing or check_in_reporting event. To page back, pass the previous response's next_created_before as created_before."),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithDestructiveHintAnnotation(false),
+			mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project the check-in belongs to")),
+			mcp.WithString("check_in_id", mcp.Required(), mcp.Description("The ID of the check-in")),
+			timeSeriesLimit(),
+			createdBeforeParam(),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleListCheckInEvents(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -58,14 +73,12 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule types, the required field per type, plan gating (cron needs the Business plan), and the timezone format."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project to create the check-in in"),
-				mcp.Min(1),
 			),
 			mcp.WithString("name",
-				mcp.Required(),
-				mcp.Description("The name of the check-in"),
+				mcp.Description("The name of the check-in. Optional: an unnamed check-in shows its ID."),
 			),
 			mcp.WithString("schedule_type",
 				mcp.Required(),
@@ -89,7 +102,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreateCheckIn(ctx, clientFor(ctx), req)
+			return handleCreateCheckIn(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -100,17 +113,16 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Update an existing check-in. Only the provided fields are changed; fields cannot be cleared once set. The schedule type cannot be changed after creation. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule fields, plan gating, and the timezone format."),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the check-in belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("check_in_id",
 				mcp.Required(),
 				mcp.Description("The ID of the check-in to update"),
 			),
 			mcp.WithString("name",
-				mcp.Description("The name of the check-in"),
+				mcp.Description("A new name for the check-in"),
 			),
 			mcp.WithString("slug",
 				mcp.Description("URL-friendly identifier used to report the check-in"),
@@ -129,7 +141,7 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleUpdateCheckIn(ctx, clientFor(ctx), req)
+			return handleUpdateCheckIn(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
@@ -140,10 +152,9 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			mcp.WithDescription("Delete a check-in. This also deletes the check-in's reporting history."+confirmNote),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithNumber("project_id",
+			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("The ID of the project the check-in belongs to"),
-				mcp.Min(1),
 			),
 			mcp.WithString("check_in_id",
 				mcp.Required(),
@@ -152,18 +163,18 @@ func RegisterCheckInTools(r *toolRegistrar, clientFor ClientFactory) {
 			withConfirmParam(),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteCheckIn(ctx, clientFor(ctx), req)
+			return handleDeleteCheckIn(ctx, v3ClientFor(ctx), req)
 		},
 	)
 }
 
-func handleListCheckIns(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleListCheckIns(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
-	checkIns, err := client.CheckIns.List(ctx, projectID)
+	checkIns, err := client.CheckIns.ListAll(ctx, projectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list check-ins: %v", err)), nil
 	}
@@ -176,9 +187,9 @@ func handleListCheckIns(ctx context.Context, client *hbapi.Client, req mcp.CallT
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleGetCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleGetCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
@@ -200,51 +211,36 @@ func handleGetCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleCreateCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+// checkInParamsFrom reads a check-in write out of a request. Create and update
+// take the same fields. Empty arguments are left out, so "" means "not given";
+// these tools don't clear a setting.
+func checkInParamsFrom(req mcp.CallToolRequest) apiv3.CheckInUpdateParams {
+	params := apiv3.CheckInUpdateParams{
+		Name:         setIfGiven(req, "name"),
+		ReportPeriod: setIfGiven(req, "report_period"),
+		GracePeriod:  setIfGiven(req, "grace_period"),
+		CronSchedule: setIfGiven(req, "cron_schedule"),
+		CronTimezone: setIfGiven(req, "cron_timezone"),
+		Slug:         setIfGiven(req, "slug"),
+	}
+	if st := req.GetString("schedule_type", ""); st != "" {
+		scheduleType := apiv3.CheckInScheduleType(st)
+		params.ScheduleType = &scheduleType
+	}
+	return params
+}
+
+func handleCreateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-
-	name := req.GetString("name", "")
-	if name == "" {
-		return mcp.NewToolResultError("name is required"), nil
+	if msg := refuseNonStrings(req, "name", "report_period", "grace_period", "cron_schedule", "cron_timezone", "slug", "schedule_type"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
 	}
-
-	scheduleType := req.GetString("schedule_type", "")
-	if scheduleType == "" {
-		return mcp.NewToolResultError("schedule_type is required"), nil
-	}
-	if scheduleType != "simple" && scheduleType != "cron" {
-		return mcp.NewToolResultError("schedule_type must be 'simple' or 'cron'"), nil
-	}
-
-	params := hbapi.CheckInParams{
-		Name:         name,
-		Slug:         req.GetString("slug", ""),
-		ScheduleType: scheduleType,
-	}
-
-	switch scheduleType {
-	case "simple":
-		reportPeriod := req.GetString("report_period", "")
-		if reportPeriod == "" {
-			return mcp.NewToolResultError("report_period is required for simple schedules"), nil
-		}
-		params.ReportPeriod = &reportPeriod
-	case "cron":
-		cronSchedule := req.GetString("cron_schedule", "")
-		if cronSchedule == "" {
-			return mcp.NewToolResultError("cron_schedule is required for cron schedules"), nil
-		}
-		params.CronSchedule = &cronSchedule
-	}
-
-	if gracePeriod := req.GetString("grace_period", ""); gracePeriod != "" {
-		params.GracePeriod = &gracePeriod
-	}
-	if cronTimezone := req.GetString("cron_timezone", ""); cronTimezone != "" {
-		params.CronTimezone = &cronTimezone
+	params := checkInParamsFrom(req)
+	if params.ScheduleType != nil && *params.ScheduleType == apiv3.ScheduleCron && !params.CronSchedule.IsSpecified() {
+		return mcp.NewToolResultError("cron_schedule is required when schedule_type is cron"), nil
 	}
 
 	checkIn, err := client.CheckIns.Create(ctx, projectID, params)
@@ -256,52 +252,43 @@ func handleCreateCheckIn(ctx context.Context, client *hbapi.Client, req mcp.Call
 	if err != nil {
 		return mcp.NewToolResultError("Failed to marshal response"), nil
 	}
-
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleUpdateCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID := req.GetInt("project_id", 0)
-	if projectID == 0 {
+func handleUpdateCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-
 	checkInID := req.GetString("check_in_id", "")
 	if checkInID == "" {
 		return mcp.NewToolResultError("check_in_id is required"), nil
 	}
 
-	// The API doesn't allow changing schedule_type after creation, so it is
-	// deliberately not exposed here.
-	params := hbapi.CheckInParams{
-		Name: req.GetString("name", ""),
-		Slug: req.GetString("slug", ""),
+	if msg := refuseNonStrings(req, "name", "report_period", "grace_period", "cron_schedule", "cron_timezone", "slug", "schedule_type"); msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	params := checkInParamsFrom(req)
+	if changesNothing(params) {
+		return mcp.NewToolResultError("provide at least one field to change"), nil
 	}
 
-	if reportPeriod := req.GetString("report_period", ""); reportPeriod != "" {
-		params.ReportPeriod = &reportPeriod
-	}
-	if gracePeriod := req.GetString("grace_period", ""); gracePeriod != "" {
-		params.GracePeriod = &gracePeriod
-	}
-	if cronSchedule := req.GetString("cron_schedule", ""); cronSchedule != "" {
-		params.CronSchedule = &cronSchedule
-	}
-	if cronTimezone := req.GetString("cron_timezone", ""); cronTimezone != "" {
-		params.CronTimezone = &cronTimezone
-	}
-
-	if err := client.CheckIns.Update(ctx, projectID, checkInID, params); err != nil {
+	checkIn, err := client.CheckIns.Update(ctx, projectID, checkInID, params)
+	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update check-in: %v", err)), nil
 	}
 
-	return mcp.NewToolResultText(fmt.Sprintf("Check-in %s successfully updated", checkInID)), nil
+	jsonBytes, err := json.Marshal(checkIn)
+	if err != nil {
+		return mcp.NewToolResultError("Failed to marshal response"), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-func handleDeleteCheckIn(ctx context.Context, client *hbapi.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectID, ok := requireID(req.GetArguments(), "project_id")
-	if !ok {
-		return mcp.NewToolResultError("project_id must be a positive integer"), nil
+func handleDeleteCheckIn(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
+		return mcp.NewToolResultError("project_id is required"), nil
 	}
 
 	checkInID := req.GetString("check_in_id", "")
@@ -311,10 +298,18 @@ func handleDeleteCheckIn(ctx context.Context, client *hbapi.Client, req mcp.Call
 
 	if !deletionConfirmed(ctx, req, "delete_check_in", projectID, checkInID) {
 		checkIn, err := client.CheckIns.Get(ctx, projectID, checkInID)
-		if err != nil {
+		var summary string
+		switch {
+		case err == nil && nullableString(checkIn.Name) == "":
+			// An unnamed check-in shows its ID, so there's no name to quote.
+			summary = fmt.Sprintf("delete the unnamed check-in %s from project %s, along with its reporting history", checkInID, projectID)
+		case err == nil:
+			summary = fmt.Sprintf("delete check-in %q (id %s) from project %s, along with its reporting history", nullableString(checkIn.Name), checkInID, projectID)
+		case unreadable(err):
+			summary = fmt.Sprintf("delete check-in %s from project %s, along with its reporting history", checkInID, projectID) + unreadableNote
+		default:
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to look up check-in: %v", err)), nil
 		}
-		summary := fmt.Sprintf("delete check-in %q (id %s) from project %d, along with its reporting history", checkIn.Name, checkInID, projectID)
 		return deletionPreview(ctx, req, "delete_check_in", summary, projectID, checkInID), nil
 	}
 
@@ -323,4 +318,24 @@ func handleDeleteCheckIn(ctx context.Context, client *hbapi.Client, req mcp.Call
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Check-in %s deleted successfully", checkInID)), nil
+}
+
+func handleListCheckInEvents(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectID := req.GetString("project_id", "")
+	if projectID == "" {
+		return mcp.NewToolResultError("project_id is required"), nil
+	}
+	checkInID := req.GetString("check_in_id", "")
+	if checkInID == "" {
+		return mcp.NewToolResultError("check_in_id is required"), nil
+	}
+	opts, msg := olderThanOptions(req)
+	if msg != "" {
+		return mcp.NewToolResultError(msg), nil
+	}
+	events, err := client.CheckIns.ListEvents(ctx, projectID, checkInID, opts...)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to list check-in events: %v", err)), nil
+	}
+	return jsonResult(timestampPageOf(events))
 }

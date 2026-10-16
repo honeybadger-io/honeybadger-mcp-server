@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
+	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbmcp"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/httptransport"
@@ -31,7 +32,7 @@ var (
 		Use:   "honeybadger-mcp-server",
 		Short: "MCP server for Honeybadger",
 		Long: `Honeybadger MCP Server provides a machine-readable interface to the
-Honeybadger API using the MCP protocol. It's designed for use with LLM agents
+Honeybadger Data API using the MCP protocol. It's designed for use with LLM agents
 and supports STDIO and Streamable HTTP transports.`,
 		// main() prints the error Execute returns; without this cobra
 		// prints its own copy first.
@@ -84,8 +85,8 @@ func init() {
 }
 
 func addCommonFlags(cmd *cobra.Command) {
-	cmd.Flags().String("auth-token", "", "Honeybadger API token (required)")
-	cmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger API URL")
+	cmd.Flags().String("auth-token", "", "Honeybadger API Token (required)")
+	cmd.Flags().String("api-url", "https://app.honeybadger.io", "Honeybadger Data API URL")
 	cmd.Flags().String("instructions-url", config.DefaultInstructionsURL, "Base URL the LLM reference topics are fetched from")
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
 }
@@ -170,6 +171,13 @@ func runStdio(cmd *cobra.Command, args []string) error {
 		"log_level", cfg.LogLevel,
 		"api_url", cfg.APIURL,
 		"read_only", cfg.ReadOnly)
+	if hbmcp.ClassifyCredential(cfg.AuthToken) == hbmcp.KindUnknown {
+		// v3 takes only API Tokens and OAuth tokens. Without this, someone
+		// upgrading with a legacy personal auth token sees only a 401 on their
+		// first tool call.
+		logger.Warn("The auth token isn't an API Token (hbt_ or hba_), so the Data API will refuse it. " +
+			"Legacy personal auth tokens don't work with this version: create an API Token in your Honeybadger user settings.")
+	}
 
 	mcpServer := hbmcp.NewServer(cfg, version)
 
@@ -315,7 +323,17 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 		rootHandler.Handle(prmPath, handler)
 	}
 	rootHandler.Handle(httptransport.WellKnownPRMPath, handler)
-	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, resource, mcpHandler))
+	// Introspection gives every credential kind a granular scope list, which an
+	// OAuth token's claims cannot supply — the JWT carries only legacy read/write,
+	// since the expansion to granular permissions happens server-side. Cached
+	// briefly so this costs one API call per credential per window rather than one
+	// per request.
+	introspector := hbmcp.NewIntrospectionCache(
+		func(ctx context.Context, token string) (*apiv3.TokenInfo, error) {
+			return apiv3.NewClient().WithBaseURL(cfg.APIURL).WithUserAgent(hbmcp.UserAgent(version)).WithBearerToken(token).Tokens.Get(ctx)
+		}, 0, 0, 0)
+
+	rootHandler.Handle(endpointPath, httptransport.ValidateMiddleware(prmAbsURL, jwks.Keyfunc, md.Issuer, resource, introspector, mcpHandler))
 	rootHandler.HandleFunc("/healthz", httptransport.HealthHandler)
 	landing, err := httptransport.NewLandingHandler(httptransport.LandingData{
 		MCPURL:  resource,
