@@ -42,7 +42,7 @@ type Introspector interface {
 //     expiry, and audience are all checked here. The audience check is what stops
 //     a token minted for another resource being replayed at this server
 //     (RFC 8707), so it stays mandatory.
-//   - A scoped API token (hbt_ or hba_) is opaque. Nothing about it can be
+//   - A scoped API token (hbu_ or hba_) is opaque. Nothing about it can be
 //     verified locally, so it is accepted on its prefix and forwarded for the API
 //     to judge. This server deliberately makes no authorization decision about
 //     it; the API is the authority either way.
@@ -121,7 +121,7 @@ func ValidateMiddleware(prmURL string, keyfn jwt.Keyfunc, expectedIssuer, expect
 				// carries no granular scopes, and the API still authorizes it.
 				//
 				// An opaque token is refused. Nothing about it has been checked,
-				// so proceeding would treat any hbt_-prefixed string as
+				// so proceeding would treat any hbu_-prefixed string as
 				// authenticated for the length of the outage. It costs those
 				// callers nothing real: with the API down, every tool call would
 				// fail anyway.

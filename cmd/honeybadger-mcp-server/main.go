@@ -175,7 +175,7 @@ func runStdio(cmd *cobra.Command, args []string) error {
 		// v3 takes only API Tokens and OAuth tokens. Without this, someone
 		// upgrading with a legacy personal auth token sees only a 401 on their
 		// first tool call.
-		logger.Warn("The auth token isn't an API Token (hbt_ or hba_), so the Data API will refuse it. " +
+		logger.Warn("The auth token isn't an API Token (hbu_ or hba_, or an older hbt_), so the Data API will refuse it. " +
 			"Legacy personal auth tokens don't work with this version: create an API Token in your Honeybadger user settings.")
 	}
 

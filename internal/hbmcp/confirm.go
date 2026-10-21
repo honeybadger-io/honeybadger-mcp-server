@@ -34,7 +34,7 @@ func confirmSigner(ctx context.Context) *confirmtoken.Signer {
 // use a token minted for another.
 //
 // An OAuth caller is its subject, which survives access-token refreshes where the
-// bearer does not. An opaque token (hbt_, hba_) never refreshes, so it is its own
+// bearer does not. An opaque token (hbu_, hba_) never refreshes, so it is its own
 // stable identity; a digest of it is used, since the signing key rather than the
 // caller id is what keeps tokens unforgeable. In stdio mode there is one caller
 // and no bearer, so the id is empty.

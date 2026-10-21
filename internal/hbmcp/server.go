@@ -172,7 +172,7 @@ func newV3ClientFactory(cfg *config.Config, version string) V3ClientFactory {
 		}
 	}
 
-	// v3 accepts only Bearer credentials: a scoped API token (hbt_ or hba_) or an
+	// v3 accepts only Bearer credentials: a scoped API token (hbu_ or hba_) or an
 	// OAuth access token. The personal auth tokens this flag used to carry are
 	// rejected outright, so the configured value must now be a scoped token.
 	return func(ctx context.Context) *apiv3.Client {

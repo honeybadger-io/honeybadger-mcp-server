@@ -11,7 +11,7 @@ First, pull the Docker image:
 docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
 ```
 
-Then, configure your MCP client(s) with an API Token: one starting `hbt_` (personal) or `hba_` (account). Create a personal one under the "Authentication" tab in your [Honeybadger user settings](https://app.honeybadger.io/users/edit#authentication). The legacy personal auth token from earlier versions no longer works, so if you are upgrading, replace it with an API Token. The environment variable keeps its name, `HONEYBADGER_PERSONAL_AUTH_TOKEN`.
+Then, configure your MCP client(s) with an API Token: one starting `hbu_` (personal) or `hba_` (account). Personal tokens created before `hbu_` start with `hbt_` and still work. Create a personal one under the "Authentication" tab in your [Honeybadger user settings](https://app.honeybadger.io/users/edit#authentication). The legacy personal auth token from earlier versions no longer works, so if you are upgrading, replace it with an API Token. The environment variable keeps its name, `HONEYBADGER_PERSONAL_AUTH_TOKEN`.
 
 ### Cursor, Windsurf, and Claude Desktop
 
@@ -31,7 +31,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
         "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1"
       ],
       "env": {
-        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbt_...)"
+        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbu_...)"
       }
     }
   }
@@ -43,7 +43,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
 Run this command to configure [Claude Code](https://www.anthropic.com/claude-code):
 
 ```bash
-claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="your API Token (hbt_...)" ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
+claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="your API Token (hbu_...)" ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
 ```
 
 ### VS Code
@@ -57,7 +57,7 @@ Add the following to your [user settings](https://code.visualstudio.com/docs/con
       {
         "type": "promptString",
         "id": "honeybadger_auth_token",
-        "description": "Honeybadger API Token (hbt_...)",
+        "description": "Honeybadger API Token (hbu_...)",
         "password": true
       }
     ],
@@ -102,7 +102,7 @@ Add the following to your Zed settings file in `~/.config/zed/settings.json`:
           "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1"
         ],
         "env": {
-          "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbt_...)"
+          "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbu_...)"
         }
       },
       "settings": {}
@@ -148,7 +148,7 @@ And then configure your MCP client to run the server directly:
       "command": "/path/to/honeybadger-mcp-server",
       "args": ["stdio"],
       "env": {
-        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbt_...)"
+        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbu_...)"
       }
     }
   }
@@ -216,7 +216,7 @@ read-only: true
 
 This version talks to Honeybadger's v3 Data API. If you're upgrading:
 
-- **Credential**: use an API Token (`hbt_` or `hba_`). The legacy personal auth token no longer works. See [Installation](#installation).
+- **Credential**: use an API Token (`hbu_` or `hba_`; older personal `hbt_` tokens still work). The legacy personal auth token no longer works. See [Installation](#installation).
 - **`get_project_report` is removed**: v3 has no project reports. Ask the same questions with `query_insights`, since every error occurrence is a `notice` event on the project's internal stream. Set the window with `ts` (for example `P7D`) and add `| filter environment::str == "production"` to narrow to one environment:
 
   | Old report | BadgerQL |
