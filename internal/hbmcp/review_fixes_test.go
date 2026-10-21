@@ -172,6 +172,19 @@ func TestCreateAlarmTreatsNullStreamsAsOmitted(t *testing.T) {
 	}
 }
 
+// Given streams reach the API as the array, so the alarm watches only those.
+func TestCreateAlarmSendsGivenStreams(t *testing.T) {
+	client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
+	result, err := handleCreateAlarm(context.Background(), client, alarmArgs(map[string]any{
+		"project_id": "Xk9mZp", "name": "Spike", "query": "q", "evaluation_period": "5m", "lookback_lag": "1m",
+		"trigger_config": `{"type":"alert_result_count","config":{"operator":"gt","value":1}}`, "stream_ids": `["s1","s2"]`,
+	}))
+	mustSucceed(t, result, err)
+	if got, _ := json.Marshal((*body)["stream_ids"]); string(got) != `["s1","s2"]` {
+		t.Errorf("stream_ids = %s, want [\"s1\",\"s2\"]", got)
+	}
+}
+
 // purge_days arrives as a number or a numeric string; anything else is refused
 // rather than dropped while the rest of the update succeeds.
 func TestProjectPurgeDays(t *testing.T) {

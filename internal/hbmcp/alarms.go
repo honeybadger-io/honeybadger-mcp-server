@@ -306,7 +306,7 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 		return mcp.NewToolResultError(problem), nil
 	}
 	if given && !isNull {
-		params.StreamIds = &ids
+		params.StreamIds = nullable.NewNullableWithValue(ids)
 	}
 
 	alarm, err := client.Alarms.Create(ctx, projectID, params)
