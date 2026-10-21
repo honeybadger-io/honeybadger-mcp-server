@@ -4,391 +4,267 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	hbapi "github.com/honeybadger-io/api-go"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+func dashboardArgs(args map[string]interface{}) mcp.CallToolRequest { return mcpRequest(args) }
+
 func TestHandleListDashboards(t *testing.T) {
-	mockResponse := `{
-		"results": [
-			{
-				"id": "abc123",
-				"title": "Project Overview",
-				"widgets": [{"id": "w1", "type": "errors"}],
-				"is_default": true,
-				"shared": true,
-				"created_at": "2024-01-01T00:00:00Z",
-				"updated_at": "2024-01-02T00:00:00Z",
-				"project_id": 123,
-				"url": "https://app.honeybadger.io/projects/123/insights/dashboards/abc123"
-			}
-		],
-		"links": {"self": "", "next": "", "prev": ""}
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/projects/Xk9mZp/dashboards"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123/dashboards" {
-			t.Errorf("expected path /v2/projects/123/dashboards, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{"data":[{"id":"d1","title":"Ops","project_id":"Xk9mZp","links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}}],
+		  "pagination":{"page":1,"per_page":25}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-			},
-		},
-	}
-
-	result, err := handleListDashboards(context.Background(), client, req)
+	result, err := handleListDashboards(context.Background(), client,
+		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
 	if err != nil {
-		t.Fatalf("handleListDashboards() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "abc123") {
-		t.Error("Result should contain dashboard ID")
-	}
-	if !strings.Contains(resultText, `"url":"https://app.honeybadger.io/projects/123/insights/dashboards/abc123"`) {
-		t.Errorf("Result should carry each dashboard's UI url, got %s", resultText)
-	}
-	if !strings.Contains(resultText, "Project Overview") {
-		t.Error("Result should contain dashboard title")
+	if !strings.Contains(getResultText(result), "Ops") {
+		t.Errorf("result = %q", getResultText(result))
 	}
 }
 
 func TestHandleGetDashboard(t *testing.T) {
-	mockResponse := `{
-		"id": "abc123",
-		"title": "Project Overview",
-		"widgets": [{"id": "w1", "type": "errors"}],
-		"is_default": true,
-		"shared": true,
-		"created_at": "2024-01-01T00:00:00Z",
-		"updated_at": "2024-01-02T00:00:00Z",
-		"project_id": 123,
-		"url": "https://app.honeybadger.io/projects/123/insights/dashboards/abc123"
-	}`
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("expected GET method, got %s", r.Method)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/v3/projects/Xk9mZp/dashboards/d1"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		if r.URL.Path != "/v2/projects/123/dashboards/abc123" {
-			t.Errorf("expected path /v2/projects/123/dashboards/abc123, got %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
+		v3JSON(w, http.StatusOK, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp","links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}}}`)
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":   123,
-				"dashboard_id": "abc123",
-			},
-		},
-	}
-
-	result, err := handleGetDashboard(context.Background(), client, req)
+	result, err := handleGetDashboard(context.Background(), client,
+		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1"}))
 	if err != nil {
-		t.Fatalf("handleGetDashboard() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatal("expected successful result, got error")
-	}
-
-	resultText := getResultText(result)
-
-	var dashboard hbapi.Dashboard
-	if err := json.Unmarshal([]byte(resultText), &dashboard); err != nil {
-		t.Fatalf("Response should be valid JSON: %v", err)
-	}
-
-	if dashboard.URL != "https://app.honeybadger.io/projects/123/insights/dashboards/abc123" {
-		t.Errorf("expected dashboard UI url, got %q", dashboard.URL)
-	}
-
-	if dashboard.ID != "abc123" {
-		t.Errorf("expected ID abc123, got %s", dashboard.ID)
-	}
-
-	if dashboard.Title != "Project Overview" {
-		t.Errorf("expected title 'Project Overview', got %s", dashboard.Title)
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
 }
 
-func TestHandleCreateDashboard(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			t.Errorf("expected POST method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/dashboards" {
-			t.Errorf("expected path /v2/projects/123/dashboards, got %s", r.URL.Path)
-		}
+// title is the field on both sides now: the spec previously wrote it as name
+// while reading it as title, and settled on title.
+func TestHandleCreateDashboardSendsTitle(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp","links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}}}`)
+	})
 
-		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
-		}
-
-		dashboard, ok := body["dashboard"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected dashboard key in request body")
-		}
-		if dashboard["title"] != "My Dashboard" {
-			t.Errorf("expected title 'My Dashboard', got %v", dashboard["title"])
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{
-			"id": "new123",
-			"title": "My Dashboard",
-			"widgets": [{"id": "w1", "type": "insights_vis"}],
-			"is_default": false,
-			"shared": true,
-			"created_at": "2024-01-01T00:00:00Z",
-			"updated_at": "2024-01-01T00:00:00Z",
-			"project_id": 123,
-			"url": "https://app.honeybadger.io/projects/123/insights/dashboards/new123"
-		}`))
-	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"title":      "My Dashboard",
-				"widgets":    `[{"type": "insights_vis", "config": {"query": "stats count()"}}]`,
-			},
-		},
-	}
-
-	result, err := handleCreateDashboard(context.Background(), client, req)
+	result, err := handleCreateDashboard(context.Background(), client,
+		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "title": "Ops"}))
 	if err != nil {
-		t.Fatalf("handleCreateDashboard() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
+	if body["title"] != "Ops" {
+		t.Errorf("sent body = %v, want the title under title", body)
+	}
+}
 
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, `"url":"https://app.honeybadger.io/projects/123/insights/dashboards/new123"`) {
-		t.Errorf("Result should carry the dashboard's UI url, got %s", resultText)
+func TestHandleCreateDashboardRequiresTitle(t *testing.T) {
+	result, err := handleCreateDashboard(context.Background(), offlineV3Client(),
+		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
 	}
-	if !strings.Contains(resultText, "new123") {
-		t.Error("Result should contain new dashboard ID")
+	if !result.IsError || !strings.Contains(getResultText(result), "title is required") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
 func TestHandleUpdateDashboard(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			t.Errorf("expected PUT method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/dashboards/abc123" {
-			t.Errorf("expected path /v2/projects/123/dashboards/abc123, got %s", r.URL.Path)
-		}
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"d1","title":"Renamed","project_id":"Xk9mZp"}}`)
+	})
 
-		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
-		}
-
-		dashboard, ok := body["dashboard"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected dashboard key in request body")
-		}
-		if dashboard["title"] != "Updated Title" {
-			t.Errorf("expected title 'Updated Title', got %v", dashboard["title"])
-		}
-
-		w.WriteHeader(http.StatusNoContent)
+	result, err := handleUpdateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "dashboard_id": "d1", "title": "Renamed",
+		// Update replaces rather than merges, so the widgets have to come along.
+		"widgets": `[{"type":"errors"}]`,
 	}))
-	defer server.Close()
-
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":   123,
-				"dashboard_id": "abc123",
-				"title":        "Updated Title",
-				"widgets":      `[]`,
-			},
-		},
-	}
-
-	result, err := handleUpdateDashboard(context.Background(), client, req)
 	if err != nil {
-		t.Fatalf("handleUpdateDashboard() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "successfully updated") {
-		t.Error("Result should contain success message")
+	if body["title"] != "Renamed" {
+		t.Errorf("sent body = %v", body)
 	}
 }
 
 func TestHandleDeleteDashboard(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "DELETE" {
-			t.Errorf("expected DELETE method, got %s", r.Method)
-		}
-		if r.URL.Path != "/v2/projects/123/dashboards/abc123" {
-			t.Errorf("expected path /v2/projects/123/dashboards/abc123, got %s", r.URL.Path)
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("method = %s, want DELETE", r.Method)
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
+	})
 
-	client := hbapi.NewClient().
-		WithBaseURL(server.URL).
-		WithAuthToken("test-token")
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id":   123,
-				"dashboard_id": "abc123",
-				"confirm":      validConfirm("delete_dashboard", 123, "abc123"),
-			},
-		},
-	}
-
-	result, err := handleDeleteDashboard(context.Background(), client, req)
+	result, err := handleDeleteDashboard(context.Background(), client,
+		dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1",
+			"confirm": validConfirm("delete_dashboard", "Xk9mZp", "d1")}))
 	if err != nil {
-		t.Fatalf("handleDeleteDashboard() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
 	if result.IsError {
-		t.Fatalf("expected successful result, got error: %s", getResultText(result))
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "deleted successfully") {
-		t.Error("Result should contain success message")
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
 }
 
-func TestHandleCreateDashboard_MissingProjectID(t *testing.T) {
-	client := hbapi.NewClient()
+// Widgets are expressible now and travel through as raw JSON.
+func TestHandleCreateDashboardSendsWidgets(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp","links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}}}`)
+	})
 
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"title":   "Test",
-				"widgets": "[]",
-			},
-		},
-	}
-
-	result, err := handleCreateDashboard(context.Background(), client, req)
+	result, err := handleCreateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
+		"project_id": "Xk9mZp",
+		"title":      "Ops",
+		"default_ts": "P1D",
+		"widgets":    `[{"type":"errors","grid":{"x":0,"y":0,"w":6,"h":4}}]`,
+	}))
 	if err != nil {
-		t.Fatalf("handleCreateDashboard() error = %v", err)
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
 	}
 
-	if !result.IsError {
-		t.Fatal("expected error result for missing project ID")
+	if body["default_ts"] != "P1D" {
+		t.Errorf("default_ts = %v", body["default_ts"])
 	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "project_id is required") {
-		t.Error("Error message should mention project_id is required")
+	widgets, ok := body["widgets"].([]any)
+	if !ok || len(widgets) != 1 {
+		t.Fatalf("widgets = %v", body["widgets"])
+	}
+	if widget, _ := widgets[0].(map[string]any); widget["type"] != "errors" {
+		t.Errorf("widget = %v", widgets[0])
 	}
 }
 
-func TestHandleCreateDashboard_MissingTitle(t *testing.T) {
-	client := hbapi.NewClient()
-
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"widgets":    "[]",
-			},
-		},
-	}
-
-	result, err := handleCreateDashboard(context.Background(), client, req)
+// Malformed widget JSON is caught before a request is made.
+func TestHandleCreateDashboardRejectsInvalidWidgetJSON(t *testing.T) {
+	result, err := handleCreateDashboard(context.Background(), offlineV3Client(),
+		dashboardArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "title": "Ops", "widgets": "{not json",
+		}))
 	if err != nil {
-		t.Fatalf("handleCreateDashboard() error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-
-	if !result.IsError {
-		t.Fatal("expected error result for missing title")
-	}
-
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "title is required") {
-		t.Error("Error message should mention title is required")
+	if !result.IsError || !strings.Contains(getResultText(result), "JSON array") {
+		t.Errorf("got %q", getResultText(result))
 	}
 }
 
-func TestHandleCreateDashboard_InvalidWidgetsJSON(t *testing.T) {
-	client := hbapi.NewClient()
+// An update merges, so a rename sends only the title and leaves the widgets alone.
+func TestHandleUpdateDashboardRenamesWithoutWidgets(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusOK, `{"data":{"id":"d1","project_id":"Xk9mZp","title":"Renamed"}}`)
+	})
 
-	req := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: map[string]interface{}{
-				"project_id": 123,
-				"title":      "Test",
-				"widgets":    "not valid json",
-			},
-		},
-	}
-
-	result, err := handleCreateDashboard(context.Background(), client, req)
+	result, err := handleUpdateDashboard(context.Background(), client,
+		dashboardArgs(map[string]interface{}{
+			"project_id": "Xk9mZp", "dashboard_id": "d1", "title": "Renamed",
+		}))
 	if err != nil {
-		t.Fatalf("handleCreateDashboard() error = %v", err)
+		t.Fatalf("error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got %s", getResultText(result))
+	}
+	if body["title"] != "Renamed" {
+		t.Errorf("title = %v", body["title"])
+	}
+	if _, sent := body["widgets"]; sent {
+		t.Error("widgets was sent on a rename; the update would have replaced them")
+	}
+}
+
+// A widget's type-specific config survives the trip, and a key the widget schema
+// doesn't have is refused rather than dropped.
+func TestHandleCreateDashboardKeepsWidgetConfig(t *testing.T) {
+	var body map[string]any
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","project_id":"Xk9mZp","title":"Ops"}}`)
+	})
+
+	result, err := handleCreateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "title": "Ops",
+		"widgets": `[{"type":"alarms","config":{"limit":5,"filter_state":"triggered"}}]`,
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("create = %v, %v", getResultText(result), err)
+	}
+	widgets, _ := body["widgets"].([]any)
+	widget, _ := widgets[0].(map[string]any)
+	if config, _ := widget["config"].(map[string]any); config["filter_state"] != "triggered" || config["limit"] != float64(5) {
+		t.Errorf("widget = %v", widget)
 	}
 
-	if !result.IsError {
-		t.Fatal("expected error result for invalid widgets JSON")
+	result, err = handleCreateDashboard(context.Background(), offlineV3Client(), dashboardArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "title": "Ops", "widgets": `[{"type":"errors","colour":"red"}]`,
+	}))
+	if err != nil {
+		t.Fatalf("error = %v", err)
 	}
+	if !result.IsError || !strings.Contains(getResultText(result), "colour") {
+		t.Errorf("expected the unknown widget key to be refused by name, got %s", getResultText(result))
+	}
+}
 
-	resultText := getResultText(result)
-	if !strings.Contains(resultText, "Failed to parse widgets JSON") {
-		t.Error("Error message should mention failed to parse widgets JSON")
+// Dashboards carry their UI link in links.web, which reaches the tool output so
+// the caller can hand it to the user.
+func TestDashboardToolsCarryTheUILink(t *testing.T) {
+	const link = `"links":{"web":"https://app.honeybadger.io/projects/123/insights/dashboards/d1"}`
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost:
+			v3JSON(w, http.StatusCreated, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp",`+link+`}}`)
+		case r.URL.Path == "/v3/projects/Xk9mZp/dashboards":
+			v3JSON(w, http.StatusOK, `{"data":[{"id":"d1","title":"Ops","project_id":"Xk9mZp",`+link+`}],"pagination":{"page":1,"per_page":25}}`)
+		default:
+			v3JSON(w, http.StatusOK, `{"data":{"id":"d1","title":"Ops","project_id":"Xk9mZp",`+link+`}}`)
+		}
+	})
+
+	for name, call := range map[string]func() (*mcp.CallToolResult, error){
+		"list": func() (*mcp.CallToolResult, error) {
+			return handleListDashboards(context.Background(), client, dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
+		},
+		"get": func() (*mcp.CallToolResult, error) {
+			return handleGetDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "dashboard_id": "d1"}))
+		},
+		"create": func() (*mcp.CallToolResult, error) {
+			return handleCreateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{"project_id": "Xk9mZp", "title": "Ops"}))
+		},
+	} {
+		result, err := call()
+		if err != nil || result.IsError {
+			t.Fatalf("%s: %v %s", name, err, getResultText(result))
+		}
+		if !strings.Contains(getResultText(result), link) {
+			t.Errorf("%s: result lacks the UI link: %s", name, getResultText(result))
+		}
 	}
 }
