@@ -14,12 +14,14 @@ func TestClassifyCredential(t *testing.T) {
 		want CredentialKind
 	}{
 		{"hbo_eyJhbGci...", KindOAuth},
-		{"hbt_abc123", KindUserToken},
+		{"hbu_abc123", KindUserToken},
+		{"hbt_abc123", KindUserToken}, // minted before hbu_, still accepted
 		{"hba_abc123", KindAccountToken},
 		{"", KindUnknown},
 		{"abc123", KindUnknown},
 		{"Bearer hbt_abc", KindUnknown}, // the scheme must already be stripped
-		{"HBT_abc123", KindUnknown},     // prefixes are case-sensitive
+		{"HBU_abc123", KindUnknown},     // prefixes are case-sensitive
+		{"HBT_abc123", KindUnknown},
 		{"hb_abc123", KindUnknown},
 	} {
 		if got := ClassifyCredential(tc.raw); got != tc.want {

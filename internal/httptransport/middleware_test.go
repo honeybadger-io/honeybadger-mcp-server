@@ -214,7 +214,7 @@ func TestPRMPathNotHealthz(t *testing.T) {
 // A scoped API token is opaque: it must be accepted and forwarded, because
 // nothing about it can be checked without asking the API.
 func TestValidateMiddlewareAcceptsOpaqueScopedTokens(t *testing.T) {
-	for _, raw := range []string{"hbt_personal123", "hba_account123"} {
+	for _, raw := range []string{"hbu_personal123", "hbt_personal123", "hba_account123"} {
 		var gotToken string
 		var gotKind hbmcp.CredentialKind
 		var gotClaims *hbmcp.Claims

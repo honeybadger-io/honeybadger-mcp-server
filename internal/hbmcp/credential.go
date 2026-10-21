@@ -1,6 +1,9 @@
 package hbmcp
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // CredentialKind is which sort of Bearer credential a request carries.
 //
@@ -27,9 +30,13 @@ const (
 // Credential prefixes, as documented by the API's bearer_auth scheme.
 const (
 	oauthPrefix        = "hbo_"
-	userTokenPrefix    = "hbt_"
 	accountTokenPrefix = "hba_"
 )
+
+// userTokenPrefixes are the prefixes of a person's API token. hbu_ is what the
+// API mints; hbt_ is what it minted before, and it still accepts those, so
+// refusing them here would lock out tokens that work against the API.
+var userTokenPrefixes = []string{"hbu_", "hbt_"}
 
 // Verifiable reports whether this kind can be validated without calling the API.
 // Only OAuth tokens can: the scoped tokens carry no structure to check.
@@ -46,7 +53,7 @@ func ClassifyCredential(raw string) CredentialKind {
 	switch {
 	case strings.HasPrefix(raw, oauthPrefix):
 		return KindOAuth
-	case strings.HasPrefix(raw, userTokenPrefix):
+	case slices.ContainsFunc(userTokenPrefixes, func(p string) bool { return strings.HasPrefix(raw, p) }):
 		return KindUserToken
 	case strings.HasPrefix(raw, accountTokenPrefix):
 		return KindAccountToken
