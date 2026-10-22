@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release-*']
   pull_request:
-    branches: [main]
+    branches: [main, 'release-*']
   # Lets other workflows (docker-build's tag path) run the suite as a job
   # instead of duplicating these steps.
   workflow_call:
