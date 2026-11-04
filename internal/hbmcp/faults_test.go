@@ -312,6 +312,47 @@ func TestHandleListFaultNotices(t *testing.T) {
 	}
 }
 
+// The API leaves breadcrumbs out of the list unless asked, so the tool has to
+// pass the flag through and keep the trail in its output.
+func TestHandleListFaultNoticesBreadcrumbs(t *testing.T) {
+	var got []string
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.URL.Query().Get("breadcrumbs"))
+		v3JSON(w, http.StatusOK, `{
+			"data":[{"id":"11111111-1111-4111-8111-111111111111","fault_id":"1","project_id":"Xk9mZp",
+				"breadcrumbs":{"enabled":true,"total_entries":1,"truncated":false,
+					"trail":[{"category":"ui.click","message":"button#buy","metadata":null,"timestamp":"2026-11-03T18:22:41.516Z"}]}}],
+			"pagination":{"has_older":false,"has_newer":false,"limit":25}
+		}`)
+	})
+
+	result, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 1, "breadcrumbs": true,
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("handleListFaultNotices() = %v, %s", err, getResultText(result))
+	}
+	if !strings.Contains(getResultText(result), `"category":"ui.click"`) {
+		t.Errorf("breadcrumbs missing from output: %s", getResultText(result))
+	}
+
+	if _, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 1,
+	})); err != nil {
+		t.Fatalf("handleListFaultNotices() error = %v", err)
+	}
+	if len(got) != 2 || got[0] != "true" || got[1] != "" {
+		t.Errorf("breadcrumbs params = %q, want [\"true\" \"\"]", got)
+	}
+
+	result, _ = handleListFaultNotices(context.Background(), offlineV3Client(), faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 1, "breadcrumbs": "yes",
+	}))
+	if !result.IsError || !strings.Contains(getResultText(result), "breadcrumbs") {
+		t.Errorf("non-boolean breadcrumbs: got %q", getResultText(result))
+	}
+}
+
 // Notices page by cursor in v3, so the timestamp filters have no equivalent.
 func TestHandleListFaultNoticesRejectsTimestampFilters(t *testing.T) {
 	for _, field := range []string{"created_after", "created_before"} {

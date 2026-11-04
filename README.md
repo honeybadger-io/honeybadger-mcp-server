@@ -367,6 +367,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `before` : Cursor for older notices: `time_series.oldest_cursor` from the previous response (string, optional)
   - `after` : Cursor for newer notices: `time_series.newest_cursor` from the previous response (string, optional)
   - `limit` : Maximum number of notices to return (max 25) (number, optional)
+  - `breadcrumbs` : Include each notice's breadcrumbs, oldest first. Off by default because each trail can hold up to 40 entries (boolean, optional)
 
 - **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without `q`.
   - `project_id` : The ID of the project containing the fault (string, required)
