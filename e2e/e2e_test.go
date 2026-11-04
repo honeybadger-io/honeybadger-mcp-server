@@ -347,7 +347,7 @@ func TestServerEdgeCases(t *testing.T) {
 		env := os.Environ()
 		filteredEnv := make([]string, 0, len(env))
 		for _, e := range env {
-			if !strings.HasPrefix(e, "HONEYBADGER_PERSONAL_AUTH_TOKEN=") {
+			if !strings.HasPrefix(e, "HONEYBADGER_PERSONAL_AUTH_TOKEN=") && !strings.HasPrefix(e, "HONEYBADGER_API_TOKEN=") {
 				filteredEnv = append(filteredEnv, e)
 			}
 		}
