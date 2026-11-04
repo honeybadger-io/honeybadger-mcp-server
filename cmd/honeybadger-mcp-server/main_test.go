@@ -100,3 +100,36 @@ func TestRunHTTPAllowsDefaultReadOnly(t *testing.T) {
 		t.Errorf("expected missing public-url error, got: %v", err)
 	}
 }
+
+// HONEYBADGER_API_TOKEN is the name the v3 docs use, and the older
+// HONEYBADGER_PERSONAL_AUTH_TOKEN keeps working. When both are set the new name
+// wins, so a stale legacy value left in a shell can't shadow it.
+func TestAuthTokenEnvNames(t *testing.T) {
+	cases := []struct {
+		name   string
+		apiTok string
+		legacy string
+		want   string
+	}{
+		{"new name alone", "hbu_new", "", "hbu_new"},
+		{"legacy name alone", "", "hbu_legacy", "hbu_legacy"},
+		{"both set", "hbu_new", "hbu_legacy", "hbu_new"},
+		{"new name empty", "", "hbu_legacy", "hbu_legacy"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			// Keep a real ~/.honeybadger-mcp-server.yaml out of the test.
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("HONEYBADGER_API_TOKEN", tc.apiTok)
+			t.Setenv("HONEYBADGER_PERSONAL_AUTH_TOKEN", tc.legacy)
+
+			initConfig()
+
+			if got := viper.GetString("auth-token"); got != tc.want {
+				t.Errorf("auth-token = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
