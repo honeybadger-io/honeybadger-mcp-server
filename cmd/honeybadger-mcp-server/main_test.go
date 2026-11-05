@@ -122,8 +122,7 @@ func TestAuthTokenEnvNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			viper.Reset()
 			t.Cleanup(viper.Reset)
-			// Keep a real ~/.honeybadger-mcp-server.yaml out of the test.
-			t.Setenv("HOME", t.TempDir())
+			tempHome(t)
 			t.Setenv("HONEYBADGER_API_TOKEN", tc.apiTok)
 			t.Setenv("HONEYBADGER_PERSONAL_AUTH_TOKEN", tc.legacy)
 
@@ -186,6 +185,7 @@ func TestGenericEnvNamesIgnored(t *testing.T) {
 		viper.Reset()
 		t.Cleanup(viper.Reset)
 		tempHome(t)
+		clearDocumentedEnv(t)
 		for k, v := range generic {
 			t.Setenv(k, v)
 		}
