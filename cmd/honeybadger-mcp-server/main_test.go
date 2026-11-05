@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -120,11 +122,7 @@ func TestAuthTokenEnvNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			viper.Reset()
 			t.Cleanup(viper.Reset)
-			// Keep a real ~/.honeybadger-mcp-server.yaml out of the test.
-			t.Setenv("HOME", t.TempDir())
-			// AutomaticEnv reads AUTH_TOKEN before either Honeybadger name, so a
-			// value left in the shell would override every case.
-			t.Setenv("AUTH_TOKEN", "")
+			tempHome(t)
 			t.Setenv("HONEYBADGER_API_TOKEN", tc.apiTok)
 			t.Setenv("HONEYBADGER_PERSONAL_AUTH_TOKEN", tc.legacy)
 
@@ -134,5 +132,148 @@ func TestAuthTokenEnvNames(t *testing.T) {
 				t.Errorf("auth-token = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// documentedEnv lists every env var initConfig binds.
+var documentedEnv = []string{
+	"HONEYBADGER_API_TOKEN", "HONEYBADGER_PERSONAL_AUTH_TOKEN", "HONEYBADGER_API_URL", "HONEYBADGER_INSTRUCTIONS_URL",
+	"LOG_LEVEL", "HONEYBADGER_READ_ONLY", "MCP_ADDRESS", "MCP_ENDPOINT_PATH", "MCP_STATELESS",
+	"MCP_PUBLIC_URL", "MCP_AUTHORIZATION_SERVER_URL", "MCP_RESOURCE_URL", "MCP_CONFIRM_SECRET",
+}
+
+// clearDocumentedEnv keeps values from the developer's shell out of a test.
+// Viper treats an empty env var as unset.
+func clearDocumentedEnv(t *testing.T) {
+	t.Helper()
+	for _, k := range documentedEnv {
+		t.Setenv(k, "")
+	}
+}
+
+// tempHome points os.UserHomeDir at a fresh directory, so a real
+// ~/.honeybadger-mcp-server.yaml stays out of the test. Windows reads
+// USERPROFILE, everything else HOME.
+func tempHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	return home
+}
+
+// Only the documented env names configure the server. Viper's AutomaticEnv
+// used to map every key to an unprefixed name (AUTH_TOKEN, READ_ONLY, ...)
+// that beat the documented one, so a stray READ_ONLY=false in a shell could
+// turn off read-only mode.
+func TestGenericEnvNamesIgnored(t *testing.T) {
+	generic := map[string]string{
+		"AUTH_TOKEN":           "generic-token",
+		"API_URL":              "https://generic.example.com",
+		"INSTRUCTIONS_URL":     "https://generic.example.com/instructions",
+		"READ_ONLY":            "false",
+		"ADDRESS":              ":9999",
+		"ENDPOINT_PATH":        "/generic",
+		"STATELESS":            "false",
+		"PUBLIC_URL":           "https://generic.example.com",
+		"AUTHORIZATION_SERVER": "https://generic.example.com",
+		"RESOURCE_URL":         "https://generic.example.com/mcp",
+		"CONFIRM_SECRET":       "generic-secret",
+	}
+
+	t.Run("documented names win", func(t *testing.T) {
+		viper.Reset()
+		t.Cleanup(viper.Reset)
+		tempHome(t)
+		clearDocumentedEnv(t)
+		for k, v := range generic {
+			t.Setenv(k, v)
+		}
+		documented := map[string]string{
+			"HONEYBADGER_PERSONAL_AUTH_TOKEN": "hbu_documented",
+			"HONEYBADGER_API_URL":             "https://app.example.com",
+			"HONEYBADGER_INSTRUCTIONS_URL":    "https://docs.example.com/instructions",
+			"HONEYBADGER_READ_ONLY":           "true",
+			"MCP_ADDRESS":                     ":8081",
+			"MCP_ENDPOINT_PATH":               "/documented",
+			"MCP_STATELESS":                   "true",
+			"MCP_PUBLIC_URL":                  "https://mcp.example.com",
+			"MCP_AUTHORIZATION_SERVER_URL":    "https://as.example.com",
+			"MCP_RESOURCE_URL":                "https://mcp.example.com/mcp",
+			"MCP_CONFIRM_SECRET":              "documented-secret",
+		}
+		for k, v := range documented {
+			t.Setenv(k, v)
+		}
+
+		initConfig()
+
+		want := map[string]string{
+			"auth-token":           "hbu_documented",
+			"api-url":              "https://app.example.com",
+			"instructions-url":     "https://docs.example.com/instructions",
+			"read-only":            "true",
+			"address":              ":8081",
+			"endpoint-path":        "/documented",
+			"stateless":            "true",
+			"public-url":           "https://mcp.example.com",
+			"authorization-server": "https://as.example.com",
+			"resource-url":         "https://mcp.example.com/mcp",
+			"confirm-secret":       "documented-secret",
+		}
+		for key, w := range want {
+			if got := viper.GetString(key); got != w {
+				t.Errorf("%s = %q, want %q", key, got, w)
+			}
+		}
+	})
+
+	t.Run("generic names alone change nothing", func(t *testing.T) {
+		viper.Reset()
+		t.Cleanup(viper.Reset)
+		tempHome(t)
+		clearDocumentedEnv(t)
+		for k, v := range generic {
+			t.Setenv(k, v)
+		}
+
+		initConfig()
+
+		if !viper.GetBool("read-only") {
+			t.Error("READ_ONLY=false turned off read-only mode")
+		}
+		for _, key := range []string{
+			"auth-token", "api-url", "instructions-url", "address", "endpoint-path",
+			"stateless", "public-url", "authorization-server", "resource-url", "confirm-secret",
+		} {
+			if viper.IsSet(key) {
+				t.Errorf("%s set from a generic env var", key)
+			}
+		}
+	})
+}
+
+// Dropping AutomaticEnv must keep env > config file > default.
+func TestEnvBeatsConfigFile(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	home := tempHome(t)
+	clearDocumentedEnv(t)
+	if err := os.WriteFile(filepath.Join(home, ".honeybadger-mcp-server.yaml"),
+		[]byte("api-url: https://file.example.com\nlog-level: debug\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HONEYBADGER_API_URL", "https://env.example.com")
+
+	initConfig()
+
+	if got := viper.GetString("api-url"); got != "https://env.example.com" {
+		t.Errorf("api-url = %q, want env value", got)
+	}
+	if got := viper.GetString("log-level"); got != "debug" {
+		t.Errorf("log-level = %q, want config file value", got)
+	}
+	if !viper.GetBool("read-only") {
+		t.Error("read-only default lost")
 	}
 }
