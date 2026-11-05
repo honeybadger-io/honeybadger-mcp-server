@@ -29,7 +29,7 @@ These steps run the server locally over stdio. Most people should use the [hoste
 First, pull the Docker image:
 
 ```bash
-docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.1
+docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2
 ```
 
 Then, configure your MCP client(s) with an API Token: one starting `hbu_` (personal) or `hba_` (account). Personal tokens created before `hbu_` start with `hbt_` and still work. Create a personal one under the "API Access" tab in your [Honeybadger user settings](https://app.honeybadger.io/users/edit#api-access). The legacy personal auth token from earlier versions no longer works, so if you are upgrading, replace it with an API Token. Set it as `HONEYBADGER_API_TOKEN`. The older name, `HONEYBADGER_PERSONAL_AUTH_TOKEN`, still works.
@@ -49,7 +49,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
         "--rm",
         "-e",
         "HONEYBADGER_API_TOKEN",
-        "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.1"
+        "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2"
       ],
       "env": {
         "HONEYBADGER_API_TOKEN": "your API Token (hbu_...)"
@@ -64,7 +64,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
 Run this command to configure [Claude Code](https://www.anthropic.com/claude-code):
 
 ```bash
-claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_API_TOKEN="your API Token (hbu_...)" ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.1
+claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_API_TOKEN="your API Token (hbu_...)" ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2
 ```
 
 ### VS Code
@@ -91,7 +91,7 @@ Add the following to your [user settings](https://code.visualstudio.com/docs/con
           "--rm",
           "-e",
           "HONEYBADGER_API_TOKEN",
-          "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.1"
+          "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2"
         ],
         "env": {
           "HONEYBADGER_API_TOKEN": "${input:honeybadger_auth_token}"
@@ -120,7 +120,7 @@ Add the following to your Zed settings file in `~/.config/zed/settings.json`:
           "--rm",
           "-e",
           "HONEYBADGER_API_TOKEN",
-          "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.1"
+          "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2"
         ],
         "env": {
           "HONEYBADGER_API_TOKEN": "your API Token (hbu_...)"
@@ -142,7 +142,7 @@ cd honeybadger-mcp-server
 docker build -t honeybadger-mcp-server .
 ```
 
-Then you can replace "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.1" with
+Then you can replace "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2" with
 "honeybadger-mcp-server" in any of the configs above. Or you can run the image
 directly:
 
@@ -200,7 +200,7 @@ The server defaults to Honeybadger's US API (`https://app.honeybadger.io`). If y
 For example, with Claude Code:
 
 ```bash
-claude mcp add honeybadger-eu -- docker run -i --rm -e HONEYBADGER_API_TOKEN="your_eu_token" -e HONEYBADGER_API_URL="https://eu-app.honeybadger.io" ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.1
+claude mcp add honeybadger-eu -- docker run -i --rm -e HONEYBADGER_API_TOKEN="your_eu_token" -e HONEYBADGER_API_URL="https://eu-app.honeybadger.io" ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2
 ```
 
 To use both regions at once, run two servers with distinct names (for example `honeybadger-us` and `honeybadger-eu`), each with its own token and API URL.
