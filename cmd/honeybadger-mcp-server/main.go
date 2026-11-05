@@ -135,7 +135,9 @@ func initConfig() {
 	viper.SetDefault("read-only", true)
 
 	// Bind specific environment variables
-	_ = viper.BindEnv("auth-token", "HONEYBADGER_PERSONAL_AUTH_TOKEN")
+	// HONEYBADGER_API_TOKEN matches the name the v3 API docs use; the older name
+	// still works for existing configs. Viper reads them in this order.
+	_ = viper.BindEnv("auth-token", "HONEYBADGER_API_TOKEN", "HONEYBADGER_PERSONAL_AUTH_TOKEN")
 	_ = viper.BindEnv("api-url", "HONEYBADGER_API_URL")
 	_ = viper.BindEnv("instructions-url", "HONEYBADGER_INSTRUCTIONS_URL")
 	_ = viper.BindEnv("log-level", "LOG_LEVEL")

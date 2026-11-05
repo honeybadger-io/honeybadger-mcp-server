@@ -147,6 +147,9 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 				mcp.Min(1),
 				mcp.Max(25),
 			),
+			mcp.WithBoolean("breadcrumbs",
+				mcp.Description("Include each notice's breadcrumbs: the clicks, logs, requests and other events recorded before the error, oldest first. Off by default because each trail can hold up to 40 entries"),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListFaultNotices(ctx, v3ClientFor(ctx), req)
@@ -465,6 +468,13 @@ func handleListFaultNotices(ctx context.Context, client *apiv3.Client, req mcp.C
 	}
 	if cursor := req.GetString("after", ""); cursor != "" {
 		opts = append(opts, apiv3.After(cursor))
+	}
+	breadcrumbs, _, err := optionalBool(req.GetArguments(), "breadcrumbs")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if breadcrumbs {
+		opts = append(opts, apiv3.IncludeBreadcrumbs())
 	}
 
 	response, err := client.Faults.ListNotices(ctx, projectID, faultID, opts...)

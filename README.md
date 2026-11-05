@@ -29,10 +29,10 @@ These steps run the server locally over stdio. Most people should use the [hoste
 First, pull the Docker image:
 
 ```bash
-docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
+docker pull ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2
 ```
 
-Then, configure your MCP client(s) with an API Token: one starting `hbu_` (personal) or `hba_` (account). Personal tokens created before `hbu_` start with `hbt_` and still work. Create a personal one under the "Authentication" tab in your [Honeybadger user settings](https://app.honeybadger.io/users/edit#authentication). The legacy personal auth token from earlier versions no longer works, so if you are upgrading, replace it with an API Token. The environment variable keeps its name, `HONEYBADGER_PERSONAL_AUTH_TOKEN`.
+Then, configure your MCP client(s) with an API Token: one starting `hbu_` (personal) or `hba_` (account). Personal tokens created before `hbu_` start with `hbt_` and still work. Create a personal one under the "API Access" tab in your [Honeybadger user settings](https://app.honeybadger.io/users/edit#api-access). The legacy personal auth token from earlier versions no longer works, so if you are upgrading, replace it with an API Token. Set it as `HONEYBADGER_API_TOKEN`. The older name, `HONEYBADGER_PERSONAL_AUTH_TOKEN`, still works.
 
 ### Cursor, Windsurf, and Claude Desktop
 
@@ -48,11 +48,11 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
         "-i",
         "--rm",
         "-e",
-        "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-        "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1"
+        "HONEYBADGER_API_TOKEN",
+        "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2"
       ],
       "env": {
-        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbu_...)"
+        "HONEYBADGER_API_TOKEN": "your API Token (hbu_...)"
       }
     }
   }
@@ -64,7 +64,7 @@ Put this config in `~/.cursor/mcp.json` for [Cursor](https://docs.cursor.com/con
 Run this command to configure [Claude Code](https://www.anthropic.com/claude-code):
 
 ```bash
-claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="your API Token (hbu_...)" ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
+claude mcp add honeybadger -- docker run -i --rm -e HONEYBADGER_API_TOKEN="your API Token (hbu_...)" ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2
 ```
 
 ### VS Code
@@ -90,11 +90,11 @@ Add the following to your [user settings](https://code.visualstudio.com/docs/con
           "-i",
           "--rm",
           "-e",
-          "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-          "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1"
+          "HONEYBADGER_API_TOKEN",
+          "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2"
         ],
         "env": {
-          "HONEYBADGER_PERSONAL_AUTH_TOKEN": "${input:honeybadger_auth_token}"
+          "HONEYBADGER_API_TOKEN": "${input:honeybadger_auth_token}"
         }
       }
     }
@@ -119,11 +119,11 @@ Add the following to your Zed settings file in `~/.config/zed/settings.json`:
           "-i",
           "--rm",
           "-e",
-          "HONEYBADGER_PERSONAL_AUTH_TOKEN",
-          "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1"
+          "HONEYBADGER_API_TOKEN",
+          "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2"
         ],
         "env": {
-          "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbu_...)"
+          "HONEYBADGER_API_TOKEN": "your API Token (hbu_...)"
         }
       },
       "settings": {}
@@ -142,12 +142,12 @@ cd honeybadger-mcp-server
 docker build -t honeybadger-mcp-server .
 ```
 
-Then you can replace "ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1" with
+Then you can replace "ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2" with
 "honeybadger-mcp-server" in any of the configs above. Or you can run the image
 directly:
 
 ```bash
-docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN honeybadger-mcp-server
+docker run -i --rm -e HONEYBADGER_API_TOKEN honeybadger-mcp-server
 ```
 
 ### Building from source
@@ -169,7 +169,7 @@ And then configure your MCP client to run the server directly:
       "command": "/path/to/honeybadger-mcp-server",
       "args": ["stdio"],
       "env": {
-        "HONEYBADGER_PERSONAL_AUTH_TOKEN": "your API Token (hbu_...)"
+        "HONEYBADGER_API_TOKEN": "your API Token (hbu_...)"
       }
     }
   }
@@ -182,7 +182,7 @@ And then configure your MCP client to run the server directly:
 
 | Environment Variable              | Required | Default                    | Description                                                             |
 | --------------------------------- | -------- | -------------------------- | ----------------------------------------------------------------------- |
-| `HONEYBADGER_PERSONAL_AUTH_TOKEN` | yes      | —                          | API Token for the Data API                                              |
+| `HONEYBADGER_API_TOKEN`           | yes      | —                          | API Token for the Data API. The older name `HONEYBADGER_PERSONAL_AUTH_TOKEN` also works |
 | `HONEYBADGER_READ_ONLY`           | no       | true                       | Run in read-only mode, excluding write operations like `delete_project` |
 | `LOG_LEVEL`                       | no       | info                       | Log verbosity (debug, info, warn, error)                                |
 | `HONEYBADGER_API_URL`             | no       | https://app.honeybadger.io | Override the base URL for Honeybadger's API                             |
@@ -195,12 +195,12 @@ To enable write operations, explicitly set `HONEYBADGER_READ_ONLY=false`. **Use 
 
 ### EU Region
 
-The server defaults to Honeybadger's US API (`https://app.honeybadger.io`). If your account is in the [EU region](https://docs.honeybadger.io/resources/data-residency/), set `HONEYBADGER_API_URL` to `https://eu-app.honeybadger.io` and use an API Token from your [EU user settings](https://eu-app.honeybadger.io/users/edit#authentication). A US token won't authenticate against the EU region, and vice versa.
+The server defaults to Honeybadger's US API (`https://app.honeybadger.io`). If your account is in the [EU region](https://docs.honeybadger.io/resources/data-residency/), set `HONEYBADGER_API_URL` to `https://eu-app.honeybadger.io` and use an API Token from your [EU user settings](https://eu-app.honeybadger.io/users/edit#api-access). A US token won't authenticate against the EU region, and vice versa.
 
 For example, with Claude Code:
 
 ```bash
-claude mcp add honeybadger-eu -- docker run -i --rm -e HONEYBADGER_PERSONAL_AUTH_TOKEN="your_eu_token" -e HONEYBADGER_API_URL="https://eu-app.honeybadger.io" ghcr.io/honeybadger-io/honeybadger-mcp-server:1.5.1
+claude mcp add honeybadger-eu -- docker run -i --rm -e HONEYBADGER_API_TOKEN="your_eu_token" -e HONEYBADGER_API_URL="https://eu-app.honeybadger.io" ghcr.io/honeybadger-io/honeybadger-mcp-server:3.0.0-preview.2
 ```
 
 To use both regions at once, run two servers with distinct names (for example `honeybadger-us` and `honeybadger-eu`), each with its own token and API URL.
@@ -367,6 +367,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `before` : Cursor for older notices: `time_series.oldest_cursor` from the previous response (string, optional)
   - `after` : Cursor for newer notices: `time_series.newest_cursor` from the previous response (string, optional)
   - `limit` : Maximum number of notices to return (max 25) (number, optional)
+  - `breadcrumbs` : Include each notice's breadcrumbs, oldest first. Off by default because each trail can hold up to 40 entries (boolean, optional)
 
 - **list_fault_affected_users** - Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without `q`.
   - `project_id` : The ID of the project containing the fault (string, required)
