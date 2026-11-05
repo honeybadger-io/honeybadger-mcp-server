@@ -341,8 +341,14 @@ func TestHandleListFaultNoticesBreadcrumbs(t *testing.T) {
 	})); err != nil {
 		t.Fatalf("handleListFaultNotices() error = %v", err)
 	}
-	if len(got) != 2 || got[0] != "true" || got[1] != "" {
-		t.Errorf("breadcrumbs params = %q, want [\"true\" \"\"]", got)
+	// An explicit false must not turn the trails on just because the key is present.
+	if _, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "fault_id": 1, "breadcrumbs": false,
+	})); err != nil {
+		t.Fatalf("handleListFaultNotices() error = %v", err)
+	}
+	if len(got) != 3 || got[0] != "true" || got[1] != "" || got[2] != "" {
+		t.Errorf("breadcrumbs params = %q, want [\"true\" \"\" \"\"]", got)
 	}
 
 	result, _ = handleListFaultNotices(context.Background(), offlineV3Client(), faultArgs(map[string]interface{}{

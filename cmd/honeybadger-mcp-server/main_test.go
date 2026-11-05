@@ -122,6 +122,9 @@ func TestAuthTokenEnvNames(t *testing.T) {
 			t.Cleanup(viper.Reset)
 			// Keep a real ~/.honeybadger-mcp-server.yaml out of the test.
 			t.Setenv("HOME", t.TempDir())
+			// AutomaticEnv reads AUTH_TOKEN before either Honeybadger name, so a
+			// value left in the shell would override every case.
+			t.Setenv("AUTH_TOKEN", "")
 			t.Setenv("HONEYBADGER_API_TOKEN", tc.apiTok)
 			t.Setenv("HONEYBADGER_PERSONAL_AUTH_TOKEN", tc.legacy)
 
