@@ -126,15 +126,12 @@ func initConfig() {
 		viper.SetConfigName(".honeybadger-mcp-server")
 	}
 
-	// Environment variable binding
-	viper.SetEnvPrefix("")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv()
-
 	// Set defaults
 	viper.SetDefault("read-only", true)
 
-	// Bind specific environment variables
+	// Only these names configure the server. No AutomaticEnv: it would map
+	// each key to an unprefixed name (AUTH_TOKEN, READ_ONLY, ...) that viper
+	// checks before these, so a stray shell variable would win.
 	// HONEYBADGER_API_TOKEN matches the name the v3 API docs use; the older name
 	// still works for existing configs. Viper reads them in this order.
 	_ = viper.BindEnv("auth-token", "HONEYBADGER_API_TOKEN", "HONEYBADGER_PERSONAL_AUTH_TOKEN")
