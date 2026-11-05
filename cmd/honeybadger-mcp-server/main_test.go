@@ -136,6 +136,22 @@ func TestAuthTokenEnvNames(t *testing.T) {
 	}
 }
 
+// documentedEnv lists every env var initConfig binds.
+var documentedEnv = []string{
+	"HONEYBADGER_API_TOKEN", "HONEYBADGER_PERSONAL_AUTH_TOKEN", "HONEYBADGER_API_URL", "HONEYBADGER_INSTRUCTIONS_URL",
+	"LOG_LEVEL", "HONEYBADGER_READ_ONLY", "MCP_ADDRESS", "MCP_ENDPOINT_PATH", "MCP_STATELESS",
+	"MCP_PUBLIC_URL", "MCP_AUTHORIZATION_SERVER_URL", "MCP_RESOURCE_URL", "MCP_CONFIRM_SECRET",
+}
+
+// clearDocumentedEnv keeps values from the developer's shell out of a test.
+// Viper treats an empty env var as unset.
+func clearDocumentedEnv(t *testing.T) {
+	t.Helper()
+	for _, k := range documentedEnv {
+		t.Setenv(k, "")
+	}
+}
+
 // Only the documented env names configure the server. Viper's AutomaticEnv
 // used to map every key to an unprefixed name (AUTH_TOKEN, READ_ONLY, ...)
 // that beat the documented one, so a stray READ_ONLY=false in a shell could
@@ -206,6 +222,7 @@ func TestGenericEnvNamesIgnored(t *testing.T) {
 		viper.Reset()
 		t.Cleanup(viper.Reset)
 		t.Setenv("HOME", t.TempDir())
+		clearDocumentedEnv(t)
 		for k, v := range generic {
 			t.Setenv(k, v)
 		}
@@ -220,7 +237,7 @@ func TestGenericEnvNamesIgnored(t *testing.T) {
 			"stateless", "public-url", "authorization-server", "resource-url", "confirm-secret",
 		} {
 			if viper.IsSet(key) {
-				t.Errorf("%s set from a generic env var: %q", key, viper.GetString(key))
+				t.Errorf("%s set from a generic env var", key)
 			}
 		}
 	})
@@ -232,12 +249,12 @@ func TestEnvBeatsConfigFile(t *testing.T) {
 	t.Cleanup(viper.Reset)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	clearDocumentedEnv(t)
 	if err := os.WriteFile(filepath.Join(home, ".honeybadger-mcp-server.yaml"),
 		[]byte("api-url: https://file.example.com\nlog-level: debug\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HONEYBADGER_API_URL", "https://env.example.com")
-	t.Setenv("LOG_LEVEL", "")
 
 	initConfig()
 
