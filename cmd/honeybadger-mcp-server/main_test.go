@@ -152,6 +152,17 @@ func clearDocumentedEnv(t *testing.T) {
 	}
 }
 
+// tempHome points os.UserHomeDir at a fresh directory, so a real
+// ~/.honeybadger-mcp-server.yaml stays out of the test. Windows reads
+// USERPROFILE, everything else HOME.
+func tempHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	return home
+}
+
 // Only the documented env names configure the server. Viper's AutomaticEnv
 // used to map every key to an unprefixed name (AUTH_TOKEN, READ_ONLY, ...)
 // that beat the documented one, so a stray READ_ONLY=false in a shell could
@@ -174,8 +185,7 @@ func TestGenericEnvNamesIgnored(t *testing.T) {
 	t.Run("documented names win", func(t *testing.T) {
 		viper.Reset()
 		t.Cleanup(viper.Reset)
-		// Keep a real ~/.honeybadger-mcp-server.yaml out of the test.
-		t.Setenv("HOME", t.TempDir())
+		tempHome(t)
 		for k, v := range generic {
 			t.Setenv(k, v)
 		}
@@ -221,7 +231,7 @@ func TestGenericEnvNamesIgnored(t *testing.T) {
 	t.Run("generic names alone change nothing", func(t *testing.T) {
 		viper.Reset()
 		t.Cleanup(viper.Reset)
-		t.Setenv("HOME", t.TempDir())
+		tempHome(t)
 		clearDocumentedEnv(t)
 		for k, v := range generic {
 			t.Setenv(k, v)
@@ -247,8 +257,7 @@ func TestGenericEnvNamesIgnored(t *testing.T) {
 func TestEnvBeatsConfigFile(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	home := tempHome(t)
 	clearDocumentedEnv(t)
 	if err := os.WriteFile(filepath.Join(home, ".honeybadger-mcp-server.yaml"),
 		[]byte("api-url: https://file.example.com\nlog-level: debug\n"), 0o600); err != nil {
