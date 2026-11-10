@@ -27,8 +27,8 @@ github.com/google/jsonschema-go v0.4.2 h1:tmrUohrwoLZZS/P3x7ex0WAVknEkBZM46iALbc
 github.com/google/jsonschema-go v0.4.2/go.mod h1:r5quNTdLOYEz95Ru18zA0ydNbBuYoo9tgaYcxEYhJVE=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/honeybadger-io/api-go v0.11.0 h1:BLiA4yboizmgxO5f2YXMwqStXUI3P8ZKuVQmL5YWTS0=
-github.com/honeybadger-io/api-go v0.11.0/go.mod h1:VQ75lwfLn9OYiCriLdcZxxNLbmqz/R7bOVcKlW4Z7RY=
+github.com/honeybadger-io/api-go v0.11.1-0.20261110202136-f69e95fa8851 h1:/KE3iWwL658NZLDp7UiSMM1SBOl3HjR84O6EohJU1/k=
+github.com/honeybadger-io/api-go v0.11.1-0.20261110202136-f69e95fa8851/go.mod h1:VQ75lwfLn9OYiCriLdcZxxNLbmqz/R7bOVcKlW4Z7RY=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/juju/gnuflag v0.0.0-20171113085948-2ce1bb71843d/go.mod h1:2PavIy+JPciBPrBUjwbNvtwB6RQlve+hkpll6QSNmOE=

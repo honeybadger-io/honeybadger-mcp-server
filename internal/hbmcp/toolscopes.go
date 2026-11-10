@@ -35,7 +35,7 @@ var toolOperations = map[string][]string{
 	// them all keeps the map honest about what the tool reaches.
 	"update_fault": {
 		"resolveFaults", "unresolveFaults", "ignoreFaults", "unignoreFaults",
-		"assignFault", "unassignFault", "updateFault",
+		"assignFault", "unassignFault", "snoozeFault", "unsnoozeFault", "updateFault",
 		// Not getFault, though a zero-count bulk change is checked with one: the
 		// filter offers a tool when any listed scope is held, so its faults:read
 		// would show this write tool to read-only credentials.

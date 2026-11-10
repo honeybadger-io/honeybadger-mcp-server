@@ -80,7 +80,8 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 		mcp.NewTool("update_fault",
 			mcp.WithTitleAnnotation("Update Fault"),
 			mcp.WithDescription("Resolve, unresolve, ignore, or unignore a fault, assign it to a "+
-				"project member, or set it to resolve on the next deploy. Only the provided "+
+				"project member, snooze or unsnooze its notifications, or set it to resolve on "+
+				"the next deploy. Only the provided "+
 				"fields are changed. Each field is a separate request, so a later one can fail "+
 				"after an earlier one has already taken effect; the result names what was applied."),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -108,6 +109,24 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 					"Send null to unassign. A user who is not a member of the project is "+
 					"rejected rather than silently unassigning."),
 				acceptsNull,
+			),
+			// Nullable like assignee_id: a duration snoozes, null unsnoozes, and
+			// omitting it changes nothing.
+			mcp.WithString("snooze",
+				mcp.Description("Stop the fault's notifications for an hour, a day, or a week. "+
+					"Send null to end a snooze. Notices are still recorded, and a resolved "+
+					"fault that recurs is still unresolved; only notifications stop. Replaces "+
+					"any existing snooze. Cannot be combined with snooze_occurrences."),
+				mcp.Enum("hour", "day", "week"),
+				acceptsNull,
+			),
+			mcp.WithNumber("snooze_occurrences",
+				mcp.Description("Stop the fault's notifications until this many more "+
+					"occurrences arrive: 10, 100, or 1000. With 10, the eleventh notifies. "+
+					"Otherwise like snooze. Cannot be combined with snooze."),
+				// mcp.Enum takes only strings, so the numeric enum is set by hand;
+				// without it the schema would advertise any number.
+				func(schema map[string]any) { schema["enum"] = []any{10, 100, 1000} },
 			),
 			mcp.WithBoolean("resolve_on_deploy",
 				mcp.Description("Resolve this fault the next time a deploy is recorded. "+
@@ -299,6 +318,24 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 			return mcp.NewToolResultError("assignee_id must be a user's public ID string or null"), nil
 		}
 	}
+	snooze, hasSnooze := args["snooze"]
+	if hasSnooze && snooze != nil {
+		if d, ok := snooze.(string); !ok || !apiv3.PauseDuration(d).Valid() {
+			return mcp.NewToolResultError("snooze must be hour, day, week, or null"), nil
+		}
+	}
+	snoozeCount, hasSnoozeCount := args["snooze_occurrences"]
+	if hasSnoozeCount {
+		n, ok := snoozeCount.(float64)
+		if !ok || n != float64(int(n)) || !apiv3.SnoozeCount(int(n)).Valid() {
+			return mcp.NewToolResultError("snooze_occurrences must be 10, 100, or 1000"), nil
+		}
+	}
+	if hasSnooze && hasSnoozeCount {
+		return mcp.NewToolResultError(
+			"snooze and snooze_occurrences cannot be combined — a fault has one snooze, " +
+				"by time or by count. Send one of them."), nil
+	}
 	onDeploy, hasOnDeploy, err := optionalBool(args, "resolve_on_deploy")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -313,9 +350,10 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 				"clear any pending resolution, so the fault would end up resolved or ignored " +
 				"now rather than on the next deploy. Send resolve_on_deploy in its own call."), nil
 	}
-	if !hasResolved && !hasIgnored && !hasAssignee && !hasOnDeploy {
+	if !hasResolved && !hasIgnored && !hasAssignee && !hasSnooze && !hasSnoozeCount && !hasOnDeploy {
 		return mcp.NewToolResultError(
-			"at least one of resolved, ignored, assignee_id, or resolve_on_deploy is required"), nil
+			"at least one of resolved, ignored, assignee_id, snooze, snooze_occurrences, or " +
+				"resolve_on_deploy is required"), nil
 	}
 
 	applied := map[string]any{"project_id": projectID, "fault_id": faultID}
@@ -348,6 +386,31 @@ func handleUpdateFault(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 			if a, getErr := fault.Assignee.Get(); getErr == nil && a.Id != nil {
 				applied["assignee_id"] = *a.Id
 			}
+		}
+	}
+	if err == nil && (hasSnooze || hasSnoozeCount) {
+		var fault *apiv3.Fault
+		switch {
+		case hasSnoozeCount:
+			n := apiv3.SnoozeCount(int(snoozeCount.(float64)))
+			fault, err = client.Faults.SnoozeOccurrences(ctx, projectID, faultID, n)
+			applied["snooze_occurrences"] = int(n)
+		case snooze != nil:
+			d := apiv3.PauseDuration(snooze.(string))
+			fault, err = client.Faults.Snooze(ctx, projectID, faultID, d)
+			applied["snooze"] = string(d)
+		default:
+			fault, err = client.Faults.Unsnooze(ctx, projectID, faultID)
+			applied["snooze"] = nil
+		}
+		if err != nil {
+			// Not applied: drop the requested value so a partial-failure report
+			// does not list it among the completed steps.
+			delete(applied, "snooze")
+			delete(applied, "snooze_occurrences")
+		} else {
+			// Report the state the API returned, not the one requested.
+			applied["snoozed"] = fault.Snoozed
 		}
 	}
 	if err == nil && hasOnDeploy {
