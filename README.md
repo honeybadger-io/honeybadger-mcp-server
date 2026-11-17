@@ -346,7 +346,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `project_id` : The ID of the project containing the fault (string, required)
   - `fault_id` : The ID of the fault to retrieve (string, required)
 
-- **update_fault** - Update a fault's resolved, ignored, assignee, or resolve-on-deploy state. Only the provided fields are changed.
+- **update_fault** - Update a fault's resolved, ignored, assignee, snooze, or resolve-on-deploy state. Only the provided fields are changed.
   - `project_id` : The ID of the project containing the fault (string, required)
   - `fault_id` : The ID of the fault to update (string, required)
   - `resolved` : Whether the fault is resolved (boolean, optional)

@@ -3,6 +3,7 @@ package hbmcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -191,6 +192,113 @@ func TestHandleUpdateFaultResolve(t *testing.T) {
 	ids, _ := body["fault_ids"].([]any)
 	if len(ids) != 1 || ids[0] != "1" {
 		t.Errorf("fault_ids = %v", body["fault_ids"])
+	}
+}
+
+// snooze sends a duration, snooze_occurrences a count, and null unsnoozes, each
+// to the snooze endpoint; the summary reports the state the API returned.
+func TestHandleUpdateFaultSnooze(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       map[string]any
+		wantMethod string
+		wantBody   map[string]any
+		snoozed    bool
+		wantKey    string
+		wantValue  any
+	}{
+		{"duration", map[string]any{"snooze": "hour"}, http.MethodPost,
+			map[string]any{"time": "hour"}, true, "snooze", "hour"},
+		{"occurrences", map[string]any{"snooze_occurrences": float64(100)}, http.MethodPost,
+			map[string]any{"count": float64(100)}, true, "snooze_occurrences", float64(100)},
+		{"null unsnoozes", map[string]any{"snooze": nil}, http.MethodDelete,
+			nil, false, "snooze", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var method, path string
+			var body map[string]any
+			client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				method, path = r.Method, r.URL.Path
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				v3JSON(w, http.StatusOK, fmt.Sprintf(`{"data":{"id":"1","project_id":"Xk9mZp","snoozed":%t}}`, tt.snoozed))
+			})
+			args := map[string]any{"project_id": "Xk9mZp", "fault_id": "1"}
+			for k, v := range tt.args {
+				args[k] = v
+			}
+			result, err := handleUpdateFault(context.Background(), client, faultArgs(args))
+			if err != nil || result.IsError {
+				t.Fatalf("handleUpdateFault() = %v, %s", err, getResultText(result))
+			}
+			if method != tt.wantMethod || path != "/v3/projects/Xk9mZp/faults/1/snooze" {
+				t.Errorf("request = %s %s", method, path)
+			}
+			if fmt.Sprint(body) != fmt.Sprint(tt.wantBody) {
+				t.Errorf("body = %v, want %v", body, tt.wantBody)
+			}
+			var applied map[string]any
+			if err := json.Unmarshal([]byte(getResultText(result)), &applied); err != nil {
+				t.Fatalf("response is not JSON: %v", err)
+			}
+			if v, ok := applied[tt.wantKey]; !ok || v != tt.wantValue {
+				t.Errorf("summary[%s] = %v, want %v", tt.wantKey, v, tt.wantValue)
+			}
+			if applied["snoozed"] != tt.snoozed {
+				t.Errorf("summary snoozed = %v, want %v", applied["snoozed"], tt.snoozed)
+			}
+		})
+	}
+}
+
+// Bad snooze values, or both kinds at once, are refused before any request.
+func TestHandleUpdateFaultSnoozeRejectsInvalid(t *testing.T) {
+	for name, args := range map[string]map[string]any{
+		"unknown duration": {"snooze": "month"},
+		"non-string":       {"snooze": true},
+		"unknown count":    {"snooze_occurrences": float64(5)},
+		"fractional count": {"snooze_occurrences": 10.5},
+		"string count":     {"snooze_occurrences": "10"},
+		"both":             {"snooze": "day", "snooze_occurrences": float64(10)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			})
+			args["project_id"], args["fault_id"] = "Xk9mZp", "1"
+			result, err := handleUpdateFault(context.Background(), client, faultArgs(args))
+			if err != nil {
+				t.Fatalf("handleUpdateFault() error = %v", err)
+			}
+			if !result.IsError {
+				t.Errorf("expected an error, got %s", getResultText(result))
+			}
+		})
+	}
+}
+
+// A failed snooze after a successful resolve reports the resolve as completed,
+// and does not list the snooze among the completed steps.
+func TestHandleUpdateFaultSnoozeFailureAfterResolve(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/snooze") {
+			v3JSON(w, http.StatusInternalServerError, `{"error":{"code":"internal_error","message":"boom"}}`)
+			return
+		}
+		v3JSON(w, http.StatusOK, bulkChanged)
+	})
+	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]any{
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": true, "snooze": "hour",
+	}))
+	if err != nil {
+		t.Fatalf("handleUpdateFault() error = %v", err)
+	}
+	text := getResultText(result)
+	if !result.IsError || !strings.Contains(text, `"resolved":true`) {
+		t.Errorf("result = %s, want an error naming the completed resolve", text)
+	}
+	if strings.Contains(text, `"snooze"`) {
+		t.Errorf("result = %s, lists the failed snooze as completed", text)
 	}
 }
 
@@ -847,6 +955,50 @@ func TestUpdateFaultAssigneeSchemaAcceptsNull(t *testing.T) {
 			}
 		}
 		t.Fatalf("assignee_id type = %v, want it to include null", tool.InputSchema.Properties["assignee_id"].Type)
+	}
+	t.Fatal("update_fault is not registered")
+}
+
+// The advertised snooze schema must match what the handler accepts: a duration
+// enum that allows null, and a count enum rather than any number.
+func TestUpdateFaultSnoozeSchema(t *testing.T) {
+	s := NewServer(&config.Config{AuthToken: "test-token", LogLevel: "info", TransportMode: config.TransportStdio}, "test")
+	resp := s.HandleMessage(context.Background(), []byte(`{"jsonrpc":"2.0","id":"1","method":"tools/list"}`))
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal tools/list: %v", err)
+	}
+	var parsed struct {
+		Result struct {
+			Tools []struct {
+				Name        string `json:"name"`
+				InputSchema struct {
+					Properties map[string]struct {
+						Type any   `json:"type"`
+						Enum []any `json:"enum"`
+					} `json:"properties"`
+				} `json:"inputSchema"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("parse tools/list: %v", err)
+	}
+	for _, tool := range parsed.Result.Tools {
+		if tool.Name != "update_fault" {
+			continue
+		}
+		props := tool.InputSchema.Properties
+		if got := fmt.Sprint(props["snooze"].Enum); got != "[hour day week <nil>]" {
+			t.Errorf("snooze enum = %s, want [hour day week <nil>]", got)
+		}
+		if got := fmt.Sprint(props["snooze"].Type); got != "[string null]" {
+			t.Errorf("snooze type = %s, want [string null]", got)
+		}
+		if got := fmt.Sprint(props["snooze_occurrences"].Enum); got != "[10 100 1000]" {
+			t.Errorf("snooze_occurrences enum = %s, want [10 100 1000]", got)
+		}
+		return
 	}
 	t.Fatal("update_fault is not registered")
 }
