@@ -7,7 +7,7 @@
     "url": "https://github.com/honeybadger-io/honeybadger-mcp-server",
     "source": "github"
   },
-  "version": "1.5.1",
+  "version": "3.1.0",
   "remotes": [
     {
       "type": "streamable-http",
