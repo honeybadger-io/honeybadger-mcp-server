@@ -72,7 +72,7 @@ func TestFlattensPathAndBodyIntoOneStrictObject(t *testing.T) {
 			"project_id": {"type": "string", "description": "Project ID."},
 			"name": {"type": "string", "description": "Widget name."},
 			"color": {"type": ["string", "null"], "enum": ["red", "blue", null], "description": "Color."},
-			"size": {"type": ["integer", "null"], "description": "Size."},
+			"size": {"type": ["integer", "null"], "default": 3, "description": "Size."},
 			"parts": {"type": "array", "description": "Parts.", "items": {
 				"type": "object", "additionalProperties": false, "required": ["label"],
 				"properties": {"label": {"type": "string"}, "weight": {"type": "number"}},
@@ -343,6 +343,7 @@ update_widget:
     label: { description: x }
     weight: { description: x }
     note: { description: x }
+    default: { description: x }
 `)
 	if got, want := asJSON(t, tool.Schema["required"]), `["label","project_id","weight","widget_id"]`; got != want {
 		t.Errorf("required = %s, want %s", got, want)
@@ -361,5 +362,34 @@ func TestGenerateListsHandwrittenTools(t *testing.T) {
 	}
 	if want := `var generatedHandwritten = []string{"get_reference", "search_tools"}`; !strings.Contains(string(src), want) {
 		t.Errorf("generated source lacks %q", want)
+	}
+}
+
+// A default says what the server uses when a field is left out. That holds
+// for a create (POST) but not an update (PATCH or PUT), where leaving a field
+// out keeps its value, so a filled-in default would reset it.
+func TestDefaultsAreKeptOnlyWhereOmittingUsesThem(t *testing.T) {
+	create := buildOne(t, createWidget)
+	if got := create.Schema["properties"].(map[string]any)["size"].(map[string]any)["default"]; got != 3 {
+		t.Errorf("create_widget.size default = %v, want 3", got)
+	}
+	update := buildOne(t, `
+update_widget:
+  operation: updateWidget
+  title: Update Widget
+  description: Update a widget.
+  params:
+    project_id: { description: x }
+    widget_id: { description: x }
+    label: { description: x }
+    weight: { description: x }
+    note: { description: x }
+    default: { description: x }
+`)
+	if _, ok := update.Schema["properties"].(map[string]any)["default"]; !ok {
+		t.Error("update_widget lost its property named default")
+	}
+	if got, ok := update.Schema["properties"].(map[string]any)["note"].(map[string]any)["default"]; ok {
+		t.Errorf("update_widget.note default = %v, want none on a PATCH", got)
 	}
 }

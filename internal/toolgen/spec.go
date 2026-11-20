@@ -94,7 +94,41 @@ func (d *spec) describe(method string, shared []any, raw map[string]any, default
 	}
 
 	d.addBodyParams(op, raw["requestBody"])
+	if method == "PATCH" || method == "PUT" {
+		// A default says what the server uses when a field is left out. On an
+		// update, leaving a field out keeps its value instead, and a default a
+		// client or model filled in would reset it.
+		for _, p := range op.params {
+			dropDefaults(p.schema)
+		}
+		for _, r := range op.rules {
+			dropDefaults(r)
+		}
+	}
 	return op, nil
+}
+
+// dropDefaults removes every default keyword from a resolved schema. A
+// property that happens to be named "default" is a property, not the keyword,
+// so properties maps are walked by value.
+func dropDefaults(node any) {
+	switch n := node.(type) {
+	case map[string]any:
+		delete(n, "default")
+		for k, v := range n {
+			if k == "properties" || k == "patternProperties" {
+				for _, prop := range asMap(v) {
+					dropDefaults(prop)
+				}
+				continue
+			}
+			dropDefaults(v)
+		}
+	case []any:
+		for _, v := range n {
+			dropDefaults(v)
+		}
+	}
 }
 
 // addBodyParams adds a JSON request body's properties as parameters.

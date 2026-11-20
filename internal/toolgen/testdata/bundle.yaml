@@ -79,6 +79,9 @@ paths:
                 properties:
                   note:
                     type: string
+                    default: none
+                  default:
+                    type: boolean
   "/projects/{project_id}/counts":
     get:
       operationId: getProjectCounts
@@ -172,6 +175,7 @@ components:
           type:
           - integer
           - 'null'
+          default: 3
           x-hb:
             group: Widgets
         parts:
