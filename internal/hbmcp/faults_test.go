@@ -469,16 +469,13 @@ func TestHandleListFaultNoticesBreadcrumbs(t *testing.T) {
 
 // Notices page by cursor in v3, so the timestamp filters have no equivalent.
 func TestHandleListFaultNoticesRejectsTimestampFilters(t *testing.T) {
+	tools := registeredTools(t)
 	for _, field := range []string{"created_after", "created_before"} {
-		result, err := handleListFaultNotices(context.Background(), offlineV3Client(),
-			faultArgs(map[string]interface{}{
-				"project_id": "Xk9mZp", "fault_id": 1, field: "2026-01-01T00:00:00Z",
-			}))
-		if err != nil {
-			t.Fatalf("%s: error = %v", field, err)
-		}
-		if !result.IsError || !strings.Contains(getResultText(result), field) {
-			t.Errorf("%s: got %q", field, getResultText(result))
+		text, ran, _ := checked(t, tools, "list_fault_notices", map[string]any{
+			"project_id": "Xk9mZp", "fault_id": "1", field: "2026-01-01T00:00:00Z",
+		})
+		if ran || !strings.Contains(text, field) {
+			t.Errorf("%s: ran = %v, got %q", field, ran, text)
 		}
 	}
 }

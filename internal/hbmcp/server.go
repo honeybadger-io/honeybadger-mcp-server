@@ -101,6 +101,10 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 
 	serverOptions := []server.ServerOption{
 		server.WithToolCapabilities(true),
+		// tools/list advertises additionalProperties: false, so schema-aware
+		// clients steer away from unknown arguments before the strict check
+		// refuses them.
+		server.WithStrictInputSchemaDefault(),
 		server.WithInstructions(ServerInstructions()),
 		server.WithLogging(),
 		server.WithRecovery(),
@@ -132,7 +136,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	s := server.NewMCPServer("honeybadger-mcp-server", version, serverOptions...)
 
 	v3ClientFor := newV3ClientFactory(cfg, version)
-	r := newToolRegistrar(s)
+	r := newToolRegistrar(s, logger)
 	RegisterReferenceTools(r, newReferenceFetcher(cfg.InstructionsURL, logger))
 	RegisterProjectTools(r, v3ClientFor)
 	RegisterFaultTools(r, v3ClientFor)
@@ -146,7 +150,7 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 	RegisterIngestionKeyTools(r, v3ClientFor)
 	RegisterSiteTools(r, v3ClientFor)
 	RegisterDeployTools(r, v3ClientFor)
-	registerSearchTool(s, r.catalog, cfg)
+	registerSearchTool(s, r.catalog, cfg, logger)
 
 	return s, append(r.catalog, searchToolInfo)
 }

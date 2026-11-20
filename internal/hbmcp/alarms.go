@@ -132,9 +132,6 @@ func parseTrigger(raw string) (*apiv3.AlarmTriggerConfig, error) {
 }
 
 func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if msg := refuseNonStrings(req, "description"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
@@ -210,9 +207,6 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	// Presence, not emptiness: an empty description clears it, while omitting a
 	// field leaves it alone.
 	args := req.GetArguments()
-	if msg := refuseNonStrings(req, "name", "query", "evaluation_period", "lookback_lag", "description"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	params := apiv3.AlarmUpdateParams{Description: setOrClear(req, "description")}
 	for field, target := range map[string]**string{
 		"name":              &params.Name,

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // toolSchemas lists every registered tool's input schema properties.
@@ -211,11 +210,9 @@ func TestProjectPurgeDays(t *testing.T) {
 
 // list_streams no longer filters; a cached schema's query is refused, not ignored.
 func TestListStreamsRefusesQuery(t *testing.T) {
-	result, err := handleListStreams(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "query": "prod",
-	}))
-	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "query") {
-		t.Errorf("result = %s, want query refused", getResultText(result))
+	text, ran, _ := checked(t, registeredTools(t), "list_streams", map[string]any{"project_id": "Xk9mZp", "query": "prod"})
+	if ran || !strings.Contains(text, "query") {
+		t.Errorf("result = %s, want query refused", text)
 	}
 }
 
@@ -316,27 +313,18 @@ func TestAlarmTriggerNeedsItsValue(t *testing.T) {
 // absent project_id widens occurrence counts to every project, an absent time
 // filter returns everything, an absent period leaves a check-in unchanged.
 func TestStringParametersRefuseOtherTypes(t *testing.T) {
-	ctx := context.Background()
-	cases := []struct {
-		name string
-		call func() (*mcp.CallToolResult, error)
+	tools := registeredTools(t)
+	for name, c := range map[string]struct {
+		tool string
+		args map[string]any
 	}{
-		{"occurrence counts project_id", func() (*mcp.CallToolResult, error) {
-			return handleGetProjectOccurrenceCounts(ctx, offlineV3Client(), mcpRequest(map[string]any{"project_id": 12345.0}))
-		}},
-		{"list_faults created_after", func() (*mcp.CallToolResult, error) {
-			return handleListFaults(ctx, offlineV3Client(), mcpRequest(map[string]any{"project_id": "Xk9mZp", "created_after": 1767225600.0}))
-		}},
-		{"update_check_in report_period", func() (*mcp.CallToolResult, error) {
-			return handleUpdateCheckIn(ctx, offlineV3Client(), mcpRequest(map[string]any{
-				"project_id": "Xk9mZp", "check_in_id": "c1", "name": "nightly", "report_period": 3600.0,
-			}))
-		}},
-	}
-	for _, c := range cases {
-		result, err := c.call()
-		if err != nil || !result.IsError || !strings.Contains(getResultText(result), "must be a string") {
-			t.Errorf("%s: result = %s, want a type error", c.name, getResultText(result))
+		"occurrence counts project_id":  {"get_project_occurrence_counts", map[string]any{"project_id": 12345.0}},
+		"list_faults created_after":     {"list_faults", map[string]any{"project_id": "Xk9mZp", "created_after": 1767225600.0}},
+		"update_check_in report_period": {"update_check_in", map[string]any{"project_id": "Xk9mZp", "check_in_id": "c1", "name": "nightly", "report_period": 3600.0}},
+	} {
+		text, ran, _ := checked(t, tools, c.tool, c.args)
+		if ran || !strings.Contains(text, "must be a string") {
+			t.Errorf("%s: ran = %v, result = %s, want a type error", name, ran, text)
 		}
 	}
 }

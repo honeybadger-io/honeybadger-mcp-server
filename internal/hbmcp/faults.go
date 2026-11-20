@@ -404,11 +404,6 @@ func handleListFaultNotices(ctx context.Context, client *apiv3.Client, req mcp.C
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
-	// Notices are cursor-paginated in v3, so the old timestamp filters have no
-	// equivalent; a client with a cached schema may still send them.
-	if msg := rejectStaleSchemaFields("list_fault_notices", req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 
 	opts := []apiv3.Option{}
 	if limit := req.GetInt("limit", 0); limit > 0 {

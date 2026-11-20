@@ -90,9 +90,6 @@ type projectSummaryResponse struct {
 }
 
 func handleListProjects(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if msg := rejectStaleSchemaFields("list_projects", req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	var opts []apiv3.ListAllOption
 	if name := req.GetString("name", ""); name != "" {
 		opts = append(opts, apiv3.Named(name))
@@ -150,9 +147,6 @@ func handleGetProject(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 }
 
 func handleCreateProject(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if msg := rejectStaleSchemaFields("create_project", req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	name := req.GetString("name", "")
 	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
@@ -237,9 +231,6 @@ func handleDeleteProject(ctx context.Context, client *apiv3.Client, req mcp.Call
 }
 
 func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if msg := refuseNonStrings(req, "project_id", "environment", "period"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	o := apiv3.OccurrenceOptions{
 		Period:      apiv3.OccurrencePeriod(req.GetString("period", "")),
 		Environment: req.GetString("environment", ""),
@@ -248,9 +239,6 @@ func handleGetProjectOccurrenceCounts(ctx context.Context, client *apiv3.Client,
 
 	// Omitting the project reports across every project the credential reaches,
 	// returning a series per project rather than one object.
-	if msg := rejectStaleSchemaFields("get_project_occurrence_counts", req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	var (
 		counts any
 		err    error

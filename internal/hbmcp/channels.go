@@ -182,9 +182,6 @@ func handleCreateIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 	if integrationType == "" {
 		return mcp.NewToolResultError("type is required"), nil
 	}
-	if msg := rejectStaleSchemaFields("create_integration", req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 
 	raw, msg := integrationBody(req, map[string]any{"type": integrationType})
 	if msg != "" {
@@ -217,9 +214,6 @@ func handleUpdateIntegration(ctx context.Context, client *apiv3.Client, req mcp.
 		return mcp.NewToolResultError("integration_id is required"), nil
 	}
 
-	if msg := rejectStaleSchemaFields("update_integration", req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	raw, msg := integrationBody(req, nil)
 	if msg != "" {
 		return mcp.NewToolResultError(msg), nil
