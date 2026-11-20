@@ -12,13 +12,22 @@ MCP_PORT       ?= 9090
 MCP_PUBLIC_URL ?= http://localhost:$(MCP_PORT)
 MCP_URL        ?= $(MCP_PUBLIC_URL)/mcp
 
-.PHONY: build test verify-module verify-module-local docker docker-local docker-run claude-mcp-add claude-mcp-remove
+.PHONY: build test update-spec check-spec verify-module verify-module-local docker docker-local docker-run claude-mcp-add claude-mcp-remove
 
 build:
 	go build -o honeybadger-mcp-server ./cmd/honeybadger-mcp-server
 
 test:
 	go test ./...
+
+# Copy honeybadger's generated v3 bundle into openapi/ and record its provenance.
+# HONEYBADGER_DIR overrides the default ../../honeybadger.
+update-spec:
+	./scripts/update-spec.sh
+
+# Fail when openapi/bundled.yaml isn't the bundle openapi/README.md records.
+check-spec:
+	./scripts/check-spec.sh
 
 # Build the way Docker does: no workspace, no go.mod writes.
 #
