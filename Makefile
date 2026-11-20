@@ -29,10 +29,12 @@ update-spec:
 check-spec:
 	./scripts/check-spec.sh
 
-# Rebuild the tool definitions from the vendored bundle and openapi/tools.yaml.
+# Rebuild the tool definitions from the vendored bundle and openapi/tools.yaml,
+# then README's tool reference from them.
 # Fails naming each tool or parameter that needs attention.
 generate: check-spec
 	GOWORK=off go run ./internal/toolgen/cmd/toolgen
+	GOWORK=off go run ./internal/toolgen/cmd/readmegen
 
 # Build the way Docker does: no workspace, no go.mod writes.
 #
