@@ -13,30 +13,7 @@ import (
 func RegisterInsightsTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// query_insights tool
 	r.AddTool(
-		mcp.NewTool("query_insights",
-			mcp.WithTitleAnnotation("Query Insights"),
-			mcp.WithDescription("Execute a BadgerQL query against Insights data. Requires reference topics: queries, badgerql (fetch via get_reference; skip topics still visible in your context). To visualize or share results, also fetch the charts topic."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to query insights for"),
-			),
-			mcp.WithString("query",
-				mcp.Required(),
-				mcp.Description("BadgerQL query string to execute against your Insights data"),
-			),
-			mcp.WithString("ts",
-				mcp.Description("Time range - shortcuts like 'today', 'week', or ISO 8601 duration (e.g., 'PT3H'). Defaults to PT3H."),
-			),
-			mcp.WithString("timezone",
-				mcp.Description("IANA timezone identifier (e.g., 'America/New_York') for timestamp interpretation"),
-			),
-			mcp.WithArray("stream_ids",
-				mcp.WithStringItems(),
-				mcp.Description("Optional list of stream IDs to restrict the query to specific Insights streams. Use list_streams to discover a project's stream IDs; pass the 'id' field (not the slug). Omit to query all streams. An ID that isn't one of the project's streams is refused with an error."),
-			),
-		),
+		generatedTool("query_insights"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleQueryInsights(ctx, v3ClientFor(ctx), req)
 		},
@@ -45,9 +22,6 @@ func RegisterInsightsTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 }
 
 func handleQueryInsights(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if msg := refuseNonStrings(req, "ts", "timezone"); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
@@ -58,13 +32,9 @@ func handleQueryInsights(ctx context.Context, client *apiv3.Client, req mcp.Call
 		return mcp.NewToolResultError("query is required"), nil
 	}
 
-	// The alarm tools take stream_ids as a JSON string, and an agent checking an
-	// alarm's query here will send it the same way; dropping it would run the
-	// query over every stream instead.
-	streamIDs, _, _, problem := streamIDsArg(req)
-	if problem != "" {
-		return mcp.NewToolResultError(problem), nil
-	}
+	// Dropping stream_ids would run the query over every stream instead of the
+	// ones an alarm being checked here watches.
+	streamIDs, _, _ := streamIDsArg(req)
 	query_ := apiv3.InsightsQuery{
 		Query:     query,
 		Ts:        req.GetString("ts", ""),

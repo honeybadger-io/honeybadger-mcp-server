@@ -10,109 +10,38 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// nonBlankCommentPattern requires a character outside the Unicode whitespace set
-// used by strings.TrimSpace. An explicit set avoids differences in \s across
-// JSON Schema clients and Go regular expressions.
-const nonBlankCommentPattern = "[^\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"
-
-// How each comment write behaves with an account token (hba_), which has no
-// user behind it.
-const (
-	commentCreateNote = " With an account-scoped API Token, the comment is attributed to the token's name."
-	commentUpdateNote = " Only the comment's author can edit it, so an account-scoped API Token, which has no author, is refused with access_denied."
-	commentDeleteNote = " An account-scoped API Token can delete a comment only when it can manage the project."
-)
-
 // RegisterCommentTools registers the fault comment tools.
 func RegisterCommentTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
-		mcp.NewTool("list_fault_comments",
-			mcp.WithTitleAnnotation("List Fault Comments"),
-			mcp.WithDescription("List every comment on a fault, newest first."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			withProjectParam(),
-			withFaultParam(),
-		),
+		generatedTool("list_fault_comments"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListFaultComments(ctx, v3ClientFor(ctx), req)
 		},
 	)
 	r.AddTool(
-		mcp.NewTool("get_fault_comment",
-			mcp.WithTitleAnnotation("Get Fault Comment"),
-			mcp.WithDescription("Get a single comment on a fault by ID."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			withProjectParam(),
-			withFaultParam(),
-			withCommentParam(),
-		),
+		generatedTool("get_fault_comment"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleGetFaultComment(ctx, v3ClientFor(ctx), req)
 		},
 	)
 	r.AddTool(
-		mcp.NewTool("create_fault_comment",
-			mcp.WithTitleAnnotation("Create Fault Comment"),
-			mcp.WithDescription("Add a comment to a fault. @mentions notify the named project members."+commentCreateNote),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			withProjectParam(),
-			withFaultParam(),
-			withCommentBodyParam(),
-		),
+		generatedTool("create_fault_comment"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleCreateFaultComment(ctx, v3ClientFor(ctx), req)
 		},
 	)
 	r.AddTool(
-		mcp.NewTool("update_fault_comment",
-			mcp.WithTitleAnnotation("Update Fault Comment"),
-			mcp.WithDescription("Replace the body of an existing fault comment. Returns the comment as stored."+commentUpdateNote),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			withProjectParam(),
-			withFaultParam(),
-			withCommentParam(),
-			withCommentBodyParam(),
-		),
+		generatedTool("update_fault_comment"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateFaultComment(ctx, v3ClientFor(ctx), req)
 		},
 	)
 	r.AddTool(
-		mcp.NewTool("delete_fault_comment",
-			mcp.WithTitleAnnotation("Delete Fault Comment"),
-			mcp.WithDescription("Delete an existing comment from a fault."+commentDeleteNote+confirmNote),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			withProjectParam(),
-			withFaultParam(),
-			withCommentParam(),
-			withConfirmParam(),
-		),
+		generatedTool("delete_fault_comment"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteFaultComment(ctx, v3ClientFor(ctx), req)
 		},
 	)
-}
-
-func withProjectParam() mcp.ToolOption {
-	return mcp.WithString("project_id", mcp.Required(), mcp.Description("The ID of the project containing the fault"))
-}
-
-func withFaultParam() mcp.ToolOption {
-	return mcp.WithString("fault_id", mcp.Required(), mcp.Description("The ID of the fault the comments belong to"))
-}
-
-func withCommentParam() mcp.ToolOption {
-	return mcp.WithString("comment_id", mcp.Required(), mcp.Description("The ID of the comment"))
-}
-
-func withCommentBodyParam() mcp.ToolOption {
-	return mcp.WithString("body", mcp.Required(), mcp.Description("The comment text (must not be blank)"),
-		mcp.MinLength(1), mcp.Pattern(nonBlankCommentPattern))
 }
 
 // requireComment reads the ids every single-comment tool needs.

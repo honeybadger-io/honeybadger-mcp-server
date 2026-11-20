@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -276,5 +277,19 @@ func TestDeleteCheckInPreviewForAnUnnamedCheckIn(t *testing.T) {
 	}
 	if !strings.Contains(getResultText(result), "delete the unnamed check-in c1 from project Xk9mZp") {
 		t.Errorf("preview = %s", getResultText(result))
+	}
+}
+
+// update_check_in takes every field the spec's CheckInInput has: schedule_type
+// switches the schedule, and null clears a field.
+func TestUpdateCheckInSendsScheduleTypeAndNull(t *testing.T) {
+	client, body := bodyCapture(t, `{"data":{"id":"c1","name":"Nightly"}}`)
+	result, err := handleUpdateCheckIn(context.Background(), client, checkInArgs(map[string]any{
+		"project_id": "Xk9mZp", "check_in_id": "c1", "schedule_type": "simple", "report_period": "1 day", "name": nil,
+	}))
+	mustSucceed(t, result, err)
+	want := map[string]any{"schedule_type": "simple", "report_period": "1 day", "name": nil}
+	if !reflect.DeepEqual(*body, want) {
+		t.Errorf("body = %v, want %v", *body, want)
 	}
 }

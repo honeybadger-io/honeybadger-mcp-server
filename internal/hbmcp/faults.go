@@ -14,41 +14,7 @@ import (
 func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_faults tool
 	r.AddTool(
-		mcp.NewTool("list_faults",
-			mcp.WithTitleAnnotation("List Faults"),
-			mcp.WithDescription("Get a list of faults for a project with optional filtering and ordering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the fault/notice model and the q search syntax."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to get faults for"),
-			),
-			mcp.WithString("q",
-				mcp.Description("Search string to filter faults (see the errors reference topic for the search query syntax)"),
-			),
-			mcp.WithString("created_after",
-				mcp.Description("Filter faults created after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
-			),
-			mcp.WithString("occurred_after",
-				mcp.Description("Filter faults that occurred after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
-			),
-			mcp.WithString("occurred_before",
-				mcp.Description("Filter faults that occurred before this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
-			),
-			mcp.WithNumber("limit",
-				mcp.Description("Maximum number of faults to return (max 25)"),
-				mcp.Min(1),
-				mcp.Max(25),
-			),
-			mcp.WithString("order",
-				mcp.Description("Order results by 'recent' or 'frequent'"),
-				mcp.Enum("recent", "frequent"),
-			),
-			mcp.WithNumber("page",
-				mcp.Description("Page number for pagination"),
-				mcp.Min(1),
-			),
-		),
+		generatedTool("list_faults"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListFaults(ctx, v3ClientFor(ctx), req)
 		},
@@ -56,20 +22,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// get_fault tool
 	r.AddTool(
-		mcp.NewTool("get_fault",
-			mcp.WithTitleAnnotation("Get Fault"),
-			mcp.WithDescription("Get detailed information for a specific fault in a project. last_notice_deploy is the newest deploy in the fault's environment before its last notice: a guess from timing, not the deploy that introduced or resolved the error."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project containing the fault"),
-			),
-			mcp.WithString("fault_id",
-				mcp.Required(),
-				mcp.Description("The ID of the fault to retrieve"),
-			),
-		),
+		generatedTool("get_fault"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleGetFault(ctx, v3ClientFor(ctx), req)
 		},
@@ -142,34 +95,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// list_fault_notices tool
 	r.AddTool(
-		mcp.NewTool("list_fault_notices",
-			mcp.WithTitleAnnotation("List Fault Notices"),
-			mcp.WithDescription("Get a list of notices (individual error events) for a specific fault"),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project containing the fault"),
-			),
-			mcp.WithString("fault_id",
-				mcp.Required(),
-				mcp.Description("The ID of the fault to get notices for"),
-			),
-			mcp.WithString("before",
-				mcp.Description("Cursor for older notices: pass time_series.oldest_cursor from the previous response"),
-			),
-			mcp.WithString("after",
-				mcp.Description("Cursor for newer notices: pass time_series.newest_cursor from the previous response"),
-			),
-			mcp.WithNumber("limit",
-				mcp.Description("Maximum number of notices to return (max 25)"),
-				mcp.Min(1),
-				mcp.Max(25),
-			),
-			mcp.WithBoolean("breadcrumbs",
-				mcp.Description("Include each notice's breadcrumbs: the clicks, logs, requests and other events recorded before the error, oldest first. Off by default because each trail can hold up to 40 entries"),
-			),
-		),
+		generatedTool("list_fault_notices"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListFaultNotices(ctx, v3ClientFor(ctx), req)
 		},
@@ -177,23 +103,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// list_fault_affected_users tool
 	r.AddTool(
-		mcp.NewTool("list_fault_affected_users",
-			mcp.WithTitleAnnotation("List Fault Affected Users"),
-			mcp.WithDescription("Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without q."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project containing the fault"),
-			),
-			mcp.WithString("fault_id",
-				mcp.Required(),
-				mcp.Description("The ID of the fault to get affected users for"),
-			),
-			mcp.WithString("q",
-				mcp.Description("Search string to filter affected users"),
-			),
-		),
+		generatedTool("list_fault_affected_users"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListFaultAffectedUsers(ctx, v3ClientFor(ctx), req)
 		},
@@ -201,28 +111,7 @@ func RegisterFaultTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// get_fault_counts tool
 	r.AddTool(
-		mcp.NewTool("get_fault_counts",
-			mcp.WithTitleAnnotation("Get Fault Counts"),
-			mcp.WithDescription("Get fault count statistics for a project, with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to get fault counts for"),
-			),
-			mcp.WithString("q",
-				mcp.Description("Search string to filter faults (see the errors reference topic for the search query syntax)"),
-			),
-			mcp.WithString("created_after",
-				mcp.Description("Filter faults created after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
-			),
-			mcp.WithString("occurred_after",
-				mcp.Description("Filter faults that occurred after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
-			),
-			mcp.WithString("occurred_before",
-				mcp.Description("Filter faults that occurred before this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"),
-			),
-		),
+		generatedTool("get_fault_counts"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleGetFaultCounts(ctx, v3ClientFor(ctx), req)
 		},
@@ -234,7 +123,6 @@ func handleListFaults(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-	// limit maps to per_page: both cap how many faults come back in one call.
 	opts := []apiv3.Option{}
 	if q := req.GetString("q", ""); q != "" {
 		opts = append(opts, apiv3.Search(q))
@@ -247,7 +135,7 @@ func handleListFaults(ctx context.Context, client *apiv3.Client, req mcp.CallToo
 		return mcp.NewToolResultError(msg), nil
 	}
 	opts = append(opts, times...)
-	if page, perPage := req.GetInt("page", 0), req.GetInt("limit", 0); page > 0 || perPage > 0 {
+	if page, perPage := req.GetInt("page", 0), req.GetInt("per_page", 0); page > 0 || perPage > 0 {
 		opts = append(opts, apiv3.Page(max(page, 1), perPage))
 	}
 
@@ -514,11 +402,6 @@ func stateName(field string, value bool) string {
 func handleListFaultNotices(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectID, faultID, msg := requireProjectAndFault(req)
 	if msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
-	// Notices are cursor-paginated in v3, so the old timestamp filters have no
-	// equivalent; a client with a cached schema may still send them.
-	if msg := rejectStaleSchemaFields("list_fault_notices", req); msg != "" {
 		return mcp.NewToolResultError(msg), nil
 	}
 

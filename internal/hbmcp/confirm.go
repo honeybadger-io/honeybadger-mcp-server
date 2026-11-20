@@ -48,11 +48,10 @@ func confirmCaller(ctx context.Context) string {
 	return ""
 }
 
-func withConfirmParam() mcp.ToolOption {
-	return mcp.WithString("confirm",
-		mcp.Description("Confirmation token from this tool's previous preview. Pass it only after the user has approved the deletion shown in that preview."),
-	)
-}
+const confirmParamDescription = "Confirmation token from this tool's previous preview. Pass it only after the user has approved the deletion shown in that preview."
+
+// confirmParam is the confirm parameter's schema in generated delete tools.
+var confirmParam = map[string]any{"type": "string", "description": confirmParamDescription}
 
 // deletionConfirmed reports whether req carries a live token minted for this
 // tool and these ids by the same caller.

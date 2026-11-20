@@ -1,0 +1,768 @@
+# Tool overlay: the words for each MCP tool and the few places it differs from
+# the spec. The spec (bundled.yaml) owns every tool's shape; make generate
+# builds internal/hbmcp/zz_generated_tools.go from the two and fails, naming
+# each problem, when this file no longer matches the spec.
+#
+# Per tool: operation (or operations), title, description, and per parameter a
+# description. A spec field is exposed unless excluded, and every exclusion and
+# override says why:
+#   exclude: <reason>            leave a spec field out
+#   as: date + reason            MCP takes a date; the handler converts it
+#   shallow: <topic>             advertise only the top-level type
+#   confirm: true                delete gated on a confirmation token
+#   handwritten: true            the definition stays in Go
+#   long: <reason>               a description over the cap (300 tool, 120 parameter)
+
+# Hand-written: no single operation fits.
+get_reference:
+  handwritten: true
+search_tools:
+  handwritten: true
+update_fault:
+  handwritten: true # resolved/ignored booleans and snooze null map onto nine operations
+
+# Projects
+
+list_projects:
+  operation: listProjects
+  title: List Projects
+  description: List all Honeybadger projects (returns summary info; use get_project for full details). A project can have several Ingestion Keys; list them with list_ingestion_keys.
+  params:
+    name: { description: Optional exact project name; returns only the project with that name }
+    page: { exclude: The tool returns every project. }
+    per_page: { exclude: The tool returns every project. }
+
+get_project:
+  operation: getProject
+  title: Get Project
+  description: Get a single Honeybadger project by ID. Its Ingestion Keys aren't included; list them with list_ingestion_keys.
+  params:
+    project_id: { description: The ID of the project to retrieve }
+
+create_project:
+  operation: createProject
+  title: Create Project
+  description: Create a new Honeybadger project
+  params:
+    name: { description: The name of the new project }
+    resolve_errors_on_deploy: { description: Whether all unresolved faults should be marked as resolved when a deploy is recorded }
+    disable_public_links: { description: Whether to allow fault details to be publicly shareable via a button on the fault detail page }
+    user_url: { description: "A URL format like 'http://example.com/admin/users/[user_id]' that will be displayed on the fault detail page" }
+    source_url:
+      description: "Link format for backtrace lines, e.g. 'https://gitlab.com/u/r/blob/[sha]/[file]#L[line]'."
+    purge_days: { description: The number of days to retain data (up to the max number of days available to your subscription plan) }
+    user_search_field: { description: "A field such as 'context.user_email' that you provide in your error context" }
+    language: { description: "Primary language, used to format backtraces." }
+    asana_workspace_id: { description: Asana workspace for the project's Asana integration. }
+    customer_throttle: { description: Notices accepted per minute before throttling. }
+    team_id: { description: "Team to create the project in. Needs the team:write scope as well." }
+    disable_email_notifications: { description: Add the project's members with email notifications off. }
+
+update_project:
+  operation: updateProject
+  title: Update Project
+  description: Update an existing Honeybadger project
+  params:
+    project_id: { description: The ID of the project to update }
+    name: { description: A new name for the project }
+    resolve_errors_on_deploy: { description: Whether all unresolved faults should be marked as resolved when a deploy is recorded }
+    disable_public_links: { description: Whether to allow fault details to be publicly shareable via a button on the fault detail page }
+    user_url:
+      description: "User link shown on faults, e.g. 'http://example.com/admin/users/[user_id]'. Null clears it."
+    source_url:
+      description: "Link format for backtrace lines, e.g. 'https://gitlab.com/u/r/blob/[sha]/[file]#L[line]'. Null clears it."
+    purge_days: { description: The number of days to retain data (up to the max number of days available to your subscription plan) }
+    user_search_field: { description: "A field such as 'context.user_email' that you provide in your error context. Null clears it." }
+    language: { description: "Primary language, used to format backtraces. Null clears it." }
+    asana_workspace_id: { description: Asana workspace for the project's Asana integration. Null clears it. }
+    customer_throttle: { description: Notices accepted per minute before throttling. Null clears it. }
+
+delete_project:
+  operation: deleteProject
+  confirm: true
+  title: Delete Project
+  description: Delete a Honeybadger project and all of its data.
+  params:
+    project_id: { description: The ID of the project to delete }
+
+get_project_occurrence_counts:
+  operations: [getProjectOccurrences, listAccountOccurrences]
+  title: Get Project Occurrence Counts
+  description: Get occurrence counts over time, for one project or across every project the credential can reach.
+  params:
+    project_id: { description: Optional project ID. Omit to report across every project the credential can reach. }
+    period:
+      description: "hour (61 one-minute buckets), day (25 hourly), week (8 daily) or month (31 daily). Defaults to hour."
+    environment: { description: Optional environment name to filter results }
+    page: { exclude: The tool returns every project's series. }
+    per_page: { exclude: The tool returns every project's series. }
+
+# Faults and notices
+
+list_faults:
+  operation: listFaults
+  title: List Faults
+  description: "Get a list of faults for a project with optional filtering and ordering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the fault/notice model and the q search syntax."
+  params:
+    project_id: { description: The ID of the project to get faults for }
+    q: { description: Search string to filter faults (see the errors reference topic for the search query syntax) }
+    created_after: &created_after
+      description: "Faults created after this time: RFC 3339, or a date (YYYY-MM-DD, midnight UTC)."
+      as: date
+      reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
+    occurred_after: &occurred_after
+      description: "Faults that occurred after this time: RFC 3339, or a date (YYYY-MM-DD, midnight UTC)."
+      as: date
+      reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
+    occurred_before: &occurred_before
+      description: "Faults that occurred before this time: RFC 3339, or a date (YYYY-MM-DD, midnight UTC)."
+      as: date
+      reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
+    order: { description: "Order results by 'recent' or 'frequent'" }
+    sort: { exclude: api-go has no option for it. }
+    page: { description: Page number for pagination }
+    per_page: { description: Maximum number of faults to return (max 100) }
+
+get_fault:
+  operation: getFault
+  title: Get Fault
+  description: "Get detailed information for a specific fault in a project. last_notice_deploy is the newest deploy in the fault's environment before its last notice: a guess from timing, not the deploy that introduced or resolved the error."
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault to retrieve }
+
+get_fault_counts:
+  operation: getFaultSummary
+  title: Get Fault Counts
+  description: "Get fault count statistics for a project, with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax."
+  params:
+    project_id: { description: The ID of the project to get fault counts for }
+    q: { description: Search string to filter faults (see the errors reference topic for the search query syntax) }
+    created_after: *created_after
+    occurred_after: *occurred_after
+    occurred_before: *occurred_before
+
+list_fault_notices:
+  operation: listNotices
+  title: List Fault Notices
+  description: Get a list of notices (individual error events) for a specific fault
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault to get notices for }
+    limit: { description: Maximum number of notices to return (max 100) }
+    before: { description: "Cursor for older notices: pass time_series.oldest_cursor from the previous response" }
+    after: { description: "Cursor for newer notices: pass time_series.newest_cursor from the previous response" }
+    breadcrumbs:
+      description: "Include each notice's breadcrumbs: events before the error, oldest first, up to 40 each. Off by default."
+    unmapped: { exclude: api-go has no option for it. }
+
+list_fault_affected_users:
+  operation: listFaultAffectedUsers
+  title: List Fault Affected Users
+  description: Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without q.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault to get affected users for }
+    q: { description: Search string to filter affected users }
+
+# Fault comments
+
+list_fault_comments:
+  operation: listComments
+  title: List Fault Comments
+  description: List every comment on a fault, newest first.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    limit: { exclude: The tool returns every comment. }
+    before: { exclude: The tool returns every comment. }
+    after: { exclude: The tool returns every comment. }
+
+get_fault_comment:
+  operation: getComment
+  title: Get Fault Comment
+  description: Get a single comment on a fault by ID.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    comment_id: { description: The ID of the comment }
+
+create_fault_comment:
+  operation: createComment
+  title: Create Fault Comment
+  description: Add a comment to a fault. @mentions notify the named project members. With an account-scoped API Token, the comment is attributed to the token's name.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    body: { description: The comment text (must not be blank) }
+
+update_fault_comment:
+  operation: updateComment
+  title: Update Fault Comment
+  description: Replace the body of an existing fault comment. Returns the comment as stored. Only the comment's author can edit it, so an account-scoped API Token, which has no author, is refused with access_denied.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    comment_id: { description: The ID of the comment }
+    body: { description: The comment text (must not be blank) }
+
+delete_fault_comment:
+  operation: deleteComment
+  confirm: true
+  title: Delete Fault Comment
+  description: Delete an existing comment from a fault. An account-scoped API Token can delete a comment only when it can manage the project.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    comment_id: { description: The ID of the comment }
+
+# Uptime sites
+
+list_sites:
+  operation: listSites
+  title: List Sites
+  description: "List a project's uptime sites: the URLs Honeybadger checks, with their current state (up, down, paused)."
+  params:
+    project_id: { description: The ID of the project to list sites for }
+    page: { exclude: The tool returns every site. }
+    per_page: { exclude: The tool returns every site. }
+
+get_site:
+  operation: getSite
+  title: Get Site
+  description: "Get an uptime site: its URL, check settings and current state. Up, down and cert_will_expire events name the site by ID."
+  params:
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site, a UUID" }
+
+create_site:
+  operation: createSite
+  title: Create Site
+  description: Start uptime monitoring for a URL. Only url is required; the rest default as described.
+  params: &site_settings
+    project_id: { description: The ID of the project to create the site in }
+    url: { description: "The URL to check. Must start with http:// or https://." }
+    name: { description: A display name for the site }
+    frequency: { description: "Minutes between checks: 1, 2, 5 or 15. Defaults to 5; a value more frequent than the plan allows is refused." }
+    locations: { description: "Locations to check from. [] or null checks from every location." }
+    match: { description: "What match_type compares against. Required unless match_type is success; null clears it." }
+    match_type:
+      description: "success (any 2xx), exact (status equals match), include/exclude (body does/doesn't contain match), jmespath (JSON body)."
+    request_method: { description: Defaults to GET }
+    request_body: { description: "A body to send with the request, up to 32 KB; null clears it" }
+    request_headers: { description: "Headers to send, as name to value. Replaces the stored headers; {} or null clears them." }
+    timeout:
+      description: "Seconds, 1 to 120, under the frequency. Defaults to 30; changing it needs the uptime-timeout feature."
+    outage_threshold: { description: Consecutive failures before an outage is declared. null declares one when half the locations fail. }
+    validate_ssl: { description: "Fail the check when the TLS certificate doesn't validate. Defaults to true." }
+    active: { description: Whether the site is checked. Defaults to true. }
+
+update_site:
+  operation: updateSite
+  title: Update Site
+  description: "Change an uptime site's settings. Only the parameters given are changed, and null resets a setting to its default; name and url have no default, so they can be changed but not reset."
+  params:
+    <<: *site_settings
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site, a UUID" }
+    url: { description: "A new URL to check. Must start with http:// or https://." }
+
+delete_site:
+  operation: deleteSite
+  confirm: true
+  title: Delete Site
+  description: Stop monitoring an uptime site and delete it.
+  params:
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site to delete, a UUID" }
+
+list_site_outages:
+  operation: listOutages
+  title: List Site Outages
+  description: "List an uptime site's outages, newest first: when it went down and came back up, with the status and reason from the failing check. Use it to explain a down or up event. To page back, pass the previous response's next_created_before as created_before."
+  params:
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site, a UUID" }
+    limit: { description: "Most items to return, up to 100 (default 25)" }
+    created_before: { description: "Page back: the previous response's next_created_before, unchanged" }
+    created_after: { exclude: api-go has no option for it. }
+
+list_uptime_checks:
+  operation: listUptimeChecks
+  title: List Uptime Checks
+  description: "List an uptime site's individual checks, newest first: each check's location, response status and duration. A busy site has many; keep limit small. To page back, pass the previous response's next_created_before as created_before."
+  params:
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site, a UUID" }
+    limit: { description: "Most items to return, up to 100 (default 25)" }
+    created_before: { description: "Page back: the previous response's next_created_before, unchanged" }
+    created_after: { exclude: api-go has no option for it. }
+
+# Check-ins
+
+list_check_ins:
+  operation: listCheckIns
+  title: List Check-Ins
+  description: "List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns every check-in, following pagination. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."
+  params:
+    project_id: { description: The ID of the project to list check-ins for }
+    page: { exclude: The tool returns every check-in. }
+    per_page: { exclude: The tool returns every check-in. }
+
+get_check_in:
+  operation: getCheckIn
+  title: Get Check-In
+  description: "Get a single check-in by ID. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."
+  params:
+    project_id: { description: The ID of the project the check-in belongs to }
+    check_in_id: { description: The ID of the check-in to retrieve }
+
+create_check_in:
+  operation: createCheckIn
+  title: Create Check-In
+  description: "Create a check-in, which alerts when a cron job or scheduled task doesn't report on time. Requires reference topic checkins (schedule types, required fields, plan gating, timezone format)."
+  params:
+    project_id: { description: The ID of the project to create the check-in in }
+    name: { description: "The name of the check-in. Optional: an unnamed check-in shows its ID." }
+    schedule_type: { description: "The schedule type: 'simple' (report every fixed period) or 'cron' (report on a cron schedule)" }
+    report_period: { description: "How often the check-in is expected to report, e.g. '1 day', '30 minutes'. Required for simple schedules." }
+    grace_period: { description: "Optional amount of time to allow a late report before alerting, e.g. '5 minutes'" }
+    cron_schedule: { description: "Cron expression defining when the check-in is expected to report, e.g. '0 5 * * *'. Required for cron schedules." }
+    cron_timezone:
+      description: "Rails time zone name, e.g. 'Eastern Time (US & Canada)' or 'London', not IANA. Defaults to UTC."
+    slug: { description: "Optional URL-friendly identifier used to report the check-in (e.g. 'nightly-backups')" }
+
+update_check_in:
+  operation: updateCheckIn
+  title: Update Check-In
+  description: "Update a check-in. Only the given fields change; null clears one. Requires reference topic checkins."
+  params:
+    project_id: { description: The ID of the project the check-in belongs to }
+    check_in_id: { description: The ID of the check-in to update }
+    name: { description: A new name for the check-in }
+    schedule_type: { description: "Switch between 'simple' and 'cron'. Switching to simple clears cron_schedule." }
+    report_period: { description: "How often the check-in is expected to report, e.g. '1 day', '30 minutes'. Used by simple schedules." }
+    grace_period: { description: "Amount of time to allow a late report before alerting, e.g. '5 minutes'" }
+    cron_schedule: { description: Cron expression defining when the check-in is expected to report. Used by cron schedules. }
+    cron_timezone:
+      description: "Rails time zone name, e.g. 'Eastern Time (US & Canada)' or 'London', not IANA."
+    slug: { description: URL-friendly identifier used to report the check-in }
+
+delete_check_in:
+  operation: deleteCheckIn
+  confirm: true
+  title: Delete Check-In
+  description: "Delete a check-in. This also deletes the check-in's reporting history."
+  params:
+    project_id: { description: The ID of the project the check-in belongs to }
+    check_in_id: { description: The ID of the check-in to delete }
+
+list_check_in_events:
+  operation: listCheckInEvents
+  title: List Check-In Events
+  description: "List a check-in's history, newest first: each time it reported, went missing or was paused. Use it to explain a check_in_missing or check_in_reporting event. To page back, pass the previous response's next_created_before as created_before."
+  params:
+    project_id: { description: The ID of the project the check-in belongs to }
+    check_in_id: { description: The ID of the check-in }
+    limit: { description: "Most items to return, up to 100 (default 25)" }
+    created_before: { description: "Page back: the previous response's next_created_before, unchanged" }
+
+# Deploys
+
+list_deploys:
+  operation: listDeploys
+  title: List Deploys
+  description: "List a project's deploys, newest first: revision, repository, environment and who deployed. Filter by environment or deployer. To page back, pass before from the previous response's time_series.oldest_cursor."
+  params:
+    project_id: { description: The ID of the project to list deploys for }
+    environment: { description: "Only deploys to this environment, e.g. production" }
+    local_username: { description: Only deploys recorded under this local_username }
+    limit: { description: "Most items to return, up to 100 (default 25)" }
+    before: { description: "Cursor for older deploys: time_series.oldest_cursor from the previous response" }
+    after: { description: "Cursor for newer deploys: time_series.newest_cursor from the previous response" }
+
+get_deploy:
+  operation: getDeploy
+  title: Get Deploy
+  description: Get a deploy by ID. A deployed event and a fault's last_notice_deploy name deploys by ID.
+  params:
+    project_id: { description: The ID of the project the deploy belongs to }
+    deploy_id: { description: The ID of the deploy }
+
+# Integrations
+
+get_project_integrations:
+  operation: listIntegrations
+  title: Get Project Integrations
+  description: 'List notification integrations for a Honeybadger project. To interpret
+    integration types and config fields, fetch reference topic: integrations (via
+    get_reference).'
+  params:
+    project_id:
+      description: The ID of the project to get integrations for
+    page:
+      exclude: The tool returns every integration.
+    per_page:
+      exclude: The tool returns every integration.
+
+get_integration:
+  operation: getIntegration
+  title: Get Integration
+  description: 'Get a single notification integration by ID. To interpret integration
+    fields, fetch reference topic: integrations (via get_reference).'
+  params:
+    integration_id:
+      description: The ID of the integration to retrieve
+    project_id:
+      description: The ID of the project the integration belongs to
+
+create_integration:
+  operation: createIntegration
+  title: Create Integration
+  description: 'Create a notification integration for a project. IMPORTANT: Requires
+    reference topic: integrations — fetch via get_reference first (skip if still visible
+    in your context) for the list of types, each type''s config settings, and event
+    names.'
+  params:
+    active:
+      description: Whether the integration sends notifications
+    alarm_alert_ids:
+      description: Alarms whose alert events notify
+    alarm_ok_ids:
+      description: Alarms whose recovery events notify
+    check_in_ids:
+      description: "Check-ins that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create."
+    config:
+      description: "The type's own settings, e.g. {\"url\": ...} for WebHook. Shared settings (events, site_ids, ...) are separate."
+    events:
+      description: "Event names to notify on; one the type doesn't support is refused. Null (or omit on create) for the type's defaults."
+    excluded_environments:
+      description: "Environments that never notify, even ones yet to report; wins over included_environments."
+    filters:
+      description: "{event, query} pairs: an event with filters notifies only for errors matching one. event \"all\" for every event."
+    included_environments:
+      description: "If not empty, the only environments that notify, reported yet or not. Empty: every one not excluded."
+    notification_limit:
+      description: Most notifications in a 10-minute window before flood control (the
+        flooded event) steps in
+    project_id:
+      description: The ID of the project to create the integration in
+    rate:
+      description: "Period the rate_exceeded threshold counts over; wday is 24 hours, not a weekday."
+    site_ids:
+      description: "Sites that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create."
+    threshold:
+      description: Occurrences within rate before rate_exceeded fires; must be greater
+        than 0
+    type:
+      description: "Integration type. OAuth types (Slack, GitHub, ...) start unconnected: give the user the result's links.web to connect."
+
+update_integration:
+  operation: updateIntegration
+  title: Update Integration
+  description: 'Update a notification integration. Only the parameters given are changed;
+    the type can''t be. IMPORTANT: Requires reference topic: integrations — fetch
+    via get_reference first (skip if still visible in your context) for config settings
+    and event names.'
+  params:
+    active:
+      description: Whether the integration sends notifications
+    alarm_alert_ids:
+      description: Alarms whose alert events notify
+    alarm_ok_ids:
+      description: Alarms whose recovery events notify
+    check_in_ids:
+      description: "Check-ins that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create."
+    config:
+      description: "The type's settings to change, keyed as get_integration returns them. A secret sent back masked stays as it is."
+    events:
+      description: "Event names to notify on; one the type doesn't support is refused. Null (or omit on create) for the type's defaults."
+    excluded_environments:
+      description: "Environments that never notify, even ones yet to report; wins over included_environments."
+    filters:
+      description: "{event, query} pairs: an event with filters notifies only for errors matching one. event \"all\" for every event."
+    included_environments:
+      description: "If not empty, the only environments that notify, reported yet or not. Empty: every one not excluded."
+    integration_id:
+      description: The ID of the integration to update
+    notification_limit:
+      description: Most notifications in a 10-minute window before flood control (the
+        flooded event) steps in
+    project_id:
+      description: The ID of the project the integration belongs to
+    rate:
+      description: "Period the rate_exceeded threshold counts over; wday is 24 hours, not a weekday."
+    site_ids:
+      description: "Sites that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create."
+    threshold:
+      description: Occurrences within rate before rate_exceeded fires; must be greater
+        than 0
+
+delete_integration:
+  operation: deleteIntegration
+  confirm: true
+  title: Delete Integration
+  description: Delete a notification integration. Also deletes all associated tickets
+    and configurations.
+  params:
+    integration_id:
+      description: The ID of the integration to delete
+    project_id:
+      description: The ID of the project the integration belongs to
+
+# Dashboards
+
+list_dashboards:
+  operation: listDashboards
+  title: List Dashboards
+  description: List all Insights dashboards for a Honeybadger project
+  params:
+    project_id:
+      description: The ID of the project to list dashboards for
+    page:
+      exclude: The tool returns every dashboard.
+    per_page:
+      exclude: The tool returns every dashboard.
+
+get_dashboard:
+  operation: getDashboard
+  title: Get Dashboard
+  description: Get a single Insights dashboard by ID
+  params:
+    dashboard_id:
+      description: The ID of the dashboard to retrieve
+    project_id:
+      description: The ID of the project the dashboard belongs to
+
+create_dashboard:
+  operation: createDashboard
+  title: Create Dashboard
+  description: "Create an Insights dashboard. Requires reference topics dashboards, charts, queries and badgerql. Check each widget's query with query_insights first."
+  params:
+    default_ts:
+      description: Default time range for the dashboard. ISO 8601 duration (e.g. P1D,
+        PT3H) or a keyword (today, yesterday, week, month).
+    project_id:
+      description: The ID of the project to create the dashboard in
+    title:
+      description: The title of the dashboard
+    widgets:
+      description: "Widgets, each with a type and optional grid, presentation and config."
+      shallow: dashboards
+
+update_dashboard:
+  operation: updateDashboard
+  title: Update Dashboard
+  description: 'Update an existing Insights dashboard. Only the parameters given are
+    changed, so a rename needs only title. IMPORTANT: Requires reference topics: dashboards,
+    charts, queries, badgerql — fetch via get_reference first (skip topics still visible
+    in your context).'
+  params:
+    dashboard_id:
+      description: The ID of the dashboard to update
+    default_ts:
+      description: "Default time range: ISO 8601 duration (P1D, PT3H) or today, yesterday, week, month. Null clears it."
+    project_id:
+      description: The ID of the project the dashboard belongs to
+    title:
+      description: A new title for the dashboard
+    widgets:
+      description: "Replaces the widgets: one left out is removed; send a widget's id from get_dashboard to keep it."
+      shallow: dashboards
+
+delete_dashboard:
+  operation: deleteDashboard
+  confirm: true
+  title: Delete Dashboard
+  description: Delete an Insights dashboard.
+  params:
+    dashboard_id:
+      description: The ID of the dashboard to delete
+    project_id:
+      description: The ID of the project the dashboard belongs to
+
+# Alarms
+
+list_alarms:
+  operation: listAlarms
+  title: List Alarms
+  description: 'List all Insights alarms for a Honeybadger project. To interpret alarm
+    configuration, fetch reference topic: alarms (via get_reference).'
+  params:
+    project_id:
+      description: The ID of the project to list alarms for
+
+get_alarm:
+  operation: getAlarm
+  title: Get Alarm
+  description: 'Get a single Insights alarm by ID. To interpret alarm configuration,
+    fetch reference topic: alarms (via get_reference).'
+  params:
+    alarm_id:
+      description: The ID of the alarm to retrieve
+    project_id:
+      description: The ID of the project the alarm belongs to
+
+get_alarm_history:
+  operation: listAlarmHistory
+  title: Get Alarm History
+  description: 'Get the trigger history for an Insights alarm. To interpret trigger
+    records and alarm states, fetch reference topic: alarms (via get_reference).'
+  params:
+    alarm_id:
+      description: The ID of the alarm to get history for
+    page:
+      description: 'Page number, starting at 1 (default: 1). Pages hold 25 entries;
+        a non-null links.next means there are more.'
+    project_id:
+      description: The ID of the project the alarm belongs to
+
+create_alarm:
+  operation: createAlarm
+  title: Create Alarm
+  description: "Create an Insights alarm. Requires reference topics alarms, queries and badgerql. Check the query with query_insights first."
+  params:
+    description:
+      description: Optional description of the alarm
+    evaluation_period:
+      description: "Window each evaluation covers: '5m', '1h', '1d'. Spelled-out forms like '5 minutes' are refused."
+    lookback_lag:
+      description: "How far behind now the window ends, for ingestion delay: '1m', '1h', '1w'; '0s' for none."
+    name:
+      description: The name of the alarm
+    project_id:
+      description: The ID of the project to create the alarm in
+    query:
+      description: 'BadgerQL query evaluated on each check. Requires reference topics:
+        alarms, badgerql (fetch via get_reference).'
+    stream_ids:
+      description: "Stream IDs from list_streams (not slugs), at least one. Omit for every current stream."
+    trigger_config:
+      description: "What turns the alarm on, e.g. {\"type\":\"alert_result_count\",\"config\":{\"operator\":\"gt\",\"value\":10}}."
+      shallow: alarms
+
+update_alarm:
+  operation: updateAlarm
+  title: Update Alarm
+  description: 'Update an existing Insights alarm. IMPORTANT: Requires reference topics:
+    alarms, queries, badgerql — fetch via get_reference first (skip topics still visible
+    in your context) for the trigger_config schema and query guidelines.'
+  params:
+    alarm_id:
+      description: The ID of the alarm to update
+    description:
+      description: A new description. Pass an empty string to clear it.
+    evaluation_period:
+      description: 'A new evaluation window, as a compact duration: ''5m'', ''10m'',
+        ''1h'', ''1d''.'
+    lookback_lag:
+      description: A new lookback lag, in the same compact format ('1m').
+    name:
+      description: A new name for the alarm
+    project_id:
+      description: The ID of the project the alarm belongs to
+    query:
+      description: A new BadgerQL query. Verify it via query_insights first.
+    stream_ids:
+      description: "Stream IDs from list_streams (not slugs), replacing the set; at least one. Null resets to every current stream."
+    trigger_config:
+      description: Object replacing the whole trigger, in the shape create_alarm takes.
+      shallow: alarms
+
+delete_alarm:
+  operation: deleteAlarm
+  confirm: true
+  title: Delete Alarm
+  description: Delete an Insights alarm.
+  params:
+    alarm_id:
+      description: The ID of the alarm to delete
+    project_id:
+      description: The ID of the project the alarm belongs to
+
+# Ingestion Keys
+
+list_ingestion_keys:
+  operation: listIngestionKeys
+  title: List Ingestion Keys
+  description: 'List a project''s Ingestion Keys: the hbp_ keys an app uses to send
+    errors and events to Honeybadger, set as ingestion_key in the client''s config
+    (api_key in older clients). An Ingestion Key isn''t a secret, since it ships in
+    apps, and it can''t call the Data API; that takes an API Token.'
+  params:
+    project_id:
+      description: The ID of the project to list Ingestion Keys for
+    page:
+      exclude: The tool returns every Ingestion Key.
+    per_page:
+      exclude: The tool returns every Ingestion Key.
+
+create_ingestion_key:
+  operation: createIngestionKey
+  title: Create Ingestion Key
+  description: Create a new Ingestion Key for a project. The key is returned in the
+    response.
+  params:
+    label:
+      description: Optional human-readable name for the key
+    project_id:
+      description: The ID of the project to create the Ingestion Key in
+
+update_ingestion_key:
+  operation: updateIngestionKey
+  title: Update Ingestion Key
+  description: Update an Ingestion Key's label.
+  params:
+    ingestion_key_id:
+      description: The ID of the Ingestion Key to update
+    label:
+      description: New label for the key; null clears it
+    project_id:
+      description: The ID of the project the Ingestion Key belongs to
+
+delete_ingestion_key:
+  operation: deleteIngestionKey
+  confirm: true
+  title: Delete Ingestion Key
+  description: Delete an Ingestion Key. Apps sending with this key will no longer
+    be able to send data.
+  params:
+    ingestion_key_id:
+      description: The ID of the Ingestion Key to delete
+    project_id:
+      description: The ID of the project the Ingestion Key belongs to
+
+# Insights
+
+query_insights:
+  operation: runInsightsQuery
+  title: Query Insights
+  description: 'Execute a BadgerQL query against Insights data. Requires reference
+    topics: queries, badgerql (fetch via get_reference; skip topics still visible
+    in your context). To visualize or share results, also fetch the charts topic.'
+  params:
+    project_id:
+      description: The ID of the project to query insights for
+    query:
+      description: BadgerQL query string to execute against your Insights data
+    stream_ids:
+      description: "Stream IDs from list_streams (not slugs) to query. Omit for every stream."
+    timezone:
+      description: IANA timezone identifier (e.g., 'America/New_York') for timestamp
+        interpretation
+    ts:
+      description: Time range - shortcuts like 'today', 'week', or ISO 8601 duration
+        (e.g., 'PT3H'). Defaults to PT3H.
+
+list_streams:
+  operation: listStreams
+  title: List Streams
+  description: List Insights data streams for a Honeybadger project. Streams partition
+    Insights event data (e.g. default vs internal).
+  params:
+    project_id:
+      description: The ID of the project to list streams for
+    page:
+      exclude: The tool returns every stream.
+    per_page:
+      exclude: The tool returns every stream.

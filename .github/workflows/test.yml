@@ -36,5 +36,10 @@ jobs:
             ${{ runner.os }}-go-${{ matrix.go-version }}-
             ${{ runner.os }}-go-
 
+      - name: Check generated tool definitions
+        # Regenerates from openapi/bundled.yaml and openapi/tools.yaml; a diff
+        # means one of them changed without make generate.
+        run: make generate && git diff --exit-code
+
       - name: Run tests
         run: go test -count=1 -v ./...

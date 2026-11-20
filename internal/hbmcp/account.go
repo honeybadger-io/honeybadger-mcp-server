@@ -16,30 +16,31 @@ import (
 // This is a safety net, not a description of the API. Each entry is something v3
 // genuinely cannot do, so accepting it silently would report success for a change
 // that never happened.
-var staleSchemaFields = map[string][]string{
-	"list_fault_notices": {"created_after", "created_before"},
-	// v3 lists a project's streams without a filter.
-	"list_streams": {"query"},
+var staleSchemaFields = map[string]map[string]string{
+	"list_fault_notices": {
+		"created_after":  "v3 pages notices with cursors; use before and after",
+		"created_before": "v3 pages notices with cursors; use before and after",
+	},
+	"list_streams": {"query": "v3 lists a project's streams without a filter"},
 	// v3 resolves the account from the credential and takes no account id, so a
 	// project "created in account B" would silently land in the credential's.
-	"list_projects":                 {"account_id"},
-	"create_project":                {"account_id"},
-	"get_project_occurrence_counts": {"account_id"},
-	// filter_events/filter_queries were replaced by filters, a list of
-	// event/query pairs; all_sites/all_check_ins by site_ids/check_in_ids null.
-	"create_integration": {"filter_events", "filter_queries", "all_sites", "all_check_ins"},
-	"update_integration": {"filter_events", "filter_queries", "all_sites", "all_check_ins"},
+	"list_projects":                 {"account_id": "v3 takes the account from the credential"},
+	"create_project":                {"account_id": "v3 takes the account from the credential"},
+	"get_project_occurrence_counts": {"account_id": "v3 takes the account from the credential"},
+	"create_integration":            integrationStaleFields,
+	"update_integration":            integrationStaleFields,
+	// Renamed to the spec's names when the definitions began to be generated.
+	"get_project":    {"id": "renamed to project_id"},
+	"update_project": {"id": "renamed to project_id"},
+	"delete_project": {"id": "renamed to project_id"},
+	"list_faults":    {"limit": "renamed to per_page"},
 }
 
-// rejectStaleSchemaFields refuses a request carrying parameters this server used
-// to advertise and can no longer honour.
-func rejectStaleSchemaFields(tool string, req mcp.CallToolRequest) string {
-	fields, ok := staleSchemaFields[tool]
-	if !ok {
-		return ""
-	}
-	return rejectUnsupported(req, fields, "using this tool",
-		"They are no longer accepted; reconnect to refresh the tool schemas")
+var integrationStaleFields = map[string]string{
+	"filter_events":  "replaced by filters, a list of {event, query} pairs",
+	"filter_queries": "replaced by filters, a list of {event, query} pairs",
+	"all_sites":      "replaced by site_ids: null",
+	"all_check_ins":  "replaced by check_in_ids: null",
 }
 
 // requireProjectAndFault reads the two ids every fault tool needs.
@@ -48,8 +49,8 @@ func requireProjectAndFault(req mcp.CallToolRequest) (projectID, faultID, errMsg
 	if projectID == "" {
 		return "", "", "project_id is required"
 	}
-	faultID, ok := requireFaultID(req.GetArguments(), "fault_id")
-	if !ok {
+	faultID = strings.TrimSpace(req.GetString("fault_id", ""))
+	if faultID == "" {
 		return "", "", "fault_id is required: the fault's ID, as list_faults and get_fault return it"
 	}
 	return projectID, faultID, ""
@@ -72,25 +73,6 @@ func optionalBool(args map[string]any, name string) (value, present bool, err er
 	return v, true, nil
 }
 
-// rejectUnsupported refuses a request carrying parameters v3 cannot express.
-//
-// Silently ignoring them is the one option not on the table: a caller who filters
-// or sets something and gets a success back has been told the wrong thing.
-func rejectUnsupported(req mcp.CallToolRequest, fields []string, action, advice string) string {
-	args := req.GetArguments()
-	var present []string
-	for _, field := range fields {
-		if _, ok := args[field]; ok {
-			present = append(present, field)
-		}
-	}
-	if len(present) == 0 {
-		return ""
-	}
-	return fmt.Sprintf("The v3 Data API does not support %s when %s, so they would be ignored. %s.",
-		strings.Join(present, ", "), action, advice)
-}
-
 // timeFilters reads the timestamp filters a fault listing or count accepts: an
 // RFC 3339 timestamp, or a bare date meaning midnight UTC.
 //
@@ -98,9 +80,6 @@ func rejectUnsupported(req mcp.CallToolRequest, fields []string, action, advice 
 // API's validation — it would just run the query unfiltered and return more than
 // was asked for.
 func timeFilters(req mcp.CallToolRequest) ([]apiv3.Option, string) {
-	if msg := refuseNonStrings(req, "created_after", "occurred_after", "occurred_before"); msg != "" {
-		return nil, msg
-	}
 	var opts []apiv3.Option
 	for _, f := range []struct {
 		field string
