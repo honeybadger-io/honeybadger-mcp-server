@@ -268,7 +268,9 @@ update_site refused these arguments; the call was not made:
 If you expected a parameter to exist, your tool list may be stale; reconnect to refresh tool schemas.
 ```
 
-Did-you-mean: the closest declared name within edit distance 2. ID message:
+Did-you-mean: the closest declared name within edit distance 2 and fewer edits
+than half the unknown key's length (so "id" isn't matched to "q"; Kevin's call
+during the build). ID message:
 applies to `id` and `*_id`; names `list_<resource>s` when that tool is
 registered, otherwise "call the tool that lists them".
 

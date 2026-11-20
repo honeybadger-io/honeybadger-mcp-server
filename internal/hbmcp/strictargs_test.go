@@ -297,3 +297,16 @@ func valueOutside(types []string) (any, bool) {
 func mentionsProblem(text, param, problem string) bool {
 	return strings.Contains(text, ": "+param+" "+problem) || strings.Contains(text, "- "+param+": "+problem)
 }
+
+// A short unknown key isn't matched to an unrelated short parameter: two
+// edits turn "id" into "q". The refusal lists the parameters instead.
+func TestNoSuggestionForAShortUnrelatedKey(t *testing.T) {
+	text, ran, _ := checked(t, registeredTools(t), "list_faults", map[string]any{"project_id": "Xk9mZp", "id": "1"})
+	if ran || strings.Contains(text, "Did you mean") || !strings.Contains(text, `list_faults has no parameter "id". Its parameters are:`) {
+		t.Errorf("ran = %v, text = %s", ran, text)
+	}
+	text, _, _ = checked(t, registeredTools(t), "update_site", map[string]any{"project_id": "Xk9mZp", "site_id": siteUUIDArg, "nme": "Shop"})
+	if !strings.Contains(text, `Did you mean "name"?`) {
+		t.Errorf("nme: %s", text)
+	}
+}

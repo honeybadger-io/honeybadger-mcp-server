@@ -266,9 +266,11 @@ func (c *checker) unknownTopLevel(name string) problem {
 			c.tool, name, strings.Join(names, ", "), notMade, name, maybeStale)}
 }
 
-// closest is the declared parameter within two edits of name, if any.
+// closest is the declared parameter within two edits of name, if any, and
+// within fewer edits than half its length: two edits turn any two-letter key
+// into any other ("id" into "q"), which would point at the wrong parameter.
 func (c *checker) closest(name string) string {
-	best, bestDist := "", 3
+	best, bestDist := "", min(2, (len(name)-1)/2)+1
 	for n := range c.props {
 		if d := editDistance(name, n); d < bestDist || (d == bestDist && n < best) {
 			best, bestDist = n, d
