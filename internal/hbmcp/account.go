@@ -2,6 +2,7 @@ package hbmcp
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/honeybadger-io/api-go/apiv3"
@@ -48,8 +49,8 @@ func requireProjectAndFault(req mcp.CallToolRequest) (projectID, faultID, errMsg
 	if projectID == "" {
 		return "", "", "project_id is required"
 	}
-	faultID, ok := requireFaultID(req.GetArguments(), "fault_id")
-	if !ok {
+	faultID = strings.TrimSpace(req.GetString("fault_id", ""))
+	if faultID == "" {
 		return "", "", "fault_id is required: the fault's ID, as list_faults and get_fault return it"
 	}
 	return projectID, faultID, ""

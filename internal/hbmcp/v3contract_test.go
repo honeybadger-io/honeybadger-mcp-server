@@ -35,7 +35,7 @@ func mustSucceed(t *testing.T, result *mcp.CallToolResult, err error) {
 // null resets an alarm to every current stream, so it must reach the API as
 // null rather than being dropped or sent as [].
 func TestUpdateAlarmResetsStreamsWithNull(t *testing.T) {
-	for _, sent := range []any{"null", nil} {
+	for _, sent := range []any{nil} {
 		client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
 		result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]any{
 			"project_id": "Xk9mZp", "alarm_id": "a1", "stream_ids": sent,
@@ -47,25 +47,24 @@ func TestUpdateAlarmResetsStreamsWithNull(t *testing.T) {
 	}
 }
 
-// Clients send stream_ids as the array itself as well as a JSON string; both
-// reach the API. Anything else is refused rather than dropped.
+// stream_ids is an array of IDs, sent on as given. A JSON string or any other
+// type is refused before the handler rather than dropped.
 func TestUpdateAlarmTakesStreamIDsAsAnArray(t *testing.T) {
-	for _, sent := range []any{`["s1","s2"]`, []any{"s1", "s2"}} {
-		client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
-		result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]any{
-			"project_id": "Xk9mZp", "alarm_id": "a1", "stream_ids": sent,
-		}))
-		mustSucceed(t, result, err)
-		if got, _ := json.Marshal((*body)["stream_ids"]); string(got) != `["s1","s2"]` {
-			t.Errorf("sent %#v: stream_ids = %s", sent, got)
-		}
-	}
-	client, _ := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
+	client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
 	result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]any{
-		"project_id": "Xk9mZp", "alarm_id": "a1", "name": "Spike v2", "stream_ids": 42.0,
+		"project_id": "Xk9mZp", "alarm_id": "a1", "stream_ids": []any{"s1", "s2"},
 	}))
-	if err != nil || !result.IsError {
-		t.Errorf("stream_ids 42: result = %s, want an error", getResultText(result))
+	mustSucceed(t, result, err)
+	if got, _ := json.Marshal((*body)["stream_ids"]); string(got) != `["s1","s2"]` {
+		t.Errorf("stream_ids = %s", got)
+	}
+	tools := registeredTools(t)
+	for _, sent := range []any{`["s1","s2"]`, 42.0} {
+		if text, ran, _ := checked(t, tools, "update_alarm", map[string]any{
+			"project_id": "Xk9mZp", "alarm_id": "a1", "stream_ids": sent,
+		}); ran {
+			t.Errorf("stream_ids %#v: ran, want refused: %s", sent, text)
+		}
 	}
 }
 
@@ -87,7 +86,7 @@ func TestUpdateAlarmClearsDescriptionWithEmptyString(t *testing.T) {
 func TestCreateAlarmRequiresWindowAndTrigger(t *testing.T) {
 	base := map[string]any{"project_id": "Xk9mZp", "name": "Spike", "query": "q",
 		"evaluation_period": "5m", "lookback_lag": "1m",
-		"trigger_config": `{"type":"alert_result_count","config":{"operator":"gt","value":1}}`}
+		"trigger_config": mustJSON(`{"type":"alert_result_count","config":{"operator":"gt","value":1}}`)}
 	for _, missing := range []string{"evaluation_period", "lookback_lag", "trigger_config"} {
 		args := map[string]any{}
 		for k, v := range base {

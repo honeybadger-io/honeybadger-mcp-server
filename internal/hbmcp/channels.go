@@ -89,11 +89,7 @@ func integrationBody(req mcp.CallToolRequest, extra map[string]any) ([]byte, str
 			body[field] = v
 		}
 	}
-	raw, problem := jsonTextArg(req, "config")
-	if problem != "" {
-		return nil, problem
-	}
-	if raw != "" {
+	if raw := jsonArg(req, "config"); raw != "" {
 		var config map[string]any
 		if err := json.Unmarshal([]byte(raw), &config); err != nil {
 			return nil, fmt.Sprintf("Failed to parse config JSON: %v", err)

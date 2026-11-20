@@ -101,9 +101,9 @@ func handleGetDashboard(ctx context.Context, client *apiv3.Client, req mcp.CallT
 // always taken it. Unknown keys on a widget are refused rather than dropped: the
 // API would refuse them too, and dropping one would change what was asked for.
 func dashboardWidgets(req mcp.CallToolRequest) (*[]apiv3.DashboardWidget, string) {
-	raw, problem := jsonTextArg(req, "widgets")
-	if problem != "" || raw == "" {
-		return nil, problem
+	raw := jsonArg(req, "widgets")
+	if raw == "" {
+		return nil, ""
 	}
 	dec := json.NewDecoder(strings.NewReader(raw))
 	dec.DisallowUnknownFields()

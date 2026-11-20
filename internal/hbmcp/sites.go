@@ -287,18 +287,8 @@ func olderThanOptions(req mcp.CallToolRequest) ([]apiv3.Option, string) {
 	if limit != nil {
 		opts = append(opts, limit)
 	}
-	switch v := req.GetArguments()["created_before"].(type) {
-	case nil:
-	case float64:
+	if v, ok := req.GetArguments()["created_before"].(float64); ok {
 		opts = append(opts, apiv3.OlderThan(v))
-	case string:
-		n, err := strconv.ParseFloat(v, 64)
-		if err != nil {
-			return nil, "created_before must be the previous response's next_created_before, a number"
-		}
-		opts = append(opts, apiv3.OlderThan(n))
-	default:
-		return nil, "created_before must be a number"
 	}
 	return opts, ""
 }

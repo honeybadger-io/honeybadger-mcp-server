@@ -121,7 +121,7 @@ func TestHandleGetFault(t *testing.T) {
 	})
 
 	result, err := handleGetFault(context.Background(), client,
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": 1}))
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "1"}))
 	if err != nil {
 		t.Fatalf("handleGetFault() error = %v", err)
 	}
@@ -157,7 +157,7 @@ func TestHandleGetFault_Error(t *testing.T) {
 	})
 
 	result, err := handleGetFault(context.Background(), client,
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": 999}))
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "999"}))
 	if err != nil {
 		t.Fatalf("handleGetFault() error = %v", err)
 	}
@@ -178,7 +178,7 @@ func TestHandleUpdateFaultResolve(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -311,7 +311,7 @@ func TestHandleUpdateFaultUnresolveAndUnignore(t *testing.T) {
 	})
 
 	_, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolved": false, "ignored": false,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": false, "ignored": false,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -332,7 +332,7 @@ func TestHandleUpdateFaultBothFlags(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true, "ignored": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": true, "ignored": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -352,7 +352,7 @@ func TestHandleUpdateFaultBothFlags(t *testing.T) {
 func TestHandleUpdateFaultRejectsNonBoolean(t *testing.T) {
 	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
 		faultArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "fault_id": 1, "resolved": "yes",
+			"project_id": "Xk9mZp", "fault_id": "1", "resolved": "yes",
 		}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -364,7 +364,7 @@ func TestHandleUpdateFaultRejectsNonBoolean(t *testing.T) {
 
 func TestHandleUpdateFault_NoFields(t *testing.T) {
 	result, err := handleUpdateFault(context.Background(), offlineV3Client(),
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": 1}))
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "1"}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
 	}
@@ -381,7 +381,7 @@ func TestHandleUpdateFault_Error(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault() error = %v", err)
@@ -410,7 +410,7 @@ func TestHandleListFaultNotices(t *testing.T) {
 	})
 
 	result, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "limit": 5,
+		"project_id": "Xk9mZp", "fault_id": "1", "limit": 5,
 	}))
 	if err != nil {
 		t.Fatalf("handleListFaultNotices() error = %v", err)
@@ -435,7 +435,7 @@ func TestHandleListFaultNoticesBreadcrumbs(t *testing.T) {
 	})
 
 	result, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "breadcrumbs": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "breadcrumbs": true,
 	}))
 	if err != nil || result.IsError {
 		t.Fatalf("handleListFaultNotices() = %v, %s", err, getResultText(result))
@@ -445,13 +445,13 @@ func TestHandleListFaultNoticesBreadcrumbs(t *testing.T) {
 	}
 
 	if _, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1,
+		"project_id": "Xk9mZp", "fault_id": "1",
 	})); err != nil {
 		t.Fatalf("handleListFaultNotices() error = %v", err)
 	}
 	// An explicit false must not turn the trails on just because the key is present.
 	if _, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "breadcrumbs": false,
+		"project_id": "Xk9mZp", "fault_id": "1", "breadcrumbs": false,
 	})); err != nil {
 		t.Fatalf("handleListFaultNotices() error = %v", err)
 	}
@@ -460,7 +460,7 @@ func TestHandleListFaultNoticesBreadcrumbs(t *testing.T) {
 	}
 
 	result, _ = handleListFaultNotices(context.Background(), offlineV3Client(), faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "breadcrumbs": "yes",
+		"project_id": "Xk9mZp", "fault_id": "1", "breadcrumbs": "yes",
 	}))
 	if !result.IsError || !strings.Contains(getResultText(result), "breadcrumbs") {
 		t.Errorf("non-boolean breadcrumbs: got %q", getResultText(result))
@@ -499,7 +499,7 @@ func TestHandleListFaultAffectedUsers(t *testing.T) {
 	})
 
 	result, err := handleListFaultAffectedUsers(context.Background(), client,
-		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": 1}))
+		faultArgs(map[string]interface{}{"project_id": "Xk9mZp", "fault_id": "1"}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -639,7 +639,7 @@ func TestHandleUpdateFaultAssigns(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "assignee_id": "usr_1",
+		"project_id": "Xk9mZp", "fault_id": "1", "assignee_id": "usr_1",
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -664,7 +664,7 @@ func TestHandleUpdateFaultUnassignsOnNull(t *testing.T) {
 	})
 
 	if _, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "assignee_id": nil,
+		"project_id": "Xk9mZp", "fault_id": "1", "assignee_id": nil,
 	})); err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -687,7 +687,7 @@ func TestHandleUpdateFaultSendsResolveOnDeploy(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolve_on_deploy": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolve_on_deploy": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault: %v", err)
@@ -709,7 +709,7 @@ func TestHandleUpdateFaultReportsDiscardedResolveOnDeploy(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolve_on_deploy": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolve_on_deploy": true,
 	}))
 	if err != nil {
 		t.Fatalf("handleUpdateFault: %v", err)
@@ -739,7 +739,7 @@ func TestHandleUpdateFaultAllowsCoherentResolveOnDeployCombinations(t *testing.T
 			w.WriteHeader(http.StatusOK)
 		})
 
-		full := map[string]any{"project_id": "Xk9mZp", "fault_id": 1}
+		full := map[string]any{"project_id": "Xk9mZp", "fault_id": "1"}
 		for k, v := range args {
 			full[k] = v
 		}
@@ -758,7 +758,7 @@ func TestHandleUpdateFaultRejectsResolveOnDeployWithResolvedTrue(t *testing.T) {
 	})
 
 	result, _ := handleUpdateFault(context.Background(), c, mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true, "resolve_on_deploy": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": true, "resolve_on_deploy": true,
 	}))
 	if !result.IsError || !strings.Contains(getResultText(result), "resolve_on_deploy") {
 		t.Errorf("result = %q, want a refusal naming resolve_on_deploy", getResultText(result))
@@ -775,7 +775,7 @@ func TestHandleListFaultAffectedUsersSendsSearch(t *testing.T) {
 
 	if _, err := handleListFaultAffectedUsers(context.Background(), client,
 		faultArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "fault_id": 1, "q": "alice",
+			"project_id": "Xk9mZp", "fault_id": "1", "q": "alice",
 		})); err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -821,7 +821,7 @@ func TestHandleUpdateFaultAlreadyInState(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": true,
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -850,7 +850,7 @@ func TestHandleUpdateFaultNotInProject(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 999, "resolved": true,
+		"project_id": "Xk9mZp", "fault_id": "999", "resolved": true,
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -885,7 +885,7 @@ func TestHandleUpdateFaultReopenedInBetween(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": true,
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -904,7 +904,7 @@ func TestHandleListFaultNoticesForwardsCursors(t *testing.T) {
 	})
 
 	result, err := handleListFaultNotices(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "before": "cur_old",
+		"project_id": "Xk9mZp", "fault_id": "1", "before": "cur_old",
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -1012,7 +1012,7 @@ func TestHandleUpdateFaultZeroCountWithoutReadScope(t *testing.T) {
 	})
 
 	result, err := handleUpdateFault(context.Background(), client, faultArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "fault_id": 1, "resolved": true,
+		"project_id": "Xk9mZp", "fault_id": "1", "resolved": true,
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -1032,23 +1032,16 @@ func TestHandleUpdateFaultZeroCountWithoutReadScope(t *testing.T) {
 	}
 }
 
-// Fault ids are strings in v3, but a whole number from before the change is
-// still accepted; a fractional one is refused rather than truncated.
-func TestFaultIDAcceptsStringsAndWholeNumbers(t *testing.T) {
-	for _, tc := range []struct {
-		in   any
-		want string
-		ok   bool
-	}{
-		{"12345", "12345", true},
-		{" 12345 ", "12345", true},
-		{float64(12345), "12345", true},
-		{456.9, "", false},
-		{"", "", false},
-	} {
-		got, ok := requireFaultID(map[string]any{"fault_id": tc.in}, "fault_id")
-		if got != tc.want || ok != tc.ok {
-			t.Errorf("requireFaultID(%#v) = %q, %v; want %q, %v", tc.in, got, ok, tc.want, tc.ok)
-		}
+// fault_id is a string, as the spec has it. A number is refused before the
+// handler, with the message pointing at list_faults; surrounding spaces are
+// trimmed.
+func TestFaultIDIsAString(t *testing.T) {
+	text, ran, _ := checked(t, registeredTools(t), "get_fault", map[string]any{"project_id": "Xk9mZp", "fault_id": 12345})
+	if ran || !strings.Contains(text, "IDs are strings now: call list_faults") {
+		t.Errorf("number: ran = %v, text = %s", ran, text)
+	}
+	_, faultID, msg := requireProjectAndFault(mcpRequest(map[string]any{"project_id": "Xk9mZp", "fault_id": " 12345 "}))
+	if msg != "" || faultID != "12345" {
+		t.Errorf("padded string: fault_id = %q, msg = %q", faultID, msg)
 	}
 }

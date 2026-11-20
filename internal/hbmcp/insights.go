@@ -32,13 +32,9 @@ func handleQueryInsights(ctx context.Context, client *apiv3.Client, req mcp.Call
 		return mcp.NewToolResultError("query is required"), nil
 	}
 
-	// The alarm tools take stream_ids as a JSON string, and an agent checking an
-	// alarm's query here will send it the same way; dropping it would run the
-	// query over every stream instead.
-	streamIDs, _, _, problem := streamIDsArg(req)
-	if problem != "" {
-		return mcp.NewToolResultError(problem), nil
-	}
+	// Dropping stream_ids would run the query over every stream instead of the
+	// ones an alarm being checked here watches.
+	streamIDs, _, _ := streamIDsArg(req)
 	query_ := apiv3.InsightsQuery{
 		Query:     query,
 		Ts:        req.GetString("ts", ""),

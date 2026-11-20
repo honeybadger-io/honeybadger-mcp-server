@@ -94,8 +94,8 @@ func TestHandleCreateAlarm(t *testing.T) {
 		"query":             "count() > 100",
 		"evaluation_period": "5m",
 		"lookback_lag":      "1m",
-		"trigger_config":    `{"type":"threshold","config":{"operator":">","value":100}}`,
-		"stream_ids":        `["str_1"]`,
+		"trigger_config":    mustJSON(`{"type":"threshold","config":{"operator":">","value":100}}`),
+		"stream_ids":        mustJSON(`["str_1"]`),
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -134,17 +134,15 @@ func TestHandleCreateAlarmRequiresQuery(t *testing.T) {
 }
 
 // Malformed trigger JSON is caught before a request is made.
-func TestHandleCreateAlarmRejectsInvalidTriggerJSON(t *testing.T) {
-	result, err := handleCreateAlarm(context.Background(), offlineV3Client(),
-		alarmArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "name": "Spike", "query": "count() > 1",
-			"evaluation_period": "5m", "lookback_lag": "1m", "trigger_config": "{not json",
-		}))
-	if err != nil {
-		t.Fatalf("error = %v", err)
-	}
-	if !result.IsError || !strings.Contains(getResultText(result), "trigger_config") {
-		t.Errorf("got %q", getResultText(result))
+// trigger_config is an object; JSON text, valid or not, is refused before the
+// handler.
+func TestCreateAlarmRefusesTriggerAsText(t *testing.T) {
+	text, ran, _ := checked(t, registeredTools(t), "create_alarm", map[string]any{
+		"project_id": "Xk9mZp", "name": "Spike", "query": "count() > 1",
+		"evaluation_period": "5m", "lookback_lag": "1m", "trigger_config": "{not json",
+	})
+	if ran || !strings.Contains(text, "trigger_config must be an object") {
+		t.Errorf("ran = %v, got %q", ran, text)
 	}
 }
 
@@ -183,7 +181,7 @@ func TestHandleUpdateAlarmChangesBehaviour(t *testing.T) {
 
 	result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]interface{}{
 		"project_id": "Xk9mZp", "alarm_id": "a1",
-		"query": "count() > 5", "evaluation_period": "10m", "stream_ids": `["s1"]`,
+		"query": "count() > 5", "evaluation_period": "10m", "stream_ids": mustJSON(`["s1"]`),
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -214,7 +212,7 @@ func TestHandleUpdateAlarmChangesTrigger(t *testing.T) {
 
 	result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]interface{}{
 		"project_id": "Xk9mZp", "alarm_id": "a1",
-		"trigger_config": `{"type":"alert_result_count","config":{"operator":"gte","value":0.5}}`,
+		"trigger_config": mustJSON(`{"type":"alert_result_count","config":{"operator":"gte","value":0.5}}`),
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -231,16 +229,12 @@ func TestHandleUpdateAlarmChangesTrigger(t *testing.T) {
 	}
 }
 
-func TestHandleUpdateAlarmRejectsInvalidTriggerJSON(t *testing.T) {
-	result, err := handleUpdateAlarm(context.Background(), noRequestClient(t),
-		alarmArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "alarm_id": "a1", "trigger_config": `{not json`,
-		}))
-	if err != nil {
-		t.Fatalf("error = %v", err)
-	}
-	if !result.IsError {
-		t.Errorf("expected an error for malformed trigger_config, got %s", getResultText(result))
+func TestUpdateAlarmRefusesTriggerAsText(t *testing.T) {
+	text, ran, _ := checked(t, registeredTools(t), "update_alarm", map[string]any{
+		"project_id": "Xk9mZp", "alarm_id": "a1", "trigger_config": `{"type":"alert_result_count"}`,
+	})
+	if ran || !strings.Contains(text, "trigger_config must be an object") {
+		t.Errorf("ran = %v, got %q", ran, text)
 	}
 }
 

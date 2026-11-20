@@ -19,7 +19,7 @@ func TestListFaultCommentsEmpty(t *testing.T) {
 	})
 	result, err := handleListFaultComments(context.Background(), client, mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
 		"project_id": "Xk9mZp",
-		"fault_id":   456,
+		"fault_id":   "456",
 	}}})
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func TestListFaultCommentsWalksEveryPage(t *testing.T) {
 		  "pagination":{"has_older":true,"limit":1},"links":{"self":"/x","older":"/v3/older"}}`)
 	})
 	result, err := handleListFaultComments(context.Background(), client, mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
-		"project_id": "Xk9mZp", "fault_id": 456,
+		"project_id": "Xk9mZp", "fault_id": "456",
 	}}})
 	if err != nil || result.IsError {
 		t.Fatalf("result = %+v, err = %v", result, err)
@@ -77,7 +77,7 @@ func TestFaultCommentTools(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			args := map[string]any{"project_id": "Xk9mZp", "fault_id": 456}
+			args := map[string]any{"project_id": "Xk9mZp", "fault_id": "456"}
 			if tc.commentID {
 				args["comment_id"] = "cmt1"
 			}
@@ -139,7 +139,7 @@ func TestFaultCommentTools(t *testing.T) {
 
 			invalid := map[string][]any{
 				"project_id": {nil, ""},
-				"fault_id":   {nil, 0, -1, 1.5, "", "   ", true, float64(maxSafeInteger * 2)},
+				"fault_id":   {nil, 0, -1, 1.5, "", "   ", true, float64(1 << 54)},
 			}
 			if tc.commentID {
 				invalid["comment_id"] = []any{nil, ""}
@@ -212,7 +212,7 @@ func TestListFaultCommentsFailures(t *testing.T) {
 		v3JSON(w, http.StatusForbidden, `{"error":{"code":"access_denied","message":"Forbidden"}}`)
 	})
 	result, err := handleListFaultComments(context.Background(), client, mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
-		"project_id": "Xk9mZp", "fault_id": 456,
+		"project_id": "Xk9mZp", "fault_id": "456",
 	}}})
 	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "Failed to list fault comments") {
 		t.Fatalf("result = %+v, err = %v", result, err)
@@ -220,10 +220,10 @@ func TestListFaultCommentsFailures(t *testing.T) {
 
 	for field, values := range map[string][]any{
 		"project_id": {nil, ""},
-		"fault_id":   {nil, 0, -1, 1.5, "", "   ", true, float64(maxSafeInteger * 2)},
+		"fault_id":   {nil, 0, -1, 1.5, "", "   ", true, float64(1 << 54)},
 	} {
 		for _, value := range values {
-			args := map[string]any{"project_id": "Xk9mZp", "fault_id": 456}
+			args := map[string]any{"project_id": "Xk9mZp", "fault_id": "456"}
 			if value == nil {
 				delete(args, field)
 			} else {

@@ -95,7 +95,7 @@ func TestHandleUpdateDashboard(t *testing.T) {
 	result, err := handleUpdateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
 		"project_id": "Xk9mZp", "dashboard_id": "d1", "title": "Renamed",
 		// Update replaces rather than merges, so the widgets have to come along.
-		"widgets": `[{"type":"errors"}]`,
+		"widgets": mustJSON(`[{"type":"errors"}]`),
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -139,7 +139,7 @@ func TestHandleCreateDashboardSendsWidgets(t *testing.T) {
 		"project_id": "Xk9mZp",
 		"title":      "Ops",
 		"default_ts": "P1D",
-		"widgets":    `[{"type":"errors","grid":{"x":0,"y":0,"w":6,"h":4}}]`,
+		"widgets":    mustJSON(`[{"type":"errors","grid":{"x":0,"y":0,"w":6,"h":4}}]`),
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
@@ -161,16 +161,12 @@ func TestHandleCreateDashboardSendsWidgets(t *testing.T) {
 }
 
 // Malformed widget JSON is caught before a request is made.
-func TestHandleCreateDashboardRejectsInvalidWidgetJSON(t *testing.T) {
-	result, err := handleCreateDashboard(context.Background(), offlineV3Client(),
-		dashboardArgs(map[string]interface{}{
-			"project_id": "Xk9mZp", "title": "Ops", "widgets": "{not json",
-		}))
-	if err != nil {
-		t.Fatalf("error = %v", err)
-	}
-	if !result.IsError || !strings.Contains(getResultText(result), "JSON array") {
-		t.Errorf("got %q", getResultText(result))
+func TestCreateDashboardRefusesWidgetsAsText(t *testing.T) {
+	text, ran, _ := checked(t, registeredTools(t), "create_dashboard", map[string]any{
+		"project_id": "Xk9mZp", "title": "Ops", "widgets": "{not json",
+	})
+	if ran || !strings.Contains(text, "widgets must be an array") {
+		t.Errorf("ran = %v, got %q", ran, text)
 	}
 }
 
@@ -211,7 +207,7 @@ func TestHandleCreateDashboardKeepsWidgetConfig(t *testing.T) {
 
 	result, err := handleCreateDashboard(context.Background(), client, dashboardArgs(map[string]interface{}{
 		"project_id": "Xk9mZp", "title": "Ops",
-		"widgets": `[{"type":"alarms","config":{"limit":5,"filter_state":"triggered"}}]`,
+		"widgets": mustJSON(`[{"type":"alarms","config":{"limit":5,"filter_state":"triggered"}}]`),
 	}))
 	if err != nil || result.IsError {
 		t.Fatalf("create = %v, %v", getResultText(result), err)
@@ -223,7 +219,7 @@ func TestHandleCreateDashboardKeepsWidgetConfig(t *testing.T) {
 	}
 
 	result, err = handleCreateDashboard(context.Background(), offlineV3Client(), dashboardArgs(map[string]interface{}{
-		"project_id": "Xk9mZp", "title": "Ops", "widgets": `[{"type":"errors","colour":"red"}]`,
+		"project_id": "Xk9mZp", "title": "Ops", "widgets": mustJSON(`[{"type":"errors","colour":"red"}]`),
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)

@@ -93,7 +93,7 @@ func TestUpdateSiteWithNothingToChange(t *testing.T) {
 func TestCreateIntegrationLeavesScopeOutUnlessGiven(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"i1","project_id":"Xk9mZp","type":"WebHook","active":true,"links":{"web":"https://app/x"}}}`)
 	result, err := handleCreateIntegration(context.Background(), client, integrationArgs(map[string]any{
-		"project_id": "Xk9mZp", "type": "WebHook", "config": `{"url":"https://example.com/hook"}`, "check_in_ids": []any{},
+		"project_id": "Xk9mZp", "type": "WebHook", "config": mustJSON(`{"url":"https://example.com/hook"}`), "check_in_ids": []any{},
 	}))
 	mustSucceed(t, result, err)
 	if _, present := (*body)["site_ids"]; present {
@@ -130,14 +130,14 @@ func TestIntegrationSettingErrorsAreStable(t *testing.T) {
 }
 
 func TestPagingInputsAreRefusedRatherThanDropped(t *testing.T) {
+	tools := registeredTools(t)
 	for name, args := range map[string]map[string]any{
 		"fractional limit":     {"limit": 2.5},
 		"created_before a URL": {"created_before": "/v3/projects/Xk9mZp/sites/x/outages?created_before=1704153600.5"},
 	} {
 		args["project_id"], args["site_id"] = "Xk9mZp", siteUUID
-		result, err := handleListSiteOutages(context.Background(), noRequestClient(t), mcpRequest(args))
-		if err != nil || !result.IsError {
-			t.Errorf("%s: result = %s, %v; want it refused", name, getResultText(result), err)
+		if text, ran, _ := checked(t, tools, "list_site_outages", args); ran {
+			t.Errorf("%s: ran, want it refused: %s", name, text)
 		}
 	}
 }
@@ -158,12 +158,12 @@ func TestDeleteSitePreviewForAnUnnamedSite(t *testing.T) {
 }
 
 // On create, stream_ids null means every current stream, the same as leaving
-// it out; the create input doesn't accept null.
+// it out, so it isn't sent.
 func TestCreateAlarmTreatsNullStreamsAsOmitted(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
 	result, err := handleCreateAlarm(context.Background(), client, alarmArgs(map[string]any{
 		"project_id": "Xk9mZp", "name": "Spike", "query": "q", "evaluation_period": "5m", "lookback_lag": "1m",
-		"trigger_config": `{"type":"alert_result_count","config":{"operator":"gt","value":1}}`, "stream_ids": "null",
+		"trigger_config": mustJSON(`{"type":"alert_result_count","config":{"operator":"gt","value":1}}`), "stream_ids": nil,
 	}))
 	mustSucceed(t, result, err)
 	if _, present := (*body)["stream_ids"]; present {
@@ -176,7 +176,7 @@ func TestCreateAlarmSendsGivenStreams(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
 	result, err := handleCreateAlarm(context.Background(), client, alarmArgs(map[string]any{
 		"project_id": "Xk9mZp", "name": "Spike", "query": "q", "evaluation_period": "5m", "lookback_lag": "1m",
-		"trigger_config": `{"type":"alert_result_count","config":{"operator":"gt","value":1}}`, "stream_ids": `["s1","s2"]`,
+		"trigger_config": mustJSON(`{"type":"alert_result_count","config":{"operator":"gt","value":1}}`), "stream_ids": mustJSON(`["s1","s2"]`),
 	}))
 	mustSucceed(t, result, err)
 	if got, _ := json.Marshal((*body)["stream_ids"]); string(got) != `["s1","s2"]` {
@@ -229,8 +229,7 @@ func TestUpdateSiteRefusesNullNameAndURL(t *testing.T) {
 	}
 }
 
-// Parameters documented as a string holding JSON also take the JSON value
-// itself; reading only strings dropped it while the call reported success.
+// Object and array parameters reach the API as sent.
 func TestJSONParametersTakeNativeValues(t *testing.T) {
 	ctx := context.Background()
 
@@ -270,12 +269,12 @@ func TestJSONParametersTakeNativeValues(t *testing.T) {
 	}
 }
 
-// query_insights takes stream_ids as the alarm tools do, as a JSON string too,
-// rather than running over every stream.
-func TestQueryInsightsTakesStreamIDsAsAString(t *testing.T) {
+// query_insights sends the stream_ids it's given rather than running over every
+// stream.
+func TestQueryInsightsSendsStreamIDs(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"results":[],"fields":[],"meta":{}}}`)
 	_, _ = handleQueryInsights(context.Background(), client, mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "query": "fields @ts", "stream_ids": `["s1"]`,
+		"project_id": "Xk9mZp", "query": "fields @ts", "stream_ids": mustJSON(`["s1"]`),
 	}))
 	if ids, _ := (*body)["stream_ids"].([]any); len(ids) != 1 || ids[0] != "s1" {
 		t.Errorf("stream_ids = %v, want [s1]", (*body)["stream_ids"])

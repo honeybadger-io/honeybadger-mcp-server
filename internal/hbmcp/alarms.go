@@ -152,10 +152,7 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	if lag == "" {
 		return mcp.NewToolResultError("lookback_lag is required ('0s' for none)"), nil
 	}
-	rawTrigger, problem := jsonTextArg(req, "trigger_config")
-	if problem != "" {
-		return mcp.NewToolResultError(problem), nil
-	}
+	rawTrigger := jsonArg(req, "trigger_config")
 	if rawTrigger == "" {
 		return mcp.NewToolResultError("trigger_config is required"), nil
 	}
@@ -174,10 +171,7 @@ func handleCreateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 	}
 
 	// On create, null means the same as leaving it out: every current stream.
-	ids, isNull, given, problem := streamIDsArg(req)
-	if problem != "" {
-		return mcp.NewToolResultError(problem), nil
-	}
+	ids, isNull, given := streamIDsArg(req)
 	if given && !isNull {
 		params.StreamIds = nullable.NewNullableWithValue(ids)
 	}
@@ -219,20 +213,14 @@ func handleUpdateAlarm(ctx context.Context, client *apiv3.Client, req mcp.CallTo
 			*target = &value
 		}
 	}
-	ids, isNull, given, problem := streamIDsArg(req)
+	ids, isNull, given := streamIDsArg(req)
 	switch {
-	case problem != "":
-		return mcp.NewToolResultError(problem), nil
 	case isNull:
 		params.StreamIds = nullable.NewNullNullable[[]string]()
 	case given:
 		params.StreamIds = nullable.NewNullableWithValue(ids)
 	}
-	rawTrigger, problem := jsonTextArg(req, "trigger_config")
-	if problem != "" {
-		return mcp.NewToolResultError(problem), nil
-	}
-	if raw := rawTrigger; raw != "" {
+	if raw := jsonArg(req, "trigger_config"); raw != "" {
 		trigger, err := parseTrigger(raw)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse trigger_config JSON: %v", err)), nil
@@ -323,42 +311,20 @@ func handleGetAlarmHistory(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// streamIDsArg reads stream_ids. Its schema says a string holding a JSON array,
-// as v2's tool took it, but clients also send the array itself, and JSON null
-// (or the string "null") means every current stream. Anything else is refused
-// rather than dropped, so an alarm isn't left on streams the caller meant to
-// change.
-func streamIDsArg(req mcp.CallToolRequest) (ids []string, isNull, given bool, problem string) {
+// streamIDsArg reads stream_ids: a list of stream IDs, or null for every
+// current stream. The strict check has made sure it is one or the other.
+func streamIDsArg(req mcp.CallToolRequest) (ids []string, isNull, given bool) {
 	raw, present := req.GetArguments()["stream_ids"]
 	if !present {
-		return nil, false, false, ""
+		return nil, false, false
 	}
-	switch v := raw.(type) {
-	case nil:
-		return nil, true, true, ""
-	case string:
-		v = strings.TrimSpace(v)
-		switch v {
-		case "":
-			return nil, false, false, ""
-		case "null":
-			return nil, true, true, ""
-		}
-		if err := json.Unmarshal([]byte(v), &ids); err != nil {
-			return nil, false, false, fmt.Sprintf("Failed to parse stream_ids JSON: %v", err)
-		}
-		return ids, false, true, ""
-	case []any:
-		ids = make([]string, 0, len(v))
-		for _, item := range v {
-			id, ok := item.(string)
-			if !ok {
-				return nil, false, false, fmt.Sprintf("stream_ids must be a list of stream ID strings; got %v", item)
-			}
-			ids = append(ids, id)
-		}
-		return ids, false, true, ""
-	default:
-		return nil, false, false, "stream_ids must be a JSON array of stream IDs, or null"
+	items, ok := raw.([]any)
+	if !ok {
+		return nil, true, true
 	}
+	ids = make([]string, len(items))
+	for i, item := range items {
+		ids[i], _ = item.(string)
+	}
+	return ids, false, true
 }
