@@ -310,3 +310,14 @@ func TestNoSuggestionForAShortUnrelatedKey(t *testing.T) {
 		t.Errorf("nme: %s", text)
 	}
 }
+
+// A long unknown key costs nothing to look up: a parameter can only be within
+// two edits of a key of about its own length. Without that, a client could
+// make the server spend seconds and gigabytes on one call.
+func TestALongUnknownKeyIsCheap(t *testing.T) {
+	c := newChecker(registeredTools(t)["list_faults"])
+	name := strings.Repeat("x", 1<<20)
+	if allocs := testing.AllocsPerRun(3, func() { c.closest(name) }); allocs > 10 {
+		t.Errorf("closest on a 1 MiB key made %.0f allocations, want almost none", allocs)
+	}
+}

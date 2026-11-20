@@ -272,6 +272,12 @@ func (c *checker) unknownTopLevel(name string) problem {
 func (c *checker) closest(name string) string {
 	best, bestDist := "", min(2, (len(name)-1)/2)+1
 	for n := range c.props {
+		// The distance is at least the difference in length, so a parameter
+		// that differs by more can't be close, and a long key from a client
+		// costs nothing to rule out.
+		if diff := len(name) - len(n); diff > bestDist || -diff > bestDist {
+			continue
+		}
 		if d := editDistance(name, n); d < bestDist || (d == bestDist && n < best) {
 			best, bestDist = n, d
 		}
