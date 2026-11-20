@@ -14,9 +14,6 @@ import (
 // listed as hand-written in openapi/tools.yaml.
 var notYetGenerated = []string{
 	"get_project_integrations",
-	"list_check_ins", "get_check_in", "create_check_in", "update_check_in", "delete_check_in", "list_check_in_events",
-	"list_sites", "get_site", "create_site", "update_site", "delete_site", "list_site_outages", "list_uptime_checks",
-	"list_deploys", "get_deploy",
 	"list_dashboards", "get_dashboard", "create_dashboard", "update_dashboard", "delete_dashboard",
 	"list_alarms", "get_alarm", "get_alarm_history", "create_alarm", "update_alarm", "delete_alarm",
 	"get_integration", "create_integration", "update_integration", "delete_integration",

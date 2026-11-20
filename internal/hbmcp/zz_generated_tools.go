@@ -7,6 +7,30 @@ import "github.com/mark3labs/mcp-go/mcp"
 
 // generatedTools are the tool definitions, keyed by name.
 var generatedTools = map[string]mcp.Tool{
+	"create_check_in": {
+		Name:        "create_check_in",
+		Description: "Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule types, the required field per type, plan gating (cron needs the Business plan), and the timezone format.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"cron_schedule": map[string]any{"description": "Cron expression defining when the check-in is expected to report, e.g. '0 5 * * *'. Required for cron schedules.", "type": []any{"string", "null"}},
+				"cron_timezone": map[string]any{"default": "UTC", "description": "Optional timezone for the cron schedule. Rails/ActiveSupport zone name (e.g. 'Eastern Time (US & Canada)', 'London'), NOT an IANA identifier like 'America/New_York'. Defaults to UTC.", "type": []any{"string", "null"}},
+				"grace_period":  map[string]any{"default": "00:00:00", "description": "Optional amount of time to allow a late report before alerting, e.g. '5 minutes'", "pattern": "^(\\d+ (second|minute|hour|day|week|month|year)s?)( \\d+ (second|minute|hour|day|week|month|year)s?)*$|^\\d\\d:\\d\\d:\\d\\d$", "type": []any{"string", "null"}},
+				"name":          map[string]any{"description": "The name of the check-in. Optional: an unnamed check-in shows its ID.", "type": []any{"string", "null"}},
+				"project_id":    map[string]any{"description": "The ID of the project to create the check-in in", "type": "string"},
+				"report_period": map[string]any{"description": "How often the check-in is expected to report, e.g. '1 day', '30 minutes'. Required for simple schedules.", "pattern": "^(\\d+ (second|minute|hour|day|week|month|year)s?)( \\d+ (second|minute|hour|day|week|month|year)s?)*$|^\\d\\d:\\d\\d:\\d\\d$", "type": []any{"string", "null"}},
+				"schedule_type": map[string]any{"default": "simple", "description": "The schedule type: 'simple' (report every fixed period) or 'cron' (report on a cron schedule)", "enum": []any{"simple", "cron"}, "type": "string"},
+				"slug":          map[string]any{"description": "Optional URL-friendly identifier used to report the check-in (e.g. 'nightly-backups')", "type": []any{"string", "null"}},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Create Check-In",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
 	"create_fault_comment": {
 		Name:        "create_fault_comment",
 		Description: "Add a comment to a fault. @mentions notify the named project members. With an account-scoped API Token, the comment is attributed to the token's name.",
@@ -54,6 +78,55 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
 	},
+	"create_site": {
+		Name:        "create_site",
+		Description: "Start uptime monitoring for a URL. Only url is required; the rest default as described.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"active":           map[string]any{"default": true, "description": "Whether the site is checked. Defaults to true.", "type": []any{"boolean", "null"}},
+				"frequency":        map[string]any{"default": 5, "description": "Minutes between checks: 1, 2, 5 or 15. Defaults to 5; a value more frequent than the plan allows is refused.", "enum": []any{1, 2, 5, 15, nil}, "type": []any{"integer", "null"}},
+				"locations":        map[string]any{"default": []any{}, "description": "Locations to check from. [] or null checks from every location.", "items": map[string]any{"enum": []any{"Virginia", "Frankfurt", "Singapore", "London", "Oregon"}, "type": "string"}, "type": []any{"array", "null"}, "uniqueItems": true},
+				"match":            map[string]any{"description": "What match_type compares against. Required unless match_type is success; null clears it.", "maxLength": 255, "type": []any{"string", "null"}},
+				"match_type":       map[string]any{"default": "success", "description": "How a response passes: success (any 2xx; leave match out), exact (status code equals match), include or exclude (the body does or doesn't contain match), jmespath (match is a JMESPath expression over the JSON body). Defaults to success.", "enum": []any{"success", "exact", "include", "exclude", "jmespath", nil}, "type": []any{"string", "null"}},
+				"name":             map[string]any{"description": "A display name for the site", "type": "string"},
+				"outage_threshold": map[string]any{"description": "Consecutive failures before an outage is declared. null declares one when half the locations fail.", "minimum": 1, "type": []any{"integer", "null"}},
+				"project_id":       map[string]any{"description": "The ID of the project to create the site in", "type": "string"},
+				"request_body":     map[string]any{"description": "A body to send with the request, up to 32 KB; null clears it", "format": "password", "maxLength": 32768, "type": []any{"string", "null"}},
+				"request_headers":  map[string]any{"additionalProperties": map[string]any{"format": "password", "type": "string"}, "default": map[string]any{}, "description": "Headers to send, as name to value. Replaces the stored headers; {} or null clears them.", "type": []any{"object", "null"}},
+				"request_method":   map[string]any{"default": "GET", "description": "Defaults to GET", "enum": []any{"GET", "POST", "PUT", "PATCH", "DELETE", nil}, "type": []any{"string", "null"}},
+				"timeout":          map[string]any{"description": "Request timeout in seconds, 1 to 120, shorter than the frequency. Defaults to 30; only accounts with the uptime-timeout feature can change it.", "type": []any{"integer", "null"}},
+				"url":              map[string]any{"description": "The URL to check. Must start with http:// or https://.", "format": "uri", "pattern": "^https?://\\S", "type": "string"},
+				"validate_ssl":     map[string]any{"default": true, "description": "Fail the check when the TLS certificate doesn't validate. Defaults to true.", "type": []any{"boolean", "null"}},
+			},
+			Required:             []string{"project_id", "url"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Create Site",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"delete_check_in": {
+		Name:        "delete_check_in",
+		Description: "Delete a check-in. This also deletes the check-in's reporting history." + confirmNote,
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"check_in_id": map[string]any{"description": "The ID of the check-in to delete", "type": "string"},
+				"project_id":  map[string]any{"description": "The ID of the project the check-in belongs to", "type": "string"},
+				"confirm":     confirmParam,
+			},
+			Required:             []string{"check_in_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Delete Check-In",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
 	"delete_fault_comment": {
 		Name:        "delete_fault_comment",
 		Description: "Delete an existing comment from a fault. An account-scoped API Token can delete a comment only when it can manage the project." + confirmNote,
@@ -90,6 +163,61 @@ var generatedTools = map[string]mcp.Tool{
 			Title:           "Delete Project",
 			ReadOnlyHint:    mcp.ToBoolPtr(false),
 			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"delete_site": {
+		Name:        "delete_site",
+		Description: "Stop monitoring an uptime site and delete it." + confirmNote,
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project the site belongs to", "type": "string"},
+				"site_id":    map[string]any{"description": "The ID of the site to delete, a UUID", "format": "uuid", "type": "string"},
+				"confirm":    confirmParam,
+			},
+			Required:             []string{"project_id", "site_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Delete Site",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"get_check_in": {
+		Name:        "get_check_in",
+		Description: "Get a single check-in by ID. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"check_in_id": map[string]any{"description": "The ID of the check-in to retrieve", "type": "string"},
+				"project_id":  map[string]any{"description": "The ID of the project the check-in belongs to", "type": "string"},
+			},
+			Required:             []string{"check_in_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Check-In",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"get_deploy": {
+		Name:        "get_deploy",
+		Description: "Get a deploy by ID. A deployed event and a fault's last_notice_deploy name deploys by ID.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"deploy_id":  map[string]any{"description": "The ID of the deploy", "type": "string"},
+				"project_id": map[string]any{"description": "The ID of the project the deploy belongs to", "type": "string"},
+			},
+			Required:             []string{"deploy_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Deploy",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
 		},
 	},
 	"get_fault": {
@@ -181,6 +309,83 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "Get Project Occurrence Counts",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"get_site": {
+		Name:        "get_site",
+		Description: "Get an uptime site: its URL, check settings and current state. Up, down and cert_will_expire events name the site by ID.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project the site belongs to", "type": "string"},
+				"site_id":    map[string]any{"description": "The ID of the site, a UUID", "format": "uuid", "type": "string"},
+			},
+			Required:             []string{"project_id", "site_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Site",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"list_check_in_events": {
+		Name:        "list_check_in_events",
+		Description: "List a check-in's history, newest first: each time it reported, went missing or was paused. Use it to explain a check_in_missing or check_in_reporting event. To page back, pass the previous response's next_created_before as created_before.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"check_in_id":    map[string]any{"description": "The ID of the check-in", "type": "string"},
+				"created_before": map[string]any{"description": "Page back: the previous response's next_created_before, unchanged", "format": "double", "type": "number"},
+				"limit":          map[string]any{"default": 25, "description": "Most items to return, up to 100 (default 25)", "maximum": 100, "minimum": 1, "type": "integer"},
+				"project_id":     map[string]any{"description": "The ID of the project the check-in belongs to", "type": "string"},
+			},
+			Required:             []string{"check_in_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Check-In Events",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"list_check_ins": {
+		Name:        "list_check_ins",
+		Description: "List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns every check-in, following pagination. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project to list check-ins for", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Check-Ins",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"list_deploys": {
+		Name:        "list_deploys",
+		Description: "List a project's deploys, newest first: revision, repository, environment and who deployed. Filter by environment or deployer. To page back, pass before from the previous response's time_series.oldest_cursor.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"after":          map[string]any{"description": "Cursor for newer deploys: time_series.newest_cursor from the previous response", "type": "string"},
+				"before":         map[string]any{"description": "Cursor for older deploys: time_series.oldest_cursor from the previous response", "type": "string"},
+				"environment":    map[string]any{"description": "Only deploys to this environment, e.g. production", "type": "string"},
+				"limit":          map[string]any{"default": 25, "description": "Most items to return, up to 100 (default 25)", "maximum": 100, "minimum": 1, "type": "integer"},
+				"local_username": map[string]any{"description": "Only deploys recorded under this local_username", "type": "string"},
+				"project_id":     map[string]any{"description": "The ID of the project to list deploys for", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Deploys",
 			ReadOnlyHint:    mcp.ToBoolPtr(true),
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
@@ -284,6 +489,88 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
 	},
+	"list_site_outages": {
+		Name:        "list_site_outages",
+		Description: "List an uptime site's outages, newest first: when it went down and came back up, with the status and reason from the failing check. Use it to explain a down or up event. To page back, pass the previous response's next_created_before as created_before.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"created_before": map[string]any{"description": "Page back: the previous response's next_created_before, unchanged", "format": "double", "type": "number"},
+				"limit":          map[string]any{"default": 25, "description": "Most items to return, up to 100 (default 25)", "maximum": 100, "minimum": 1, "type": "integer"},
+				"project_id":     map[string]any{"description": "The ID of the project the site belongs to", "type": "string"},
+				"site_id":        map[string]any{"description": "The ID of the site, a UUID", "format": "uuid", "type": "string"},
+			},
+			Required:             []string{"project_id", "site_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Site Outages",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"list_sites": {
+		Name:        "list_sites",
+		Description: "List a project's uptime sites: the URLs Honeybadger checks, with their current state (up, down, paused).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project to list sites for", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Sites",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"list_uptime_checks": {
+		Name:        "list_uptime_checks",
+		Description: "List an uptime site's individual checks, newest first: each check's location, response status and duration. A busy site has many; keep limit small. To page back, pass the previous response's next_created_before as created_before.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"created_before": map[string]any{"description": "Page back: the previous response's next_created_before, unchanged", "format": "double", "type": "number"},
+				"limit":          map[string]any{"default": 25, "description": "Most items to return, up to 100 (default 25)", "maximum": 100, "minimum": 1, "type": "integer"},
+				"project_id":     map[string]any{"description": "The ID of the project the site belongs to", "type": "string"},
+				"site_id":        map[string]any{"description": "The ID of the site, a UUID", "format": "uuid", "type": "string"},
+			},
+			Required:             []string{"project_id", "site_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Uptime Checks",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"update_check_in": {
+		Name:        "update_check_in",
+		Description: "Update an existing check-in. Only the provided fields change, and null clears one. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule fields, plan gating, and the timezone format.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"check_in_id":   map[string]any{"description": "The ID of the check-in to update", "type": "string"},
+				"cron_schedule": map[string]any{"description": "Cron expression defining when the check-in is expected to report. Used by cron schedules.", "type": []any{"string", "null"}},
+				"cron_timezone": map[string]any{"default": "UTC", "description": "Timezone for the cron schedule. Rails/ActiveSupport zone name (e.g. 'Eastern Time (US & Canada)', 'London'), NOT an IANA identifier like 'America/New_York'.", "type": []any{"string", "null"}},
+				"grace_period":  map[string]any{"default": "00:00:00", "description": "Amount of time to allow a late report before alerting, e.g. '5 minutes'", "pattern": "^(\\d+ (second|minute|hour|day|week|month|year)s?)( \\d+ (second|minute|hour|day|week|month|year)s?)*$|^\\d\\d:\\d\\d:\\d\\d$", "type": []any{"string", "null"}},
+				"name":          map[string]any{"description": "A new name for the check-in", "type": []any{"string", "null"}},
+				"project_id":    map[string]any{"description": "The ID of the project the check-in belongs to", "type": "string"},
+				"report_period": map[string]any{"description": "How often the check-in is expected to report, e.g. '1 day', '30 minutes'. Used by simple schedules.", "pattern": "^(\\d+ (second|minute|hour|day|week|month|year)s?)( \\d+ (second|minute|hour|day|week|month|year)s?)*$|^\\d\\d:\\d\\d:\\d\\d$", "type": []any{"string", "null"}},
+				"schedule_type": map[string]any{"default": "simple", "description": "Switch between 'simple' and 'cron'. Switching to simple clears cron_schedule.", "enum": []any{"simple", "cron"}, "type": "string"},
+				"slug":          map[string]any{"description": "URL-friendly identifier used to report the check-in", "type": []any{"string", "null"}},
+			},
+			Required:             []string{"check_in_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Update Check-In",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
 	"update_fault_comment": {
 		Name:        "update_fault_comment",
 		Description: "Replace the body of an existing fault comment. Returns the comment as stored. Only the comment's author can edit it, so an account-scoped API Token, which has no author, is refused with access_denied.",
@@ -327,6 +614,37 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "Update Project",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"update_site": {
+		Name:        "update_site",
+		Description: "Change an uptime site's settings. Only the parameters given are changed, and null resets a setting to its default; name and url have no default, so they can be changed but not reset.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"active":           map[string]any{"default": true, "description": "Whether the site is checked. Defaults to true.", "type": []any{"boolean", "null"}},
+				"frequency":        map[string]any{"default": 5, "description": "Minutes between checks: 1, 2, 5 or 15. Defaults to 5; a value more frequent than the plan allows is refused.", "enum": []any{1, 2, 5, 15, nil}, "type": []any{"integer", "null"}},
+				"locations":        map[string]any{"default": []any{}, "description": "Locations to check from. [] or null checks from every location.", "items": map[string]any{"enum": []any{"Virginia", "Frankfurt", "Singapore", "London", "Oregon"}, "type": "string"}, "type": []any{"array", "null"}, "uniqueItems": true},
+				"match":            map[string]any{"description": "What match_type compares against. Required unless match_type is success; null clears it.", "maxLength": 255, "type": []any{"string", "null"}},
+				"match_type":       map[string]any{"default": "success", "description": "How a response passes: success (any 2xx; leave match out), exact (status code equals match), include or exclude (the body does or doesn't contain match), jmespath (match is a JMESPath expression over the JSON body). Defaults to success.", "enum": []any{"success", "exact", "include", "exclude", "jmespath", nil}, "type": []any{"string", "null"}},
+				"name":             map[string]any{"description": "A display name for the site", "type": "string"},
+				"outage_threshold": map[string]any{"description": "Consecutive failures before an outage is declared. null declares one when half the locations fail.", "minimum": 1, "type": []any{"integer", "null"}},
+				"project_id":       map[string]any{"description": "The ID of the project the site belongs to", "type": "string"},
+				"request_body":     map[string]any{"description": "A body to send with the request, up to 32 KB; null clears it", "format": "password", "maxLength": 32768, "type": []any{"string", "null"}},
+				"request_headers":  map[string]any{"additionalProperties": map[string]any{"format": "password", "type": "string"}, "default": map[string]any{}, "description": "Headers to send, as name to value. Replaces the stored headers; {} or null clears them.", "type": []any{"object", "null"}},
+				"request_method":   map[string]any{"default": "GET", "description": "Defaults to GET", "enum": []any{"GET", "POST", "PUT", "PATCH", "DELETE", nil}, "type": []any{"string", "null"}},
+				"site_id":          map[string]any{"description": "The ID of the site, a UUID", "format": "uuid", "type": "string"},
+				"timeout":          map[string]any{"description": "Request timeout in seconds, 1 to 120, shorter than the frequency. Defaults to 30; only accounts with the uptime-timeout feature can change it.", "type": []any{"integer", "null"}},
+				"url":              map[string]any{"description": "A new URL to check. Must start with http:// or https://.", "format": "uri", "pattern": "^https?://\\S", "type": "string"},
+				"validate_ssl":     map[string]any{"default": true, "description": "Fail the check when the TLS certificate doesn't validate. Defaults to true.", "type": []any{"boolean", "null"}},
+			},
+			Required:             []string{"project_id", "site_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Update Site",
 			ReadOnlyHint:    mcp.ToBoolPtr(false),
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},

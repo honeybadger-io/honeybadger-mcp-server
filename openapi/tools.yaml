@@ -224,3 +224,182 @@ delete_fault_comment:
     project_id: { description: The ID of the project containing the fault }
     fault_id: { description: The ID of the fault the comments belong to }
     comment_id: { description: The ID of the comment }
+
+# Uptime sites
+
+list_sites:
+  operation: listSites
+  title: List Sites
+  description: "List a project's uptime sites: the URLs Honeybadger checks, with their current state (up, down, paused)."
+  params:
+    project_id: { description: The ID of the project to list sites for }
+    page: { exclude: The tool returns every site. }
+    per_page: { exclude: The tool returns every site. }
+
+get_site:
+  operation: getSite
+  title: Get Site
+  description: "Get an uptime site: its URL, check settings and current state. Up, down and cert_will_expire events name the site by ID."
+  params:
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site, a UUID" }
+
+create_site:
+  operation: createSite
+  title: Create Site
+  description: Start uptime monitoring for a URL. Only url is required; the rest default as described.
+  params: &site_settings
+    project_id: { description: The ID of the project to create the site in }
+    url: { description: "The URL to check. Must start with http:// or https://." }
+    name: { description: A display name for the site }
+    frequency: { description: "Minutes between checks: 1, 2, 5 or 15. Defaults to 5; a value more frequent than the plan allows is refused." }
+    locations: { description: "Locations to check from. [] or null checks from every location." }
+    match: { description: "What match_type compares against. Required unless match_type is success; null clears it." }
+    match_type:
+      description: "How a response passes: success (any 2xx; leave match out), exact (status code equals match), include or exclude (the body does or doesn't contain match), jmespath (match is a JMESPath expression over the JSON body). Defaults to success."
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    request_method: { description: Defaults to GET }
+    request_body: { description: "A body to send with the request, up to 32 KB; null clears it" }
+    request_headers: { description: "Headers to send, as name to value. Replaces the stored headers; {} or null clears them." }
+    timeout:
+      description: "Request timeout in seconds, 1 to 120, shorter than the frequency. Defaults to 30; only accounts with the uptime-timeout feature can change it."
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    outage_threshold: { description: Consecutive failures before an outage is declared. null declares one when half the locations fail. }
+    validate_ssl: { description: "Fail the check when the TLS certificate doesn't validate. Defaults to true." }
+    active: { description: Whether the site is checked. Defaults to true. }
+
+update_site:
+  operation: updateSite
+  title: Update Site
+  description: "Change an uptime site's settings. Only the parameters given are changed, and null resets a setting to its default; name and url have no default, so they can be changed but not reset."
+  params:
+    <<: *site_settings
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site, a UUID" }
+    url: { description: "A new URL to check. Must start with http:// or https://." }
+
+delete_site:
+  operation: deleteSite
+  confirm: true
+  title: Delete Site
+  description: Stop monitoring an uptime site and delete it.
+  params:
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site to delete, a UUID" }
+
+list_site_outages:
+  operation: listOutages
+  title: List Site Outages
+  description: "List an uptime site's outages, newest first: when it went down and came back up, with the status and reason from the failing check. Use it to explain a down or up event. To page back, pass the previous response's next_created_before as created_before."
+  params:
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site, a UUID" }
+    limit: { description: "Most items to return, up to 100 (default 25)" }
+    created_before: { description: "Page back: the previous response's next_created_before, unchanged" }
+    created_after: { exclude: api-go has no option for it. }
+
+list_uptime_checks:
+  operation: listUptimeChecks
+  title: List Uptime Checks
+  description: "List an uptime site's individual checks, newest first: each check's location, response status and duration. A busy site has many; keep limit small. To page back, pass the previous response's next_created_before as created_before."
+  params:
+    project_id: { description: The ID of the project the site belongs to }
+    site_id: { description: "The ID of the site, a UUID" }
+    limit: { description: "Most items to return, up to 100 (default 25)" }
+    created_before: { description: "Page back: the previous response's next_created_before, unchanged" }
+    created_after: { exclude: api-go has no option for it. }
+
+# Check-ins
+
+list_check_ins:
+  operation: listCheckIns
+  title: List Check-Ins
+  description: "List check-ins (cron/scheduled task monitoring) for a Honeybadger project. Returns every check-in, following pagination. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."
+  params:
+    project_id: { description: The ID of the project to list check-ins for }
+    page: { exclude: The tool returns every check-in. }
+    per_page: { exclude: The tool returns every check-in. }
+
+get_check_in:
+  operation: getCheckIn
+  title: Get Check-In
+  description: "Get a single check-in by ID. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference)."
+  params:
+    project_id: { description: The ID of the project the check-in belongs to }
+    check_in_id: { description: The ID of the check-in to retrieve }
+
+create_check_in:
+  operation: createCheckIn
+  title: Create Check-In
+  description: "Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule types, the required field per type, plan gating (cron needs the Business plan), and the timezone format."
+  long: Carried over from the hand-written definition; trimmed in task 6.
+  params:
+    project_id: { description: The ID of the project to create the check-in in }
+    name: { description: "The name of the check-in. Optional: an unnamed check-in shows its ID." }
+    schedule_type: { description: "The schedule type: 'simple' (report every fixed period) or 'cron' (report on a cron schedule)" }
+    report_period: { description: "How often the check-in is expected to report, e.g. '1 day', '30 minutes'. Required for simple schedules." }
+    grace_period: { description: "Optional amount of time to allow a late report before alerting, e.g. '5 minutes'" }
+    cron_schedule: { description: "Cron expression defining when the check-in is expected to report, e.g. '0 5 * * *'. Required for cron schedules." }
+    cron_timezone:
+      description: "Optional timezone for the cron schedule. Rails/ActiveSupport zone name (e.g. 'Eastern Time (US & Canada)', 'London'), NOT an IANA identifier like 'America/New_York'. Defaults to UTC."
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    slug: { description: "Optional URL-friendly identifier used to report the check-in (e.g. 'nightly-backups')" }
+
+update_check_in:
+  operation: updateCheckIn
+  title: Update Check-In
+  description: "Update an existing check-in. Only the provided fields change, and null clears one. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule fields, plan gating, and the timezone format."
+  long: Carried over from the hand-written definition; trimmed in task 6.
+  params:
+    project_id: { description: The ID of the project the check-in belongs to }
+    check_in_id: { description: The ID of the check-in to update }
+    name: { description: A new name for the check-in }
+    schedule_type: { description: "Switch between 'simple' and 'cron'. Switching to simple clears cron_schedule." }
+    report_period: { description: "How often the check-in is expected to report, e.g. '1 day', '30 minutes'. Used by simple schedules." }
+    grace_period: { description: "Amount of time to allow a late report before alerting, e.g. '5 minutes'" }
+    cron_schedule: { description: Cron expression defining when the check-in is expected to report. Used by cron schedules. }
+    cron_timezone:
+      description: "Timezone for the cron schedule. Rails/ActiveSupport zone name (e.g. 'Eastern Time (US & Canada)', 'London'), NOT an IANA identifier like 'America/New_York'."
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    slug: { description: URL-friendly identifier used to report the check-in }
+
+delete_check_in:
+  operation: deleteCheckIn
+  confirm: true
+  title: Delete Check-In
+  description: "Delete a check-in. This also deletes the check-in's reporting history."
+  params:
+    project_id: { description: The ID of the project the check-in belongs to }
+    check_in_id: { description: The ID of the check-in to delete }
+
+list_check_in_events:
+  operation: listCheckInEvents
+  title: List Check-In Events
+  description: "List a check-in's history, newest first: each time it reported, went missing or was paused. Use it to explain a check_in_missing or check_in_reporting event. To page back, pass the previous response's next_created_before as created_before."
+  params:
+    project_id: { description: The ID of the project the check-in belongs to }
+    check_in_id: { description: The ID of the check-in }
+    limit: { description: "Most items to return, up to 100 (default 25)" }
+    created_before: { description: "Page back: the previous response's next_created_before, unchanged" }
+
+# Deploys
+
+list_deploys:
+  operation: listDeploys
+  title: List Deploys
+  description: "List a project's deploys, newest first: revision, repository, environment and who deployed. Filter by environment or deployer. To page back, pass before from the previous response's time_series.oldest_cursor."
+  params:
+    project_id: { description: The ID of the project to list deploys for }
+    environment: { description: "Only deploys to this environment, e.g. production" }
+    local_username: { description: Only deploys recorded under this local_username }
+    limit: { description: "Most items to return, up to 100 (default 25)" }
+    before: { description: "Cursor for older deploys: time_series.oldest_cursor from the previous response" }
+    after: { description: "Cursor for newer deploys: time_series.newest_cursor from the previous response" }
+
+get_deploy:
+  operation: getDeploy
+  title: Get Deploy
+  description: Get a deploy by ID. A deployed event and a fault's last_notice_deploy name deploys by ID.
+  params:
+    project_id: { description: The ID of the project the deploy belongs to }
+    deploy_id: { description: The ID of the deploy }
