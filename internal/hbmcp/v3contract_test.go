@@ -135,14 +135,14 @@ func TestIntegrationToolsRefuseTheOldFilterParameters(t *testing.T) {
 }
 
 // An empty string clears a project setting, sent as null.
-func TestUpdateProjectClearsASettingWithEmptyString(t *testing.T) {
+func TestUpdateProjectSendsAnEmptyStringAsGiven(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"App","active":true}}`)
 	result, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]any{
-		"id": "Xk9mZp", "user_url": "",
+		"project_id": "Xk9mZp", "user_url": "",
 	}))
 	mustSucceed(t, result, err)
-	if v, present := (*body)["user_url"]; !present || v != nil {
-		t.Errorf("user_url = %v (present %v), want an explicit null", v, present)
+	if v, present := (*body)["user_url"]; !present || v != "" {
+		t.Errorf("user_url = %#v (present %v), want the empty string as sent; null is what clears it", v, present)
 	}
 }
 

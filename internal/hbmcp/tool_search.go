@@ -112,3 +112,14 @@ func filterReadOnlyCatalog(catalog []ToolInfo) []ToolInfo {
 	}
 	return filtered
 }
+
+// generatedTool returns a tool definition generated from the spec. A name the
+// overlay doesn't define panics at startup, so a missing entry can't register
+// an empty tool.
+func generatedTool(name string) mcp.Tool {
+	t, ok := generatedTools[name]
+	if !ok {
+		panic("hbmcp: no generated definition for " + name + "; add it to openapi/tools.yaml and run make generate")
+	}
+	return t
+}

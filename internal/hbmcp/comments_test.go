@@ -4,14 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"regexp"
 	"strings"
 	"testing"
-	"unicode"
 
 	"github.com/honeybadger-io/api-go/apiv3"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 const testComment = `{"id":"cmt1","fault_id":"456","body":"Investigation","created_at":"2026-09-26T00:00:00Z","author":{"name":"Kevin"}}`
@@ -174,49 +171,37 @@ func TestFaultCommentTools(t *testing.T) {
 	}
 }
 
-func TestFaultCommentBodySchema(t *testing.T) {
-	s := server.NewMCPServer("test", "test")
-	RegisterCommentTools(newToolRegistrar(s), nil)
-	for _, name := range []string{"create_fault_comment", "update_fault_comment"} {
-		t.Run(name, func(t *testing.T) {
-			tool := s.GetTool(name)
-			if tool == nil {
-				t.Fatal("tool not registered")
-			}
-			prop := tool.Tool.InputSchema.Properties["body"].(map[string]any)
-			pattern, ok := prop["pattern"].(string)
-			if !ok {
-				t.Fatal("body schema must advertise a non-blank pattern")
-			}
-			re, err := regexp.Compile(pattern)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cases := []struct {
-				body  string
-				valid bool
-			}{
-				{"", false},
-				{" \t\n\r ", false},
-				{"\u00a0\u2003\u202f\u3000", false},
-				{"Comment", true},
-				{"  First line\nSecond line  ", true},
-				{"\u00a0Hello\u3000", true},
-				{"\u200b", true},
-				{"\ufeff", true},
-			}
-			for _, tc := range cases {
-				if got := re.MatchString(tc.body); got != tc.valid {
-					t.Errorf("body %q: pattern accepts = %v, want %v", tc.body, got, tc.valid)
-				}
-			}
-			// Cover every whitespace rune recognized by the handler.
-			for r := rune(0); r <= unicode.MaxRune; r++ {
-				if unicode.IsSpace(r) && re.MatchString(string(r)) {
-					t.Errorf("pattern accepts whitespace U+%04X", r)
-				}
-			}
+// A blank comment is refused before any request, whatever Unicode whitespace
+// it is made of. The spec doesn't say so yet (honeybadger is adding it to
+// CommentInput), so the handler holds the line.
+func TestFaultCommentBodyMustNotBeBlank(t *testing.T) {
+	for _, tc := range []struct {
+		body  string
+		valid bool
+	}{
+		{"", false},
+		{" \t\n\r ", false},
+		{"\u00a0\u2003\u202f\u3000", false},
+		{"Comment", true},
+		{"  First line\nSecond line  ", true},
+		{"\u00a0Hello\u3000", true},
+		{"\u200b", true},
+		{"\ufeff", true},
+	} {
+		requests := 0
+		client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			requests++
+			v3JSON(w, http.StatusCreated, `{"data":{"id":"c1","body":"x"}}`)
 		})
+		result, err := handleCreateFaultComment(context.Background(), client, mcpRequest(map[string]any{
+			"project_id": "Xk9mZp", "fault_id": "f1", "body": tc.body,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if refused := result.IsError && requests == 0; refused == tc.valid {
+			t.Errorf("body %q: refused = %v, want %v (%s)", tc.body, refused, !tc.valid, getResultText(result))
+		}
 	}
 }
 

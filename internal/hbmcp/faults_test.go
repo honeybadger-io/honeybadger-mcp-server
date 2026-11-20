@@ -72,7 +72,7 @@ func TestHandleListFaults_LimitMapsToPerPage(t *testing.T) {
 
 	_, err := handleListFaults(context.Background(), client, faultArgs(map[string]interface{}{
 		"project_id": "Xk9mZp",
-		"limit":      10,
+		"per_page":   10,
 		"page":       3,
 	}))
 	if err != nil {

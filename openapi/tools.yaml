@@ -1,0 +1,226 @@
+# Tool overlay: the words for each MCP tool and the few places it differs from
+# the spec. The spec (bundled.yaml) owns every tool's shape; make generate
+# builds internal/hbmcp/zz_generated_tools.go from the two and fails, naming
+# each problem, when this file no longer matches the spec.
+#
+# Per tool: operation (or operations), title, description, and per parameter a
+# description. A spec field is exposed unless excluded, and every exclusion and
+# override says why:
+#   exclude: <reason>            leave a spec field out
+#   rename: <name> + reason      MCP name for a spec field
+#   as: date + reason            MCP takes a date; the handler converts it
+#   shallow: <topic>             advertise only the top-level type
+#   confirm: true                delete gated on a confirmation token
+#   handwritten: true            the definition stays in Go
+#   long: <reason>               a description over the cap (300 tool, 120 parameter)
+
+# Hand-written: no single operation fits.
+get_reference:
+  handwritten: true
+search_tools:
+  handwritten: true
+update_fault:
+  handwritten: true # resolved/ignored booleans and snooze null map onto nine operations
+
+# Projects
+
+list_projects:
+  operation: listProjects
+  title: List Projects
+  description: List all Honeybadger projects (returns summary info; use get_project for full details). A project can have several Ingestion Keys; list them with list_ingestion_keys.
+  params:
+    name: { description: Optional exact project name; returns only the project with that name }
+    page: { exclude: The tool returns every project. }
+    per_page: { exclude: The tool returns every project. }
+
+get_project:
+  operation: getProject
+  title: Get Project
+  description: Get a single Honeybadger project by ID. Its Ingestion Keys aren't included; list them with list_ingestion_keys.
+  params:
+    project_id: { description: The ID of the project to retrieve }
+
+create_project:
+  operation: createProject
+  title: Create Project
+  description: Create a new Honeybadger project
+  params:
+    name: { description: The name of the new project }
+    resolve_errors_on_deploy: { description: Whether all unresolved faults should be marked as resolved when a deploy is recorded }
+    disable_public_links: { description: Whether to allow fault details to be publicly shareable via a button on the fault detail page }
+    user_url: { description: "A URL format like 'http://example.com/admin/users/[user_id]' that will be displayed on the fault detail page" }
+    source_url:
+      description: "A URL format like 'https://gitlab.com/username/reponame/blob/[sha]/[file]#L[line]' that is used to link lines in the backtrace to your git browser"
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    purge_days: { description: The number of days to retain data (up to the max number of days available to your subscription plan) }
+    user_search_field: { description: "A field such as 'context.user_email' that you provide in your error context" }
+    language: { description: "Primary language, used to format backtraces." }
+    asana_workspace_id: { description: Asana workspace for the project's Asana integration. }
+    customer_throttle: { description: Notices accepted per minute before throttling. }
+    team_id: { description: "Team to create the project in. Needs the team:write scope as well." }
+    disable_email_notifications: { description: Add the project's members with email notifications off. }
+
+update_project:
+  operation: updateProject
+  title: Update Project
+  description: Update an existing Honeybadger project
+  params:
+    project_id: { description: The ID of the project to update }
+    name: { description: A new name for the project }
+    resolve_errors_on_deploy: { description: Whether all unresolved faults should be marked as resolved when a deploy is recorded }
+    disable_public_links: { description: Whether to allow fault details to be publicly shareable via a button on the fault detail page }
+    user_url:
+      description: "A URL format like 'http://example.com/admin/users/[user_id]' that will be displayed on the fault detail page. Null clears it."
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    source_url:
+      description: "A URL format like 'https://gitlab.com/username/reponame/blob/[sha]/[file]#L[line]' that is used to link lines in the backtrace to your git browser. Null clears it."
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    purge_days: { description: The number of days to retain data (up to the max number of days available to your subscription plan) }
+    user_search_field: { description: "A field such as 'context.user_email' that you provide in your error context. Null clears it." }
+    language: { description: "Primary language, used to format backtraces. Null clears it." }
+    asana_workspace_id: { description: Asana workspace for the project's Asana integration. Null clears it. }
+    customer_throttle: { description: Notices accepted per minute before throttling. Null clears it. }
+
+delete_project:
+  operation: deleteProject
+  confirm: true
+  title: Delete Project
+  description: Delete a Honeybadger project and all of its data.
+  params:
+    project_id: { description: The ID of the project to delete }
+
+get_project_occurrence_counts:
+  operations: [getProjectOccurrences, listAccountOccurrences]
+  title: Get Project Occurrence Counts
+  description: Get occurrence counts over time, for one project or across every project the credential can reach.
+  params:
+    project_id: { description: Optional project ID. Omit to report across every project the credential can reach. }
+    period:
+      description: "Window to report over: 'hour' (61 one-minute buckets), 'day' (25 hourly), 'week' (8 daily), or 'month' (31 daily). Defaults to 'hour'"
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    environment: { description: Optional environment name to filter results }
+    page: { exclude: The tool returns every project's series. }
+    per_page: { exclude: The tool returns every project's series. }
+
+# Faults and notices
+
+list_faults:
+  operation: listFaults
+  title: List Faults
+  description: "Get a list of faults for a project with optional filtering and ordering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the fault/notice model and the q search syntax."
+  params:
+    project_id: { description: The ID of the project to get faults for }
+    q: { description: Search string to filter faults (see the errors reference topic for the search query syntax) }
+    created_after: &created_after
+      description: "Filter faults created after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"
+      long: Carried over from the hand-written definition; trimmed in task 6.
+      as: date
+      reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
+    occurred_after: &occurred_after
+      description: "Filter faults that occurred after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"
+      long: Carried over from the hand-written definition; trimmed in task 6.
+      as: date
+      reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
+    occurred_before: &occurred_before
+      description: "Filter faults that occurred before this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"
+      long: Carried over from the hand-written definition; trimmed in task 6.
+      as: date
+      reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
+    order: { description: "Order results by 'recent' or 'frequent'" }
+    sort: { exclude: api-go has no option for it. }
+    page: { description: Page number for pagination }
+    per_page: { description: Maximum number of faults to return (max 100) }
+
+get_fault:
+  operation: getFault
+  title: Get Fault
+  description: "Get detailed information for a specific fault in a project. last_notice_deploy is the newest deploy in the fault's environment before its last notice: a guess from timing, not the deploy that introduced or resolved the error."
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault to retrieve }
+
+get_fault_counts:
+  operation: getFaultSummary
+  title: Get Fault Counts
+  description: "Get fault count statistics for a project, with optional filtering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the q search syntax."
+  params:
+    project_id: { description: The ID of the project to get fault counts for }
+    q: { description: Search string to filter faults (see the errors reference topic for the search query syntax) }
+    created_after: *created_after
+    occurred_after: *occurred_after
+    occurred_before: *occurred_before
+
+list_fault_notices:
+  operation: listNotices
+  title: List Fault Notices
+  description: Get a list of notices (individual error events) for a specific fault
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault to get notices for }
+    limit: { description: Maximum number of notices to return (max 100) }
+    before: { description: "Cursor for older notices: pass time_series.oldest_cursor from the previous response" }
+    after: { description: "Cursor for newer notices: pass time_series.newest_cursor from the previous response" }
+    breadcrumbs:
+      description: "Include each notice's breadcrumbs: the clicks, logs, requests and other events recorded before the error, oldest first. Off by default because each trail can hold up to 40 entries"
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    unmapped: { exclude: api-go has no option for it. }
+
+list_fault_affected_users:
+  operation: listFaultAffectedUsers
+  title: List Fault Affected Users
+  description: Get a list of users who were affected by a specific fault with occurrence counts. At most 500 users are returned, with or without q.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault to get affected users for }
+    q: { description: Search string to filter affected users }
+
+# Fault comments
+
+list_fault_comments:
+  operation: listComments
+  title: List Fault Comments
+  description: List every comment on a fault, newest first.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    limit: { exclude: The tool returns every comment. }
+    before: { exclude: The tool returns every comment. }
+    after: { exclude: The tool returns every comment. }
+
+get_fault_comment:
+  operation: getComment
+  title: Get Fault Comment
+  description: Get a single comment on a fault by ID.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    comment_id: { description: The ID of the comment }
+
+create_fault_comment:
+  operation: createComment
+  title: Create Fault Comment
+  description: Add a comment to a fault. @mentions notify the named project members. With an account-scoped API Token, the comment is attributed to the token's name.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    body: { description: The comment text (must not be blank) }
+
+update_fault_comment:
+  operation: updateComment
+  title: Update Fault Comment
+  description: Replace the body of an existing fault comment. Returns the comment as stored. Only the comment's author can edit it, so an account-scoped API Token, which has no author, is refused with access_denied.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    comment_id: { description: The ID of the comment }
+    body: { description: The comment text (must not be blank) }
+
+delete_fault_comment:
+  operation: deleteComment
+  confirm: true
+  title: Delete Fault Comment
+  description: Delete an existing comment from a fault. An account-scoped API Token can delete a comment only when it can manage the project.
+  params:
+    project_id: { description: The ID of the project containing the fault }
+    fault_id: { description: The ID of the fault the comments belong to }
+    comment_id: { description: The ID of the comment }

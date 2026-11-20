@@ -106,7 +106,7 @@ func withArg(args map[string]any, key string, value any) map[string]any {
 // deleteToolArgs holds valid arguments for every delete tool. A new delete tool
 // fails TestDeleteToolsRequireConfirmation until it is added here.
 var deleteToolArgs = map[string]map[string]any{
-	"delete_project":       {"id": "Xk9mZp"},
+	"delete_project":       {"project_id": "Xk9mZp"},
 	"delete_dashboard":     {"project_id": "Xk9mZp", "dashboard_id": "dash1"},
 	"delete_alarm":         {"project_id": "Xk9mZp", "alarm_id": "alarm1"},
 	"delete_check_in":      {"project_id": "Xk9mZp", "check_in_id": "chk1"},

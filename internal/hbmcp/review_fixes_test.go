@@ -109,7 +109,7 @@ func TestCreateIntegrationLeavesScopeOutUnlessGiven(t *testing.T) {
 func TestUpdateProjectClearsASettingWithNull(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"App","active":true}}`)
 	result, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]any{
-		"id": "Xk9mZp", "source_url": nil,
+		"project_id": "Xk9mZp", "source_url": nil,
 	}))
 	mustSucceed(t, result, err)
 	if v, present := (*body)["source_url"]; !present || v != nil {
@@ -185,22 +185,23 @@ func TestCreateAlarmSendsGivenStreams(t *testing.T) {
 	}
 }
 
-// purge_days arrives as a number or a numeric string; anything else is refused
-// rather than dropped while the rest of the update succeeds.
+// purge_days is a whole number, or null to clear it; anything else is refused
+// rather than dropped while the rest of the update succeeds. Its range is the
+// API's to check: the spec sets none.
 func TestProjectPurgeDays(t *testing.T) {
-	for _, sent := range []any{30.0, "30"} {
+	for _, sent := range []any{30.0} {
 		client, body := bodyCapture(t, `{"data":{"id":"Xk9mZp","name":"New"}}`)
 		result, err := handleUpdateProject(context.Background(), client, mcpRequest(map[string]any{
-			"id": "Xk9mZp", "name": "New", "purge_days": sent,
+			"project_id": "Xk9mZp", "name": "New", "purge_days": sent,
 		}))
 		mustSucceed(t, result, err)
 		if got := (*body)["purge_days"]; got != 30.0 {
 			t.Errorf("sent %#v: purge_days = %#v, want 30", sent, got)
 		}
 	}
-	for _, sent := range []any{0.0, -5.0, 2.5, "thirty", true} {
+	for _, sent := range []any{2.5, "30", "thirty", true} {
 		result, err := handleUpdateProject(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
-			"id": "Xk9mZp", "name": "New", "purge_days": sent,
+			"project_id": "Xk9mZp", "name": "New", "purge_days": sent,
 		}))
 		if err != nil || !result.IsError {
 			t.Errorf("sent %#v: result = %s, want an error", sent, getResultText(result))
@@ -287,7 +288,7 @@ func TestQueryInsightsTakesStreamIDsAsAString(t *testing.T) {
 // Project flags that aren't booleans are refused rather than dropped.
 func TestUpdateProjectRefusesNonBooleanFlags(t *testing.T) {
 	result, err := handleUpdateProject(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
-		"id": "Xk9mZp", "name": "X", "disable_public_links": "true",
+		"project_id": "Xk9mZp", "name": "X", "disable_public_links": "true",
 	}))
 	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "disable_public_links") {
 		t.Errorf("result = %s, want disable_public_links refused", getResultText(result))

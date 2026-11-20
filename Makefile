@@ -12,7 +12,7 @@ MCP_PORT       ?= 9090
 MCP_PUBLIC_URL ?= http://localhost:$(MCP_PORT)
 MCP_URL        ?= $(MCP_PUBLIC_URL)/mcp
 
-.PHONY: build test update-spec check-spec verify-module verify-module-local docker docker-local docker-run claude-mcp-add claude-mcp-remove
+.PHONY: build test update-spec check-spec generate verify-module verify-module-local docker docker-local docker-run claude-mcp-add claude-mcp-remove
 
 build:
 	go build -o honeybadger-mcp-server ./cmd/honeybadger-mcp-server
@@ -28,6 +28,11 @@ update-spec:
 # Fail when openapi/bundled.yaml isn't the bundle openapi/README.md records.
 check-spec:
 	./scripts/check-spec.sh
+
+# Rebuild the tool definitions from the vendored bundle and openapi/tools.yaml.
+# Fails naming each tool or parameter that needs attention.
+generate: check-spec
+	GOWORK=off go run ./internal/toolgen/cmd/toolgen
 
 # Build the way Docker does: no workspace, no go.mod writes.
 #

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -140,7 +141,7 @@ func TestHandleGetProject(t *testing.T) {
 	})
 
 	result, err := handleGetProject(context.Background(), client,
-		projectArgs(map[string]interface{}{"id": "Xk9mZp"}))
+		projectArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
@@ -171,7 +172,7 @@ func TestHandleGetProject_NotFound(t *testing.T) {
 	})
 
 	result, err := handleGetProject(context.Background(), client,
-		projectArgs(map[string]interface{}{"id": "nope"}))
+		projectArgs(map[string]interface{}{"project_id": "nope"}))
 	if err != nil {
 		t.Fatalf("handleGetProject() error = %v", err)
 	}
@@ -224,7 +225,7 @@ func TestHandleUpdateProject(t *testing.T) {
 	})
 
 	result, err := handleUpdateProject(context.Background(), client,
-		projectArgs(map[string]interface{}{"id": "Xk9mZp", "name": "Renamed"}))
+		projectArgs(map[string]interface{}{"project_id": "Xk9mZp", "name": "Renamed"}))
 	if err != nil {
 		t.Fatalf("handleUpdateProject() error = %v", err)
 	}
@@ -260,7 +261,7 @@ func TestHandleDeleteProject(t *testing.T) {
 	})
 
 	result, err := handleDeleteProject(context.Background(), client,
-		projectArgs(map[string]interface{}{"id": "Xk9mZp", "confirm": validConfirm("delete_project", "Xk9mZp")}))
+		projectArgs(map[string]interface{}{"project_id": "Xk9mZp", "confirm": validConfirm("delete_project", "Xk9mZp")}))
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}
@@ -280,7 +281,7 @@ func TestHandleDeleteProject_Error(t *testing.T) {
 	})
 
 	result, err := handleDeleteProject(context.Background(), client,
-		projectArgs(map[string]interface{}{"id": "Xk9mZp", "confirm": validConfirm("delete_project", "Xk9mZp")}))
+		projectArgs(map[string]interface{}{"project_id": "Xk9mZp", "confirm": validConfirm("delete_project", "Xk9mZp")}))
 	if err != nil {
 		t.Fatalf("handleDeleteProject() error = %v", err)
 	}
@@ -303,7 +304,7 @@ func TestHandleUpdateProjectSendsSettings(t *testing.T) {
 	})
 
 	result, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]interface{}{
-		"id":                       "Xk9mZp",
+		"project_id":               "Xk9mZp",
 		"name":                     "App",
 		"purge_days":               float64(30),
 		"user_url":                 "http://example.com/users/[user_id]",
@@ -339,7 +340,7 @@ func TestHandleUpdateProjectSendsFalseSettings(t *testing.T) {
 	})
 
 	if _, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]interface{}{
-		"id": "Xk9mZp", "name": "App", "disable_public_links": false,
+		"project_id": "Xk9mZp", "name": "App", "disable_public_links": false,
 	})); err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -363,7 +364,7 @@ func TestHandleUpdateProjectOmitsUnmentionedSettings(t *testing.T) {
 	})
 
 	if _, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]interface{}{
-		"id": "Xk9mZp", "name": "App",
+		"project_id": "Xk9mZp", "name": "App",
 	})); err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -385,7 +386,7 @@ func TestHandleUpdateProjectWithoutName(t *testing.T) {
 	})
 
 	result, err := handleUpdateProject(context.Background(), client,
-		projectArgs(map[string]interface{}{"id": "Xk9mZp", "purge_days": float64(30)}))
+		projectArgs(map[string]interface{}{"project_id": "Xk9mZp", "purge_days": float64(30)}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -403,7 +404,7 @@ func TestHandleUpdateProjectWithoutName(t *testing.T) {
 // An update with nothing to change is refused before it reaches the API.
 func TestHandleUpdateProjectNothingToChange(t *testing.T) {
 	result, err := handleUpdateProject(context.Background(), offlineV3Client(),
-		projectArgs(map[string]interface{}{"id": "Xk9mZp"}))
+		projectArgs(map[string]interface{}{"project_id": "Xk9mZp"}))
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -423,5 +424,34 @@ func TestHandleCreateProjectRefusesAccountID(t *testing.T) {
 	}
 	if !result.IsError || !strings.Contains(getResultText(result), "account_id") {
 		t.Errorf("expected account_id to be refused by name, got %s", getResultText(result))
+	}
+}
+
+// Every body field the spec gives a project reaches the API, including the
+// ones the hand-written tool never exposed.
+func TestCreateProjectSendsEveryField(t *testing.T) {
+	client, body := bodyCapture(t, `{"data":{"id":"Xk9mZp","name":"App"}}`)
+	result, err := handleCreateProject(context.Background(), client, projectArgs(map[string]interface{}{
+		"name": "App", "team_id": "Tm1", "disable_email_notifications": true,
+		"customer_throttle": float64(60), "asana_workspace_id": "W1", "language": "ruby",
+	}))
+	mustSucceed(t, result, err)
+	want := map[string]any{
+		"name": "App", "team_id": "Tm1", "disable_email_notifications": true,
+		"customer_throttle": float64(60), "asana_workspace_id": "W1", "language": "ruby",
+	}
+	if !reflect.DeepEqual(*body, want) {
+		t.Errorf("body = %v, want %v", *body, want)
+	}
+}
+
+func TestUpdateProjectClearsWithNull(t *testing.T) {
+	client, body := bodyCapture(t, `{"data":{"id":"Xk9mZp","name":"App"}}`)
+	result, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]interface{}{
+		"project_id": "Xk9mZp", "asana_workspace_id": nil, "purge_days": nil,
+	}))
+	mustSucceed(t, result, err)
+	if want := map[string]any{"asana_workspace_id": nil, "purge_days": nil}; !reflect.DeepEqual(*body, want) {
+		t.Errorf("body = %v, want %v", *body, want)
 	}
 }

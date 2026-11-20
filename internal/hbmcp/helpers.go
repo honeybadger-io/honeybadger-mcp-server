@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -95,35 +96,20 @@ func jsonTextArg(req mcp.CallToolRequest, name string) (text, problem string) {
 	}
 }
 
-// positiveIntArg reads a whole number of at least 1. JSON numbers arrive as
-// float64, but clients also send ints and numeric strings ("30"), so those are
-// taken too. Anything else, a fraction, or a value under 1 is refused with a
-// message rather than dropped: dropping it would report success for a setting
-// that never changed.
-func positiveIntArg(args map[string]any, name string) (n int, given bool, problem string) {
-	raw, present := args[name]
-	if !present || raw == nil {
-		return 0, false, ""
-	}
-	var f float64
-	switch v := raw.(type) {
-	case float64:
-		f = v
-	case int:
-		f = float64(v)
-	case int64:
-		f = float64(v)
-	case string:
-		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
-		if err != nil {
-			return 0, false, name + " must be a whole number of at least 1"
+// bodyFrom decodes the arguments that aren't path parameters into an api-go
+// params struct. The tool's body arguments are the spec's body fields by name,
+// so every one the tool advertises reaches the request without a line per
+// field, and null reaches it as null.
+func bodyFrom(req mcp.CallToolRequest, params any, pathParams ...string) string {
+	body := map[string]any{}
+	for k, v := range req.GetArguments() {
+		if !slices.Contains(pathParams, k) {
+			body[k] = v
 		}
-		f = parsed
-	default:
-		return 0, false, name + " must be a whole number of at least 1"
 	}
-	if f < 1 || f != math.Trunc(f) || f > maxSafeInteger {
-		return 0, false, name + " must be a whole number of at least 1"
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Sprintf("arguments could not be read as JSON: %v", err)
 	}
-	return int(f), true, ""
+	return decodeSettings(raw, params)
 }
