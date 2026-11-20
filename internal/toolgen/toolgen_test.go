@@ -351,3 +351,15 @@ update_widget:
 		t.Errorf("rules = %s, want %s", got, want)
 	}
 }
+
+// The server checks every registered tool is either generated or listed as
+// hand-written, so the generated file names the hand-written ones.
+func TestGenerateListsHandwrittenTools(t *testing.T) {
+	src, err := Generate(fixture(t), []byte(createWidget+"\nget_reference:\n  handwritten: true\nsearch_tools:\n  handwritten: true\n"))
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if want := `var generatedHandwritten = []string{"get_reference", "search_tools"}`; !strings.Contains(string(src), want) {
+		t.Errorf("generated source lacks %q", want)
+	}
+}

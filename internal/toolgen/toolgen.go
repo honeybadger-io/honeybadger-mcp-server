@@ -72,22 +72,29 @@ type paramSpec struct {
 // Build turns the bundle and overlay into tool definitions, sorted by name.
 // Every problem is reported at once, one per line, sorted.
 func Build(bundle, overlay []byte) ([]Tool, error) {
+	tools, _, err := build(bundle, overlay)
+	return tools, err
+}
+
+// build also returns the hand-written tools' names, sorted.
+func build(bundle, overlay []byte) ([]Tool, []string, error) {
 	var specs map[string]toolSpec
 	dec := yaml.NewDecoder(bytes.NewReader(overlay))
 	dec.KnownFields(true)
 	if err := dec.Decode(&specs); err != nil && err != io.EOF { // an empty overlay is EOF
-		return nil, fmt.Errorf("overlay: %w", err)
+		return nil, nil, fmt.Errorf("overlay: %w", err)
 	}
 	doc, err := loadSpec(bundle)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var tools []Tool
-	var problems []string
+	var handwritten, problems []string
 	for _, name := range sortedKeys(specs) {
 		spec := specs[name]
 		if spec.Handwritten {
+			handwritten = append(handwritten, name)
 			continue
 		}
 		tool, errs := doc.buildTool(name, spec)
@@ -98,9 +105,9 @@ func Build(bundle, overlay []byte) ([]Tool, error) {
 	}
 	if len(problems) > 0 {
 		sort.Strings(problems)
-		return nil, errors.New(strings.Join(problems, "\n"))
+		return nil, nil, errors.New(strings.Join(problems, "\n"))
 	}
-	return tools, nil
+	return tools, handwritten, nil
 }
 
 // param is one tool input gathered from an operation.
