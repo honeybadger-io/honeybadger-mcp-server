@@ -46,15 +46,8 @@ type Tool struct {
 	StrictSchema map[string]any
 	// Shallow maps a parameter to the get_reference topic describing its shape.
 	Shallow map[string]string
-	// Wire says where the API takes each parameter, by MCP name.
-	Wire map[string]Wire
-}
-
-// Wire is where an operation takes a parameter: In is path, query or body,
-// and Name is the spec's name, which a rename makes differ from the tool's.
-type Wire struct {
-	In   string
-	Name string
+	// Wire says where the API takes each parameter: path, query or body.
+	Wire map[string]string
 }
 
 type toolSpec struct {
@@ -72,7 +65,6 @@ type paramSpec struct {
 	Description string `yaml:"description"`
 	Long        string `yaml:"long"`
 	Exclude     string `yaml:"exclude"`
-	Rename      string `yaml:"rename"`
 	As          string `yaml:"as"`
 	Reason      string `yaml:"reason"`
 	Shallow     string `yaml:"shallow"`
@@ -81,29 +73,22 @@ type paramSpec struct {
 // Build turns the bundle and overlay into tool definitions, sorted by name.
 // Every problem is reported at once, one per line, sorted.
 func Build(bundle, overlay []byte) ([]Tool, error) {
-	tools, _, err := build(bundle, overlay)
-	return tools, err
-}
-
-// build also returns the hand-written tools' names, sorted.
-func build(bundle, overlay []byte) ([]Tool, []string, error) {
 	var specs map[string]toolSpec
 	dec := yaml.NewDecoder(bytes.NewReader(overlay))
 	dec.KnownFields(true)
 	if err := dec.Decode(&specs); err != nil && err != io.EOF { // an empty overlay is EOF
-		return nil, nil, fmt.Errorf("overlay: %w", err)
+		return nil, fmt.Errorf("overlay: %w", err)
 	}
 	doc, err := loadSpec(bundle)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var tools []Tool
-	var handwritten, problems []string
+	var problems []string
 	for _, name := range sortedKeys(specs) {
 		spec := specs[name]
 		if spec.Handwritten {
-			handwritten = append(handwritten, name)
 			continue
 		}
 		tool, errs := doc.buildTool(name, spec)
@@ -114,9 +99,9 @@ func build(bundle, overlay []byte) ([]Tool, []string, error) {
 	}
 	if len(problems) > 0 {
 		sort.Strings(problems)
-		return nil, nil, errors.New(strings.Join(problems, "\n"))
+		return nil, errors.New(strings.Join(problems, "\n"))
 	}
-	return tools, handwritten, nil
+	return tools, nil
 }
 
 // param is one tool input gathered from an operation.
@@ -151,7 +136,7 @@ func (d *spec) buildTool(name string, spec toolSpec) (Tool, []string) {
 	advertised := map[string]any{}
 	strict := map[string]any{}
 	shallow := map[string]string{}
-	wire := map[string]Wire{}
+	wire := map[string]string{}
 	var required []any
 	for _, pname := range sortedKeys(params) {
 		ps := spec.Params[pname]
@@ -162,18 +147,14 @@ func (d *spec) buildTool(name string, spec toolSpec) (Tool, []string) {
 		if !ok {
 			continue
 		}
-		mcpName := pname
-		if ps.Rename != "" {
-			mcpName = ps.Rename
-		}
-		advertised[mcpName] = shown
-		wire[mcpName] = Wire{In: params[pname].in, Name: pname}
-		strict[mcpName] = full
+		advertised[pname] = shown
+		wire[pname] = params[pname].in
+		strict[pname] = full
 		if ps.Shallow != "" {
 			shallow[pname] = ps.Shallow
 		}
 		if params[pname].required == len(ops) {
-			required = append(required, mcpName)
+			required = append(required, pname)
 		}
 	}
 	sort.Slice(required, func(i, j int) bool { return required[i].(string) < required[j].(string) })
@@ -271,7 +252,7 @@ func (b *toolBuilder) checkDescription(where, description, long string, limit in
 }
 
 // checkOverridesMatchSpec fails on overlay entries for parameters the spec
-// doesn't have, so a removed or renamed field can't leave a stale override.
+// doesn't have, so a removed field can't leave a stale override.
 func (b *toolBuilder) checkOverridesMatchSpec(params map[string]*param) {
 	for _, pname := range sortedKeys(b.spec.Params) {
 		if _, ok := params[pname]; ok {
@@ -281,8 +262,6 @@ func (b *toolBuilder) checkOverridesMatchSpec(params map[string]*param) {
 		switch {
 		case ps.Exclude != "":
 			b.fail("%s.%s: excluded but not in the spec", b.name, pname)
-		case ps.Rename != "":
-			b.fail("%s.%s: renamed but not in the spec", b.name, pname)
 		case ps.As != "":
 			b.fail("%s.%s: converted but not in the spec", b.name, pname)
 		default:
@@ -298,9 +277,6 @@ func (b *toolBuilder) paramSchemas(pname string, schema map[string]any, ps param
 	b.checkDescription(where, ps.Description, ps.Long, paramDescriptionCap)
 	if ps.Description == "" {
 		return nil, nil, false
-	}
-	if ps.Rename != "" && ps.Reason == "" {
-		b.fail("%s: rename needs a reason", where)
 	}
 	if ps.As != "" && ps.Reason == "" {
 		b.fail("%s: as needs a reason", where)

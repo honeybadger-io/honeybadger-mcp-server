@@ -1113,6 +1113,3 @@ var generatedShallowTopics = map[string]map[string]string{
 	"update_alarm":     {"trigger_config": "alarms"},
 	"update_dashboard": {"widgets": "dashboards"},
 }
-
-// generatedHandwritten are the tools whose definitions stay in Go.
-var generatedHandwritten = []string{"get_reference", "search_tools", "update_fault"}

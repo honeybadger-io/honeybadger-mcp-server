@@ -7,7 +7,6 @@
 # description. A spec field is exposed unless excluded, and every exclusion and
 # override says why:
 #   exclude: <reason>            leave a spec field out
-#   rename: <name> + reason      MCP name for a spec field
 #   as: date + reason            MCP takes a date; the handler converts it
 #   shallow: <topic>             advertise only the top-level type
 #   confirm: true                delete gated on a confirmation token

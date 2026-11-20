@@ -215,7 +215,6 @@ Override kinds, and the only ones:
 | --- | --- | --- |
 | `description` | tool or parameter text | missing on any tool or exposed parameter; over the length cap without `long: <reason>` |
 | `exclude: <reason>` | leave a spec field out | the field isn't in the spec |
-| `rename: <name>` + `reason` | MCP name for a spec field | the field isn't in the spec |
 | `as: date` + `reason` | MCP type converted in code | the field isn't in the spec, or isn't a Unix-seconds number |
 | `shallow: <topic>` | advertise only the top-level type; description ends `Shape: get_reference topic <topic>.` | the topic doesn't exist in `get_reference` |
 | `confirm: true` | adds the `confirm` parameter and the confirm note | the operation isn't a DELETE |

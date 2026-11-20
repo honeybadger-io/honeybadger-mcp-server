@@ -127,12 +127,7 @@ func handleCreateDashboard(ctx context.Context, client *apiv3.Client, req mcp.Ca
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil
 	}
-	// v2 called this title and so does v3 now, but accept name too since the tool
-	// has advertised both.
 	title := req.GetString("title", "")
-	if title == "" {
-		title = req.GetString("name", "")
-	}
 	if title == "" {
 		return mcp.NewToolResultError("title is required"), nil
 	}

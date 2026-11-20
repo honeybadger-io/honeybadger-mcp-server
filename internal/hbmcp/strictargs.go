@@ -130,16 +130,10 @@ func (c *checker) check(arguments any) []problem {
 		return []problem{{kind: "other", short: "arguments must be a JSON object.",
 			full: c.tool + ": arguments must be a JSON object. " + notMade}}
 	}
-	raw, err := json.Marshal(args)
-	if err != nil {
-		return []problem{{kind: "other", short: "arguments could not be read.",
-			full: fmt.Sprintf("%s: arguments could not be read: %v. %s", c.tool, err, notMade)}}
-	}
-	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	if err != nil {
-		return []problem{{kind: "other", short: "arguments could not be read.",
-			full: fmt.Sprintf("%s: arguments could not be read: %v. %s", c.tool, err, notMade)}}
-	}
+	// Arguments decoded from JSON always encode again, and the validator reads
+	// that encoding.
+	raw, _ := json.Marshal(args)
+	instance, _ := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
 	verr, ok := c.schema.Validate(instance).(*jsonschema.ValidationError)
 	if !ok {
 		return nil
@@ -392,10 +386,8 @@ func describeValue(v any) string {
 		return strconv.FormatBool(x)
 	case []any:
 		return "an array"
-	case map[string]any:
-		return "an object"
 	}
-	return fmt.Sprintf("%T", v)
+	return "an object" // the one JSON type left
 }
 
 func formatNumber(n float64) string {

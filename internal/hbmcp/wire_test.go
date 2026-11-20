@@ -77,8 +77,8 @@ func TestEveryAdvertisedParameterReachesTheRequest(t *testing.T) {
 				text = callToolText(t, s, tool.Name, args)
 				method = http.MethodDelete
 			}
-			if !api.saw(method, wire, args[param]) {
-				t.Errorf("%s.%s: not sent (%s %s); tool said: %s", tool.Name, param, wire.In, wire.Name, text)
+			if !api.saw(method, wire, param, args[param]) {
+				t.Errorf("%s.%s: not sent (%s); tool said: %s", tool.Name, param, wire, text)
 			}
 		}
 	}
@@ -99,7 +99,7 @@ func wireArgs(tool toolgen.Tool, param string) map[string]any {
 	args[param] = sampleFor(tool.Name, param, props[param])
 	// An update refuses a call that changes nothing, so a path parameter is
 	// checked alongside one body field.
-	if tool.Wire[param].In == "path" {
+	if tool.Wire[param] == "path" {
 		if body := firstBodyParam(tool.Wire); body != "" {
 			if _, set := args[body]; !set {
 				args[body] = sampleFor(tool.Name, body, props[body])
@@ -167,9 +167,9 @@ func sample(name string, raw any) any {
 	return "s-" + name
 }
 
-func firstBodyParam(wire map[string]toolgen.Wire) string {
+func firstBodyParam(wire map[string]string) string {
 	for _, name := range sortedNames(wire) {
-		if wire[name].In == "body" {
+		if wire[name] == "body" {
 			return name
 		}
 	}
@@ -203,7 +203,7 @@ func asAnySlice(v any) []any {
 	return s
 }
 
-func sortedNames(m map[string]toolgen.Wire) []string {
+func sortedNames(m map[string]string) []string {
 	names := make([]string, 0, len(m))
 	for k := range m {
 		names = append(names, k)
@@ -270,24 +270,24 @@ func (a *recordingAPI) reset() {
 // saw reports whether a request (with method, when given) carried value where
 // wire says, as the value itself rather than only its key: a field sent empty
 // or zero hasn't reached the API.
-func (a *recordingAPI) saw(method string, wire toolgen.Wire, value any) bool {
+func (a *recordingAPI) saw(method, in, name string, value any) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, r := range a.requests {
 		if method != "" && r.method != method {
 			continue
 		}
-		switch wire.In {
+		switch in {
 		case "path":
 			if strings.Contains(r.path, fmt.Sprint(value)) {
 				return true
 			}
 		case "query":
-			if slices.Contains(r.query[wire.Name], queryForm(value)) {
+			if slices.Contains(r.query[name], queryForm(value)) {
 				return true
 			}
 		case "body":
-			if got, ok := r.body[wire.Name]; ok && sameJSON(got, value) {
+			if got, ok := r.body[name]; ok && sameJSON(got, value) {
 				return true
 			}
 		}

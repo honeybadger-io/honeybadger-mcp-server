@@ -109,7 +109,7 @@ list_widgets:
     project_id: { description: Project ID. }
     since: { description: Since when., as: date, reason: Agents write dates. }
     label: { exclude: Not useful to agents. }
-    per_page: { description: Page size., rename: limit, reason: Older name. }
+    per_page: { description: Page size. }
 `)
 	want := `{
 		"type": "object",
@@ -118,7 +118,7 @@ list_widgets:
 		"properties": {
 			"project_id": {"type": "string", "description": "Project ID."},
 			"since": {"type": "string", "description": "Since when."},
-			"limit": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Page size."}
+			"per_page": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Page size."}
 		}
 	}`
 	if got := asJSON(t, tool.Schema); got != asJSON(t, jsonValue(t, want)) {
@@ -211,10 +211,6 @@ func TestOverlayProblemsFailGeneration(t *testing.T) {
 			createWidget + "    colour: { exclude: Gone. }\n",
 			"create_widget.colour: excluded but not in the spec",
 		},
-		"rename of a field not in the spec": {
-			createWidget + "    colour: { rename: hue, reason: x, description: x }\n",
-			"create_widget.colour: renamed but not in the spec",
-		},
 		"date of a field not in the spec": {
 			createWidget + "    colour: { as: date, reason: x, description: x }\n",
 			"create_widget.colour: converted but not in the spec",
@@ -228,8 +224,8 @@ func TestOverlayProblemsFailGeneration(t *testing.T) {
 			"create_widget.name: as: date needs a Unix-seconds number; spec says string",
 		},
 		"override without a reason": {
-			strings.Replace(createWidget, "name: { description: Widget name. }", "name: { description: Widget name., rename: title }", 1),
-			"create_widget.name: rename needs a reason",
+			strings.Replace(createWidget, "name: { description: Widget name. }", "name: { description: Widget name., as: date }", 1),
+			"create_widget.name: as needs a reason",
 		},
 		"confirm on a POST": {
 			strings.Replace(createWidget, "  title: Create Widget", "  confirm: true\n  title: Create Widget", 1),
@@ -353,18 +349,6 @@ update_widget:
 	}
 }
 
-// The server checks every registered tool is either generated or listed as
-// hand-written, so the generated file names the hand-written ones.
-func TestGenerateListsHandwrittenTools(t *testing.T) {
-	src, err := Generate(fixture(t), []byte(createWidget+"\nget_reference:\n  handwritten: true\nsearch_tools:\n  handwritten: true\n"))
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	if want := `var generatedHandwritten = []string{"get_reference", "search_tools"}`; !strings.Contains(string(src), want) {
-		t.Errorf("generated source lacks %q", want)
-	}
-}
-
 // A default says what the server uses when a field is left out. That holds
 // for a create (POST) but not an update (PATCH or PUT), where leaving a field
 // out keeps its value, so a filled-in default would reset it.
@@ -394,8 +378,8 @@ update_widget:
 	}
 }
 
-// Each parameter records where the API takes it and under which name, so a
-// test can check every advertised parameter reaches the request.
+// Each parameter records where the API takes it, so a test can check every
+// advertised parameter reaches the request.
 func TestToolsRecordWhereEachParameterGoes(t *testing.T) {
 	tool := buildOne(t, `
 list_widgets:
@@ -406,17 +390,13 @@ list_widgets:
     project_id: { description: x }
     since: { description: x, as: date, reason: x }
     label: { exclude: x }
-    per_page: { description: x, rename: limit, reason: x }
+    per_page: { description: x }
 `)
-	want := map[string]Wire{
-		"project_id": {In: "path", Name: "project_id"},
-		"since":      {In: "query", Name: "since"},
-		"limit":      {In: "query", Name: "per_page"},
-	}
+	want := map[string]string{"project_id": "path", "since": "query", "per_page": "query"}
 	if !reflect.DeepEqual(tool.Wire, want) {
 		t.Errorf("Wire = %v, want %v", tool.Wire, want)
 	}
-	if got := buildOne(t, createWidget).Wire["name"]; got != (Wire{In: "body", Name: "name"}) {
+	if got := buildOne(t, createWidget).Wire["name"]; got != "body" {
 		t.Errorf("create_widget name = %v, want body", got)
 	}
 }

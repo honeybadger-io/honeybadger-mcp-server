@@ -1,6 +1,9 @@
 package hbmcp
 
 import (
+	"os"
+
+	"gopkg.in/yaml.v3"
 	"reflect"
 	"slices"
 	"strings"
@@ -12,6 +15,16 @@ import (
 // Every registered tool comes from the overlay, generated or hand-written, and
 // every generated tool is registered with exactly its generated definition.
 func TestToolsComeFromTheOverlay(t *testing.T) {
+	overlay, err := os.ReadFile("../../openapi/tools.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var specs map[string]struct {
+		Handwritten bool `yaml:"handwritten"`
+	}
+	if err := yaml.Unmarshal(overlay, &specs); err != nil {
+		t.Fatal(err)
+	}
 	registered := NewServer(&config.Config{APIURL: "http://x"}, "t").ListTools()
 	for name, st := range registered {
 		gen, generated := generatedTools[name]
@@ -20,7 +33,7 @@ func TestToolsComeFromTheOverlay(t *testing.T) {
 			if !reflect.DeepEqual(st.Tool, gen) {
 				t.Errorf("%s is registered with a definition other than the generated one", name)
 			}
-		case slices.Contains(generatedHandwritten, name):
+		case specs[name].Handwritten:
 		default:
 			t.Errorf("%s isn't in openapi/tools.yaml", name)
 		}

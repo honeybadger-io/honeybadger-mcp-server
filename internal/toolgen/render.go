@@ -10,7 +10,7 @@ import (
 // Generate builds the tools and renders them as the hbmcp package's
 // zz_generated_tools.go.
 func Generate(bundle, overlay []byte) ([]byte, error) {
-	tools, handwritten, err := build(bundle, overlay)
+	tools, err := Build(bundle, overlay)
 	if err != nil {
 		return nil, err
 	}
@@ -52,10 +52,7 @@ func Generate(bundle, overlay []byte) ([]byte, error) {
 		}
 		b.WriteString("},\n")
 	}
-	b.WriteString("}\n\n")
-
-	b.WriteString("// generatedHandwritten are the tools whose definitions stay in Go.\n")
-	fmt.Fprintf(&b, "var generatedHandwritten = %#v\n", handwritten)
+	b.WriteString("}\n")
 
 	src, err := format.Source(b.Bytes())
 	if err != nil {
