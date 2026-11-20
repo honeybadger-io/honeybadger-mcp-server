@@ -16,16 +16,7 @@ import (
 func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_alarms tool
 	r.AddTool(
-		mcp.NewTool("list_alarms",
-			mcp.WithTitleAnnotation("List Alarms"),
-			mcp.WithDescription("List all Insights alarms for a Honeybadger project. To interpret alarm configuration, fetch reference topic: alarms (via get_reference)."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to list alarms for"),
-			),
-		),
+		generatedTool("list_alarms"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListAlarms(ctx, v3ClientFor(ctx), req)
 		},
@@ -33,20 +24,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// get_alarm tool
 	r.AddTool(
-		mcp.NewTool("get_alarm",
-			mcp.WithTitleAnnotation("Get Alarm"),
-			mcp.WithDescription("Get a single Insights alarm by ID. To interpret alarm configuration, fetch reference topic: alarms (via get_reference)."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project the alarm belongs to"),
-			),
-			mcp.WithString("alarm_id",
-				mcp.Required(),
-				mcp.Description("The ID of the alarm to retrieve"),
-			),
-		),
+		generatedTool("get_alarm"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleGetAlarm(ctx, v3ClientFor(ctx), req)
 		},
@@ -54,44 +32,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// create_alarm tool
 	r.AddTool(
-		mcp.NewTool("create_alarm",
-			mcp.WithTitleAnnotation("Create Alarm"),
-			mcp.WithDescription("Create a new Insights alarm for a Honeybadger project. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. Verify the query returns the expected results via query_insights before creating the alarm."),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to create the alarm in"),
-			),
-			mcp.WithString("name",
-				mcp.Required(),
-				mcp.Description("The name of the alarm"),
-			),
-			mcp.WithString("query",
-				mcp.Required(),
-				mcp.Description("BadgerQL query evaluated on each check. Requires reference topics: alarms, badgerql (fetch via get_reference)."),
-			),
-			mcp.WithString("evaluation_period",
-				mcp.Required(),
-				mcp.Description("Window each evaluation covers, as a compact duration in "+
-					"minutes, hours or days: '5m', '10m', '1h', '1d'. Spelled-out forms like '5 minutes' are rejected."),
-			),
-			mcp.WithString("lookback_lag",
-				mcp.Required(),
-				mcp.Description("How far behind now the evaluation window ends, allowing for "+
-					"ingestion delay, in the same compact format ('1m'; weeks allowed too). '0s' for none."),
-			),
-			mcp.WithString("trigger_config",
-				mcp.Required(),
-				mcp.Description(`JSON object describing what turns the alarm on, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}. Operators are named (gt, lt) rather than symbolic. The alarms reference topic has the full list of types.`),
-			),
-			mcp.WithString("stream_ids",
-				mcp.Description("JSON array of stream IDs the query runs against, naming at least one: an empty array is refused. Omit to query every current stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": an ID that isn't one of the project's streams is refused with 422."),
-			),
-			mcp.WithString("description",
-				mcp.Description("Optional description of the alarm"),
-			),
-		),
+		generatedTool("create_alarm"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleCreateAlarm(ctx, v3ClientFor(ctx), req)
 		},
@@ -99,42 +40,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// update_alarm tool
 	r.AddTool(
-		mcp.NewTool("update_alarm",
-			mcp.WithTitleAnnotation("Update Alarm"),
-			mcp.WithDescription("Update an existing Insights alarm. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines."),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project the alarm belongs to"),
-			),
-			mcp.WithString("alarm_id",
-				mcp.Required(),
-				mcp.Description("The ID of the alarm to update"),
-			),
-			mcp.WithString("name",
-				mcp.Description("A new name for the alarm"),
-			),
-			mcp.WithString("description",
-				mcp.Description("A new description. Pass an empty string to clear it."),
-			),
-			mcp.WithString("query",
-				mcp.Description("A new BadgerQL query. Verify it via query_insights first."),
-			),
-			mcp.WithString("evaluation_period",
-				mcp.Description("A new evaluation window, as a compact duration: '5m', '10m', '1h', '1d'."),
-			),
-			mcp.WithString("lookback_lag",
-				mcp.Description("A new lookback lag, in the same compact format ('1m')."),
-			),
-			mcp.WithString("stream_ids",
-				mcp.Description("JSON array of stream IDs, replacing the current set; it must name at least one. Send null to reset the alarm to every current stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": an ID that isn't one of the project's streams is refused with 422."),
-				acceptsNull,
-			),
-			mcp.WithString("trigger_config",
-				mcp.Description(`JSON object replacing the whole trigger, in the same shape create_alarm takes, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}.`),
-			),
-		),
+		generatedTool("update_alarm"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateAlarm(ctx, v3ClientFor(ctx), req)
 		},
@@ -142,21 +48,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// delete_alarm tool
 	r.AddTool(
-		mcp.NewTool("delete_alarm",
-			mcp.WithTitleAnnotation("Delete Alarm"),
-			mcp.WithDescription("Delete an Insights alarm."+confirmNote),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project the alarm belongs to"),
-			),
-			mcp.WithString("alarm_id",
-				mcp.Required(),
-				mcp.Description("The ID of the alarm to delete"),
-			),
-			withConfirmParam(),
-		),
+		generatedTool("delete_alarm"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteAlarm(ctx, v3ClientFor(ctx), req)
 		},
@@ -164,23 +56,7 @@ func RegisterAlarmTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// get_alarm_history tool
 	r.AddTool(
-		mcp.NewTool("get_alarm_history",
-			mcp.WithTitleAnnotation("Get Alarm History"),
-			mcp.WithDescription("Get the trigger history for an Insights alarm. To interpret trigger records and alarm states, fetch reference topic: alarms (via get_reference)."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project the alarm belongs to"),
-			),
-			mcp.WithString("alarm_id",
-				mcp.Required(),
-				mcp.Description("The ID of the alarm to get history for"),
-			),
-			mcp.WithNumber("page",
-				mcp.Description("Page number, starting at 1 (default: 1). Pages hold 25 entries; a non-null links.next means there are more."),
-			),
-		),
+		generatedTool("get_alarm_history"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleGetAlarmHistory(ctx, v3ClientFor(ctx), req)
 		},

@@ -62,16 +62,7 @@ func RegisterProjectTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 
 	// get_project_integrations tool
 	r.AddTool(
-		mcp.NewTool("get_project_integrations",
-			mcp.WithTitleAnnotation("Get Project Integrations"),
-			mcp.WithDescription("List notification integrations for a Honeybadger project. To interpret integration types and config fields, fetch reference topic: integrations (via get_reference)."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to get integrations for"),
-			),
-		),
+		generatedTool("get_project_integrations"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleGetProjectIntegrations(ctx, v3ClientFor(ctx), req)
 		},

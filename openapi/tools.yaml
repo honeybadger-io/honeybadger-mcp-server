@@ -403,3 +403,470 @@ get_deploy:
   params:
     project_id: { description: The ID of the project the deploy belongs to }
     deploy_id: { description: The ID of the deploy }
+
+# Integrations
+
+get_project_integrations:
+  operation: listIntegrations
+  title: Get Project Integrations
+  description: 'List notification integrations for a Honeybadger project. To interpret
+    integration types and config fields, fetch reference topic: integrations (via
+    get_reference).'
+  params:
+    project_id:
+      description: The ID of the project to get integrations for
+    page:
+      exclude: The tool returns every integration.
+    per_page:
+      exclude: The tool returns every integration.
+
+get_integration:
+  operation: getIntegration
+  title: Get Integration
+  description: 'Get a single notification integration by ID. To interpret integration
+    fields, fetch reference topic: integrations (via get_reference).'
+  params:
+    integration_id:
+      description: The ID of the integration to retrieve
+    project_id:
+      description: The ID of the project the integration belongs to
+
+create_integration:
+  operation: createIntegration
+  title: Create Integration
+  description: 'Create a notification integration for a project. IMPORTANT: Requires
+    reference topic: integrations — fetch via get_reference first (skip if still visible
+    in your context) for the list of types, each type''s config settings, and event
+    names.'
+  params:
+    active:
+      description: Whether the integration sends notifications
+    alarm_alert_ids:
+      description: Alarms whose alert events notify
+    alarm_ok_ids:
+      description: Alarms whose recovery events notify
+    check_in_ids:
+      description: Check-ins whose events notify. null follows every check-in in the
+        project, including ones added later; [] follows none; a list follows just
+        those. On create, omit to follow every check-in; on update, omit to leave
+        it as it is. An ID from outside the project is refused.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    config:
+      description: Object of the type's own settings, e.g. {"url":"https://example.com/hook","label":"Deploys"}
+        for WebHook or {"integration_key":"..."} for PagerDutyV2. The shared settings
+        (events, site_ids and the rest) are separate parameters, not part of config.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    events:
+      description: Event names to notify on, e.g. occurred, resolved, assigned, down,
+        check_in_missing. Adding one the type doesn't support is refused. Omit on
+        create, or send null, for the type's defaults.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    excluded_environments:
+      description: Environments that never notify; wins over included_environments.
+        Names are stored as given, so one can be excluded before it first reports.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    filters:
+      description: 'Ordered list of {"event": ..., "query": ...} objects: each event
+        with a filter notifies only for errors matching its query. event is an event
+        name, or "all" for every event. Replaces the stored filters; send [] or null
+        to clear them.'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    included_environments:
+      description: When non-empty, the only environments that notify, including ones
+        that haven't reported yet. Empty means every environment not excluded.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    notification_limit:
+      description: Most notifications in a 10-minute window before flood control (the
+        flooded event) steps in
+    project_id:
+      description: The ID of the project to create the integration in
+    rate:
+      description: 'Period the rate_exceeded threshold counts over: min a minute,
+        hour an hour, wday a day (24 hours, not a weekday), week a week'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    site_ids:
+      description: Uptime sites whose up and down events notify. null follows every
+        site in the project, including ones added later; [] follows none; a list follows
+        just those. On create, omit to follow every site; on update, omit to leave
+        it as it is. An ID from outside the project is refused.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    threshold:
+      description: Occurrences within rate before rate_exceeded fires; must be greater
+        than 0
+    type:
+      description: 'Integration type: WebHook, Email, PagerDutyV2, Slack, and so on.
+        OAuth types (Slack, GitHub and the like) are created unconnected: send the
+        user to the result''s links.web to connect it. They can be active from the
+        start; they send nothing until connected.'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+
+update_integration:
+  operation: updateIntegration
+  title: Update Integration
+  description: 'Update a notification integration. Only the parameters given are changed;
+    the type can''t be. IMPORTANT: Requires reference topic: integrations — fetch
+    via get_reference first (skip if still visible in your context) for config settings
+    and event names.'
+  params:
+    active:
+      description: Whether the integration sends notifications
+    alarm_alert_ids:
+      description: Alarms whose alert events notify
+    alarm_ok_ids:
+      description: Alarms whose recovery events notify
+    check_in_ids:
+      description: Check-ins whose events notify. null follows every check-in in the
+        project, including ones added later; [] follows none; a list follows just
+        those. On create, omit to follow every check-in; on update, omit to leave
+        it as it is. An ID from outside the project is refused.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    config:
+      description: Object of the type's own settings to change, the same keys get_integration
+        returns under config. A secret sent back masked, exactly as read, is left
+        unchanged.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    events:
+      description: Event names to notify on, e.g. occurred, resolved, assigned, down,
+        check_in_missing. Adding one the type doesn't support is refused. Omit on
+        create, or send null, for the type's defaults.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    excluded_environments:
+      description: Environments that never notify; wins over included_environments.
+        Names are stored as given, so one can be excluded before it first reports.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    filters:
+      description: 'Ordered list of {"event": ..., "query": ...} objects: each event
+        with a filter notifies only for errors matching its query. event is an event
+        name, or "all" for every event. Replaces the stored filters; send [] or null
+        to clear them.'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    included_environments:
+      description: When non-empty, the only environments that notify, including ones
+        that haven't reported yet. Empty means every environment not excluded.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    integration_id:
+      description: The ID of the integration to update
+    notification_limit:
+      description: Most notifications in a 10-minute window before flood control (the
+        flooded event) steps in
+    project_id:
+      description: The ID of the project the integration belongs to
+    rate:
+      description: 'Period the rate_exceeded threshold counts over: min a minute,
+        hour an hour, wday a day (24 hours, not a weekday), week a week'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    site_ids:
+      description: Uptime sites whose up and down events notify. null follows every
+        site in the project, including ones added later; [] follows none; a list follows
+        just those. On create, omit to follow every site; on update, omit to leave
+        it as it is. An ID from outside the project is refused.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    threshold:
+      description: Occurrences within rate before rate_exceeded fires; must be greater
+        than 0
+
+delete_integration:
+  operation: deleteIntegration
+  confirm: true
+  title: Delete Integration
+  description: Delete a notification integration. Also deletes all associated tickets
+    and configurations.
+  params:
+    integration_id:
+      description: The ID of the integration to delete
+    project_id:
+      description: The ID of the project the integration belongs to
+
+# Dashboards
+
+list_dashboards:
+  operation: listDashboards
+  title: List Dashboards
+  description: List all Insights dashboards for a Honeybadger project
+  params:
+    project_id:
+      description: The ID of the project to list dashboards for
+    page:
+      exclude: The tool returns every dashboard.
+    per_page:
+      exclude: The tool returns every dashboard.
+
+get_dashboard:
+  operation: getDashboard
+  title: Get Dashboard
+  description: Get a single Insights dashboard by ID
+  params:
+    dashboard_id:
+      description: The ID of the dashboard to retrieve
+    project_id:
+      description: The ID of the project the dashboard belongs to
+
+create_dashboard:
+  operation: createDashboard
+  title: Create Dashboard
+  description: 'Create a new Insights dashboard for a Honeybadger project. IMPORTANT:
+    Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference
+    first (skip topics still visible in your context). Verify each widget''s query
+    returns the expected results via query_insights before creating the dashboard.'
+  long: Carried over from the hand-written definition; trimmed in task 6.
+  params:
+    default_ts:
+      description: Default time range for the dashboard. ISO 8601 duration (e.g. P1D,
+        PT3H) or a keyword (today, yesterday, week, month).
+    project_id:
+      description: The ID of the project to create the dashboard in
+    title:
+      description: The title of the dashboard
+    widgets:
+      description: Array of widget objects. Each needs a type (insights_vis, alarms,
+        errors, deployments, checkins, uptime) and optionally grid, presentation and
+        config.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+      shallow: dashboards
+
+update_dashboard:
+  operation: updateDashboard
+  title: Update Dashboard
+  description: 'Update an existing Insights dashboard. Only the parameters given are
+    changed, so a rename needs only title. IMPORTANT: Requires reference topics: dashboards,
+    charts, queries, badgerql — fetch via get_reference first (skip topics still visible
+    in your context).'
+  params:
+    dashboard_id:
+      description: The ID of the dashboard to update
+    default_ts:
+      description: Default time range for the dashboard. ISO 8601 duration (e.g. P1D,
+        PT3H) or a keyword (today, yesterday, week, month). Pass an empty string to
+        clear it.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    project_id:
+      description: The ID of the project the dashboard belongs to
+    title:
+      description: A new title for the dashboard
+    widgets:
+      description: 'Array of widget objects replacing the dashboard''s widgets: one
+        left out is removed, and one keeps its identity only when sent with the id
+        get_dashboard returned. Omit to leave them as they are.'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+      shallow: dashboards
+
+delete_dashboard:
+  operation: deleteDashboard
+  confirm: true
+  title: Delete Dashboard
+  description: Delete an Insights dashboard.
+  params:
+    dashboard_id:
+      description: The ID of the dashboard to delete
+    project_id:
+      description: The ID of the project the dashboard belongs to
+
+# Alarms
+
+list_alarms:
+  operation: listAlarms
+  title: List Alarms
+  description: 'List all Insights alarms for a Honeybadger project. To interpret alarm
+    configuration, fetch reference topic: alarms (via get_reference).'
+  params:
+    project_id:
+      description: The ID of the project to list alarms for
+
+get_alarm:
+  operation: getAlarm
+  title: Get Alarm
+  description: 'Get a single Insights alarm by ID. To interpret alarm configuration,
+    fetch reference topic: alarms (via get_reference).'
+  params:
+    alarm_id:
+      description: The ID of the alarm to retrieve
+    project_id:
+      description: The ID of the project the alarm belongs to
+
+get_alarm_history:
+  operation: listAlarmHistory
+  title: Get Alarm History
+  description: 'Get the trigger history for an Insights alarm. To interpret trigger
+    records and alarm states, fetch reference topic: alarms (via get_reference).'
+  params:
+    alarm_id:
+      description: The ID of the alarm to get history for
+    page:
+      description: 'Page number, starting at 1 (default: 1). Pages hold 25 entries;
+        a non-null links.next means there are more.'
+    project_id:
+      description: The ID of the project the alarm belongs to
+
+create_alarm:
+  operation: createAlarm
+  title: Create Alarm
+  description: 'Create a new Insights alarm for a Honeybadger project. IMPORTANT:
+    Requires reference topics: alarms, queries, badgerql — fetch via get_reference
+    first (skip topics still visible in your context) for the trigger_config schema
+    and query guidelines. Verify the query returns the expected results via query_insights
+    before creating the alarm.'
+  long: Carried over from the hand-written definition; trimmed in task 6.
+  params:
+    description:
+      description: Optional description of the alarm
+    evaluation_period:
+      description: 'Window each evaluation covers, as a compact duration in minutes,
+        hours or days: ''5m'', ''10m'', ''1h'', ''1d''. Spelled-out forms like ''5
+        minutes'' are rejected.'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    lookback_lag:
+      description: How far behind now the evaluation window ends, allowing for ingestion
+        delay, in the same compact format ('1m'; weeks allowed too). '0s' for none.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    name:
+      description: The name of the alarm
+    project_id:
+      description: The ID of the project to create the alarm in
+    query:
+      description: 'BadgerQL query evaluated on each check. Requires reference topics:
+        alarms, badgerql (fetch via get_reference).'
+    stream_ids:
+      description: 'Array of stream IDs the query runs against, naming at least one:
+        an empty array is refused. Omit to query every current stream on the project.
+        Use the opaque IDs from list_streams, not slugs like "default": an ID that
+        isn''t one of the project''s streams is refused with 422.'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    trigger_config:
+      description: Object describing what turns the alarm on, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}.
+        Operators are named (gt, lt), not symbols.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+      shallow: alarms
+
+update_alarm:
+  operation: updateAlarm
+  title: Update Alarm
+  description: 'Update an existing Insights alarm. IMPORTANT: Requires reference topics:
+    alarms, queries, badgerql — fetch via get_reference first (skip topics still visible
+    in your context) for the trigger_config schema and query guidelines.'
+  params:
+    alarm_id:
+      description: The ID of the alarm to update
+    description:
+      description: A new description. Pass an empty string to clear it.
+    evaluation_period:
+      description: 'A new evaluation window, as a compact duration: ''5m'', ''10m'',
+        ''1h'', ''1d''.'
+    lookback_lag:
+      description: A new lookback lag, in the same compact format ('1m').
+    name:
+      description: A new name for the alarm
+    project_id:
+      description: The ID of the project the alarm belongs to
+    query:
+      description: A new BadgerQL query. Verify it via query_insights first.
+    stream_ids:
+      description: 'Array of stream IDs, replacing the current set; it must name at
+        least one. Send null to reset the alarm to every current stream on the project.
+        Use the opaque IDs from list_streams, not slugs like "default": an ID that
+        isn''t one of the project''s streams is refused with 422.'
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    trigger_config:
+      description: Object replacing the whole trigger, in the shape create_alarm takes.
+      shallow: alarms
+
+delete_alarm:
+  operation: deleteAlarm
+  confirm: true
+  title: Delete Alarm
+  description: Delete an Insights alarm.
+  params:
+    alarm_id:
+      description: The ID of the alarm to delete
+    project_id:
+      description: The ID of the project the alarm belongs to
+
+# Ingestion Keys
+
+list_ingestion_keys:
+  operation: listIngestionKeys
+  title: List Ingestion Keys
+  description: 'List a project''s Ingestion Keys: the hbp_ keys an app uses to send
+    errors and events to Honeybadger, set as ingestion_key in the client''s config
+    (api_key in older clients). An Ingestion Key isn''t a secret, since it ships in
+    apps, and it can''t call the Data API; that takes an API Token.'
+  params:
+    project_id:
+      description: The ID of the project to list Ingestion Keys for
+    page:
+      exclude: The tool returns every Ingestion Key.
+    per_page:
+      exclude: The tool returns every Ingestion Key.
+
+create_ingestion_key:
+  operation: createIngestionKey
+  title: Create Ingestion Key
+  description: Create a new Ingestion Key for a project. The key is returned in the
+    response.
+  params:
+    label:
+      description: Optional human-readable name for the key
+    project_id:
+      description: The ID of the project to create the Ingestion Key in
+
+update_ingestion_key:
+  operation: updateIngestionKey
+  title: Update Ingestion Key
+  description: Update an Ingestion Key's label.
+  params:
+    ingestion_key_id:
+      description: The ID of the Ingestion Key to update
+    label:
+      description: New label for the key; null clears it
+    project_id:
+      description: The ID of the project the Ingestion Key belongs to
+
+delete_ingestion_key:
+  operation: deleteIngestionKey
+  confirm: true
+  title: Delete Ingestion Key
+  description: Delete an Ingestion Key. Apps sending with this key will no longer
+    be able to send data.
+  params:
+    ingestion_key_id:
+      description: The ID of the Ingestion Key to delete
+    project_id:
+      description: The ID of the project the Ingestion Key belongs to
+
+# Insights
+
+query_insights:
+  operation: runInsightsQuery
+  title: Query Insights
+  description: 'Execute a BadgerQL query against Insights data. Requires reference
+    topics: queries, badgerql (fetch via get_reference; skip topics still visible
+    in your context). To visualize or share results, also fetch the charts topic.'
+  params:
+    project_id:
+      description: The ID of the project to query insights for
+    query:
+      description: BadgerQL query string to execute against your Insights data
+    stream_ids:
+      description: Optional list of stream IDs to restrict the query to specific Insights
+        streams. Use list_streams to discover a project's stream IDs; pass the 'id'
+        field (not the slug). Omit to query all streams. An ID that isn't one of the
+        project's streams is refused with an error.
+      long: Carried over from the hand-written definition; trimmed in task 6.
+    timezone:
+      description: IANA timezone identifier (e.g., 'America/New_York') for timestamp
+        interpretation
+    ts:
+      description: Time range - shortcuts like 'today', 'week', or ISO 8601 duration
+        (e.g., 'PT3H'). Defaults to PT3H.
+
+list_streams:
+  operation: listStreams
+  title: List Streams
+  description: List Insights data streams for a Honeybadger project. Streams partition
+    Insights event data (e.g. default vs internal).
+  params:
+    project_id:
+      description: The ID of the project to list streams for
+    page:
+      exclude: The tool returns every stream.
+    per_page:
+      exclude: The tool returns every stream.

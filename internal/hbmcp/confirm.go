@@ -53,10 +53,6 @@ const confirmParamDescription = "Confirmation token from this tool's previous pr
 // confirmParam is the confirm parameter's schema in generated delete tools.
 var confirmParam = map[string]any{"type": "string", "description": confirmParamDescription}
 
-func withConfirmParam() mcp.ToolOption {
-	return mcp.WithString("confirm", mcp.Description(confirmParamDescription))
-}
-
 // deletionConfirmed reports whether req carries a live token minted for this
 // tool and these ids by the same caller.
 func deletionConfirmed(ctx context.Context, req mcp.CallToolRequest, tool string, ids ...any) bool {

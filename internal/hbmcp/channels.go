@@ -16,87 +16,28 @@ import (
 
 func RegisterIntegrationTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	r.AddTool(
-		mcp.NewTool("get_integration",
-			mcp.WithTitleAnnotation("Get Integration"),
-			mcp.WithDescription("Get a single notification integration by ID. To interpret integration fields, fetch reference topic: integrations (via get_reference)."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project the integration belongs to"),
-			),
-			mcp.WithString("integration_id",
-				mcp.Required(),
-				mcp.Description("The ID of the integration to retrieve"),
-			),
-		),
+		generatedTool("get_integration"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleGetIntegration(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
 	r.AddTool(
-		mcp.NewTool("create_integration", append([]mcp.ToolOption{
-			mcp.WithTitleAnnotation("Create Integration"),
-			mcp.WithDescription("Create a notification integration for a project. IMPORTANT: Requires reference topic: integrations — fetch via get_reference first (skip if still visible in your context) for the list of types, each type's config settings, and event names."),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to create the integration in"),
-			),
-			mcp.WithString("type",
-				mcp.Required(),
-				mcp.Description("Integration type: WebHook, Email, PagerDutyV2, Slack, and so on. OAuth types (Slack, GitHub and the like) are created unconnected: send the user to the result's links.web to connect it. They can be active from the start; they send nothing until connected."),
-			),
-			mcp.WithString("config",
-				mcp.Description(`JSON object of the type's own settings, e.g. {"url":"https://example.com/hook","label":"Deploys"} for WebHook or {"integration_key":"..."} for PagerDutyV2. The shared settings (events, site_ids and the rest) are separate parameters, not part of config.`),
-			),
-		}, integrationSettingOptions()...)...),
+		generatedTool("create_integration"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleCreateIntegration(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
 	r.AddTool(
-		mcp.NewTool("update_integration", append([]mcp.ToolOption{
-			mcp.WithTitleAnnotation("Update Integration"),
-			mcp.WithDescription("Update a notification integration. Only the parameters given are changed; the type can't be. IMPORTANT: Requires reference topic: integrations — fetch via get_reference first (skip if still visible in your context) for config settings and event names."),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project the integration belongs to"),
-			),
-			mcp.WithString("integration_id",
-				mcp.Required(),
-				mcp.Description("The ID of the integration to update"),
-			),
-			mcp.WithString("config",
-				mcp.Description("JSON object of the type's own settings to change, the same keys get_integration returns under config. A secret sent back masked, exactly as read, is left unchanged."),
-			),
-		}, integrationSettingOptions()...)...),
+		generatedTool("update_integration"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleUpdateIntegration(ctx, v3ClientFor(ctx), req)
 		},
 	)
 
 	r.AddTool(
-		mcp.NewTool("delete_integration",
-			mcp.WithTitleAnnotation("Delete Integration"),
-			mcp.WithDescription("Delete a notification integration. Also deletes all associated tickets and configurations."+confirmNote),
-			mcp.WithReadOnlyHintAnnotation(false),
-			mcp.WithDestructiveHintAnnotation(true),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project the integration belongs to"),
-			),
-			mcp.WithString("integration_id",
-				mcp.Required(),
-				mcp.Description("The ID of the integration to delete"),
-			),
-			withConfirmParam(),
-		),
+		generatedTool("delete_integration"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleDeleteIntegration(ctx, v3ClientFor(ctx), req)
 		},
@@ -131,42 +72,6 @@ var integrationSettingFields = []string{
 	"active", "events", "rate", "threshold", "notification_limit",
 	"site_ids", "check_in_ids", "alarm_alert_ids", "alarm_ok_ids",
 	"included_environments", "excluded_environments", "filters",
-}
-
-// integrationSettingOptions declares the shared settings, in the same order, for
-// create_integration and update_integration.
-func integrationSettingOptions() []mcp.ToolOption {
-	// Every shared setting is nullable in the API: null clears a list or resets a
-	// setting to the type's default.
-	list := func(name, description string) mcp.ToolOption {
-		return mcp.WithArray(name, mcp.WithStringItems(), acceptsNull, mcp.Description(description))
-	}
-	return []mcp.ToolOption{
-		mcp.WithBoolean("active", mcp.Description("Whether the integration sends notifications")),
-		list("events", "Event names to notify on, e.g. occurred, resolved, assigned, down, check_in_missing. Adding one the type doesn't support is refused. Omit on create, or send null, for the type's defaults."),
-		mcp.WithString("rate", mcp.Enum("min", "hour", "wday", "week"), acceptsNull, mcp.Description("Period the rate_exceeded threshold counts over: min a minute, hour an hour, wday a day (24 hours, not a weekday), week a week")),
-		mcp.WithNumber("threshold", acceptsNull, mcp.Description("Occurrences within rate before rate_exceeded fires; must be greater than 0")),
-		mcp.WithNumber("notification_limit", acceptsNull, mcp.Description("Most notifications in a 10-minute window before flood control (the flooded event) steps in")),
-		mcp.WithArray("site_ids", mcp.WithStringItems(), acceptsNull,
-			mcp.Description("Uptime sites whose up and down events notify. null follows every site in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every site; on update, omit to leave it as it is. An ID from outside the project is refused.")),
-		mcp.WithArray("check_in_ids", mcp.WithStringItems(), acceptsNull,
-			mcp.Description("Check-ins whose events notify. null follows every check-in in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every check-in; on update, omit to leave it as it is. An ID from outside the project is refused.")),
-		list("alarm_alert_ids", "Alarms whose alert events notify"),
-		list("alarm_ok_ids", "Alarms whose recovery events notify"),
-		list("included_environments", "When non-empty, the only environments that notify, including ones that haven't reported yet. Empty means every environment not excluded."),
-		list("excluded_environments", "Environments that never notify; wins over included_environments. Names are stored as given, so one can be excluded before it first reports."),
-		mcp.WithArray("filters", acceptsNull,
-			mcp.Description(`Ordered list of {"event": ..., "query": ...} objects: each event with a filter notifies only for errors matching its query. event is an event name, or "all" for every event. Replaces the stored filters; send [] or null to clear them.`),
-			mcp.Items(map[string]any{
-				"type":     "object",
-				"required": []string{"event", "query"},
-				"properties": map[string]any{
-					"event": map[string]any{"type": "string"},
-					"query": map[string]any{"type": "string"},
-				},
-			}),
-		),
-	}
 }
 
 // integrationBody collects the shared settings and config into the API's body

@@ -13,16 +13,7 @@ import (
 func RegisterStreamTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_streams tool
 	r.AddTool(
-		mcp.NewTool("list_streams",
-			mcp.WithTitleAnnotation("List Streams"),
-			mcp.WithDescription("List Insights data streams for a Honeybadger project. Streams partition Insights event data (e.g. default vs internal)."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to list streams for"),
-			),
-		),
+		generatedTool("list_streams"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListStreams(ctx, v3ClientFor(ctx), req)
 		},

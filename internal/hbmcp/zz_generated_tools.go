@@ -7,6 +7,30 @@ import "github.com/mark3labs/mcp-go/mcp"
 
 // generatedTools are the tool definitions, keyed by name.
 var generatedTools = map[string]mcp.Tool{
+	"create_alarm": {
+		Name:        "create_alarm",
+		Description: "Create a new Insights alarm for a Honeybadger project. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. Verify the query returns the expected results via query_insights before creating the alarm.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"description":       map[string]any{"description": "Optional description of the alarm", "type": []any{"string", "null"}},
+				"evaluation_period": map[string]any{"description": "Window each evaluation covers, as a compact duration in minutes, hours or days: '5m', '10m', '1h', '1d'. Spelled-out forms like '5 minutes' are rejected.", "pattern": "^\\d+[smhd]$", "type": "string"},
+				"lookback_lag":      map[string]any{"description": "How far behind now the evaluation window ends, allowing for ingestion delay, in the same compact format ('1m'; weeks allowed too). '0s' for none.", "pattern": "^\\d+[smhdw]$", "type": "string"},
+				"name":              map[string]any{"description": "The name of the alarm", "type": "string"},
+				"project_id":        map[string]any{"description": "The ID of the project to create the alarm in", "type": "string"},
+				"query":             map[string]any{"description": "BadgerQL query evaluated on each check. Requires reference topics: alarms, badgerql (fetch via get_reference).", "type": "string"},
+				"stream_ids":        map[string]any{"description": "Array of stream IDs the query runs against, naming at least one: an empty array is refused. Omit to query every current stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": an ID that isn't one of the project's streams is refused with 422.", "items": map[string]any{"type": "string"}, "minItems": 1, "type": []any{"array", "null"}},
+				"trigger_config":    map[string]any{"description": "Object describing what turns the alarm on, e.g. {\"type\":\"alert_result_count\",\"config\":{\"operator\":\"gt\",\"value\":10}}. Operators are named (gt, lt), not symbols. Shape: get_reference topic alarms.", "type": "object"},
+			},
+			Required:             []string{"evaluation_period", "lookback_lag", "name", "project_id", "query", "trigger_config"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Create Alarm",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
 	"create_check_in": {
 		Name:        "create_check_in",
 		Description: "Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule types, the required field per type, plan gating (cron needs the Business plan), and the timezone format.",
@@ -31,6 +55,26 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
 	},
+	"create_dashboard": {
+		Name:        "create_dashboard",
+		Description: "Create a new Insights dashboard for a Honeybadger project. IMPORTANT: Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference first (skip topics still visible in your context). Verify each widget's query returns the expected results via query_insights before creating the dashboard.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"default_ts": map[string]any{"description": "Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month).", "type": []any{"string", "null"}},
+				"project_id": map[string]any{"description": "The ID of the project to create the dashboard in", "type": "string"},
+				"title":      map[string]any{"description": "The title of the dashboard", "maxLength": 255, "type": "string"},
+				"widgets":    map[string]any{"description": "Array of widget objects. Each needs a type (insights_vis, alarms, errors, deployments, checkins, uptime) and optionally grid, presentation and config. Shape: get_reference topic dashboards.", "items": map[string]any{"type": "object"}, "type": "array"},
+			},
+			Required:             []string{"project_id", "title"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Create Dashboard",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
 	"create_fault_comment": {
 		Name:        "create_fault_comment",
 		Description: "Add a comment to a fault. @mentions notify the named project members. With an account-scoped API Token, the comment is attributed to the token's name.",
@@ -46,6 +90,55 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "Create Fault Comment",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"create_ingestion_key": {
+		Name:        "create_ingestion_key",
+		Description: "Create a new Ingestion Key for a project. The key is returned in the response.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"label":      map[string]any{"description": "Optional human-readable name for the key", "type": []any{"string", "null"}},
+				"project_id": map[string]any{"description": "The ID of the project to create the Ingestion Key in", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Create Ingestion Key",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"create_integration": {
+		Name:        "create_integration",
+		Description: "Create a notification integration for a project. IMPORTANT: Requires reference topic: integrations — fetch via get_reference first (skip if still visible in your context) for the list of types, each type's config settings, and event names.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"active":                map[string]any{"description": "Whether the integration sends notifications", "type": "boolean"},
+				"alarm_alert_ids":       map[string]any{"default": []any{}, "description": "Alarms whose alert events notify", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"alarm_ok_ids":          map[string]any{"default": []any{}, "description": "Alarms whose recovery events notify", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"check_in_ids":          map[string]any{"description": "Check-ins whose events notify. null follows every check-in in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every check-in; on update, omit to leave it as it is. An ID from outside the project is refused.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"config":                map[string]any{"additionalProperties": true, "description": "Object of the type's own settings, e.g. {\"url\":\"https://example.com/hook\",\"label\":\"Deploys\"} for WebHook or {\"integration_key\":\"...\"} for PagerDutyV2. The shared settings (events, site_ids and the rest) are separate parameters, not part of config.", "type": "object"},
+				"events":                map[string]any{"description": "Event names to notify on, e.g. occurred, resolved, assigned, down, check_in_missing. Adding one the type doesn't support is refused. Omit on create, or send null, for the type's defaults.", "items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}, "type": "string"}, "type": []any{"array", "null"}},
+				"excluded_environments": map[string]any{"default": []any{}, "description": "Environments that never notify; wins over included_environments. Names are stored as given, so one can be excluded before it first reports.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"filters":               map[string]any{"default": []any{}, "description": "Ordered list of {\"event\": ..., \"query\": ...} objects: each event with a filter notifies only for errors matching its query. event is an event name, or \"all\" for every event. Replaces the stored filters; send [] or null to clear them.", "items": map[string]any{"additionalProperties": false, "properties": map[string]any{"event": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike", "all"}, "type": "string"}, "query": map[string]any{"minLength": 1, "type": "string"}}, "required": []any{"event", "query"}, "type": "object"}, "type": []any{"array", "null"}},
+				"included_environments": map[string]any{"default": []any{}, "description": "When non-empty, the only environments that notify, including ones that haven't reported yet. Empty means every environment not excluded.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"notification_limit":    map[string]any{"description": "Most notifications in a 10-minute window before flood control (the flooded event) steps in", "type": []any{"integer", "null"}},
+				"project_id":            map[string]any{"description": "The ID of the project to create the integration in", "type": "string"},
+				"rate":                  map[string]any{"default": "wday", "description": "Period the rate_exceeded threshold counts over: min a minute, hour an hour, wday a day (24 hours, not a weekday), week a week", "enum": []any{"min", "hour", "wday", "week", nil}, "type": []any{"string", "null"}},
+				"site_ids":              map[string]any{"description": "Uptime sites whose up and down events notify. null follows every site in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every site; on update, omit to leave it as it is. An ID from outside the project is refused.", "items": map[string]any{"format": "uuid", "type": "string"}, "type": []any{"array", "null"}},
+				"threshold":             map[string]any{"default": 100, "description": "Occurrences within rate before rate_exceeded fires; must be greater than 0", "type": []any{"integer", "null"}},
+				"type":                  map[string]any{"description": "Integration type: WebHook, Email, PagerDutyV2, Slack, and so on. OAuth types (Slack, GitHub and the like) are created unconnected: send the user to the result's links.web to connect it. They can be active from the start; they send nothing until connected.", "enum": []any{"CampfireV3", "Datadog", "DiscordWebhook", "Github", "Gitlab", "Bitbucket", "Asana", "Jira", "JiraCloud", "OpsGenieV2", "Redmine", "PagerDutyV2", "Sprintly", "Trello", "Linear", "Slack", "Mattermost", "GoogleHangoutsChat", "VictorOps", "WebHook", "Email", "Intercom", "AlertOps", "MicrosoftTeamsV2", "ShortcutV2", "PagerTree", "Instatus", "ClickUp", "ClickUpChat", "Ilert", "Zulip", "IncidentIo", "Rootly", "Backlog"}, "type": "string"},
+			},
+			Required:             []string{"project_id", "type"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Create Integration",
 			ReadOnlyHint:    mcp.ToBoolPtr(false),
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
@@ -108,6 +201,25 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
 	},
+	"delete_alarm": {
+		Name:        "delete_alarm",
+		Description: "Delete an Insights alarm." + confirmNote,
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"alarm_id":   map[string]any{"description": "The ID of the alarm to delete", "type": "string"},
+				"project_id": map[string]any{"description": "The ID of the project the alarm belongs to", "type": "string"},
+				"confirm":    confirmParam,
+			},
+			Required:             []string{"alarm_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Delete Alarm",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
 	"delete_check_in": {
 		Name:        "delete_check_in",
 		Description: "Delete a check-in. This also deletes the check-in's reporting history." + confirmNote,
@@ -123,6 +235,25 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "Delete Check-In",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"delete_dashboard": {
+		Name:        "delete_dashboard",
+		Description: "Delete an Insights dashboard." + confirmNote,
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"dashboard_id": map[string]any{"description": "The ID of the dashboard to delete", "type": "string"},
+				"project_id":   map[string]any{"description": "The ID of the project the dashboard belongs to", "type": "string"},
+				"confirm":      confirmParam,
+			},
+			Required:             []string{"dashboard_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Delete Dashboard",
 			ReadOnlyHint:    mcp.ToBoolPtr(false),
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
@@ -143,6 +274,44 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "Delete Fault Comment",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"delete_ingestion_key": {
+		Name:        "delete_ingestion_key",
+		Description: "Delete an Ingestion Key. Apps sending with this key will no longer be able to send data." + confirmNote,
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"ingestion_key_id": map[string]any{"description": "The ID of the Ingestion Key to delete", "type": "string"},
+				"project_id":       map[string]any{"description": "The ID of the project the Ingestion Key belongs to", "type": "string"},
+				"confirm":          confirmParam,
+			},
+			Required:             []string{"ingestion_key_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Delete Ingestion Key",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"delete_integration": {
+		Name:        "delete_integration",
+		Description: "Delete a notification integration. Also deletes all associated tickets and configurations." + confirmNote,
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"integration_id": map[string]any{"description": "The ID of the integration to delete", "type": "string"},
+				"project_id":     map[string]any{"description": "The ID of the project the integration belongs to", "type": "string"},
+				"confirm":        confirmParam,
+			},
+			Required:             []string{"integration_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Delete Integration",
 			ReadOnlyHint:    mcp.ToBoolPtr(false),
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
@@ -184,6 +353,43 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
 	},
+	"get_alarm": {
+		Name:        "get_alarm",
+		Description: "Get a single Insights alarm by ID. To interpret alarm configuration, fetch reference topic: alarms (via get_reference).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"alarm_id":   map[string]any{"description": "The ID of the alarm to retrieve", "type": "string"},
+				"project_id": map[string]any{"description": "The ID of the project the alarm belongs to", "type": "string"},
+			},
+			Required:             []string{"alarm_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Alarm",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"get_alarm_history": {
+		Name:        "get_alarm_history",
+		Description: "Get the trigger history for an Insights alarm. To interpret trigger records and alarm states, fetch reference topic: alarms (via get_reference).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"alarm_id":   map[string]any{"description": "The ID of the alarm to get history for", "type": "string"},
+				"page":       map[string]any{"default": 1, "description": "Page number, starting at 1 (default: 1). Pages hold 25 entries; a non-null links.next means there are more.", "minimum": 1, "type": "integer"},
+				"project_id": map[string]any{"description": "The ID of the project the alarm belongs to", "type": "string"},
+			},
+			Required:             []string{"alarm_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Alarm History",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
 	"get_check_in": {
 		Name:        "get_check_in",
 		Description: "Get a single check-in by ID. To interpret check-in state and schedule fields, fetch reference topic: checkins (via get_reference).",
@@ -198,6 +404,24 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "Get Check-In",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"get_dashboard": {
+		Name:        "get_dashboard",
+		Description: "Get a single Insights dashboard by ID",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"dashboard_id": map[string]any{"description": "The ID of the dashboard to retrieve", "type": "string"},
+				"project_id":   map[string]any{"description": "The ID of the project the dashboard belongs to", "type": "string"},
+			},
+			Required:             []string{"dashboard_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Dashboard",
 			ReadOnlyHint:    mcp.ToBoolPtr(true),
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
@@ -278,6 +502,24 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
 	},
+	"get_integration": {
+		Name:        "get_integration",
+		Description: "Get a single notification integration by ID. To interpret integration fields, fetch reference topic: integrations (via get_reference).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"integration_id": map[string]any{"description": "The ID of the integration to retrieve", "type": "string"},
+				"project_id":     map[string]any{"description": "The ID of the project the integration belongs to", "type": "string"},
+			},
+			Required:             []string{"integration_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Integration",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
 	"get_project": {
 		Name:        "get_project",
 		Description: "Get a single Honeybadger project by ID. Its Ingestion Keys aren't included; list them with list_ingestion_keys.",
@@ -291,6 +533,23 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "Get Project",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"get_project_integrations": {
+		Name:        "get_project_integrations",
+		Description: "List notification integrations for a Honeybadger project. To interpret integration types and config fields, fetch reference topic: integrations (via get_reference).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project to get integrations for", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Project Integrations",
 			ReadOnlyHint:    mcp.ToBoolPtr(true),
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
@@ -331,6 +590,23 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
 	},
+	"list_alarms": {
+		Name:        "list_alarms",
+		Description: "List all Insights alarms for a Honeybadger project. To interpret alarm configuration, fetch reference topic: alarms (via get_reference).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project to list alarms for", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Alarms",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
 	"list_check_in_events": {
 		Name:        "list_check_in_events",
 		Description: "List a check-in's history, newest first: each time it reported, went missing or was paused. Use it to explain a check_in_missing or check_in_reporting event. To page back, pass the previous response's next_created_before as created_before.",
@@ -364,6 +640,23 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "List Check-Ins",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"list_dashboards": {
+		Name:        "list_dashboards",
+		Description: "List all Insights dashboards for a Honeybadger project",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project to list dashboards for", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Dashboards",
 			ReadOnlyHint:    mcp.ToBoolPtr(true),
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
@@ -473,6 +766,23 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
 	},
+	"list_ingestion_keys": {
+		Name:        "list_ingestion_keys",
+		Description: "List a project's Ingestion Keys: the hbp_ keys an app uses to send errors and events to Honeybadger, set as ingestion_key in the client's config (api_key in older clients). An Ingestion Key isn't a secret, since it ships in apps, and it can't call the Data API; that takes an API Token.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project to list Ingestion Keys for", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Ingestion Keys",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
 	"list_projects": {
 		Name:        "list_projects",
 		Description: "List all Honeybadger projects (returns summary info; use get_project for full details). A project can have several Ingestion Keys; list them with list_ingestion_keys.",
@@ -526,6 +836,23 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(false),
 		},
 	},
+	"list_streams": {
+		Name:        "list_streams",
+		Description: "List Insights data streams for a Honeybadger project. Streams partition Insights event data (e.g. default vs internal).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project to list streams for", "type": "string"},
+			},
+			Required:             []string{"project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "List Streams",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
 	"list_uptime_checks": {
 		Name:        "list_uptime_checks",
 		Description: "List an uptime site's individual checks, newest first: each check's location, response status and duration. A busy site has many; keep limit small. To page back, pass the previous response's next_created_before as created_before.",
@@ -544,6 +871,52 @@ var generatedTools = map[string]mcp.Tool{
 			Title:           "List Uptime Checks",
 			ReadOnlyHint:    mcp.ToBoolPtr(true),
 			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"query_insights": {
+		Name:        "query_insights",
+		Description: "Execute a BadgerQL query against Insights data. Requires reference topics: queries, badgerql (fetch via get_reference; skip topics still visible in your context). To visualize or share results, also fetch the charts topic.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"project_id": map[string]any{"description": "The ID of the project to query insights for", "type": "string"},
+				"query":      map[string]any{"description": "BadgerQL query string to execute against your Insights data", "type": "string"},
+				"stream_ids": map[string]any{"description": "Optional list of stream IDs to restrict the query to specific Insights streams. Use list_streams to discover a project's stream IDs; pass the 'id' field (not the slug). Omit to query all streams. An ID that isn't one of the project's streams is refused with an error.", "items": map[string]any{"type": "string"}, "type": "array"},
+				"timezone":   map[string]any{"description": "IANA timezone identifier (e.g., 'America/New_York') for timestamp interpretation", "type": "string"},
+				"ts":         map[string]any{"description": "Time range - shortcuts like 'today', 'week', or ISO 8601 duration (e.g., 'PT3H'). Defaults to PT3H.", "type": "string"},
+			},
+			Required:             []string{"project_id", "query"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Query Insights",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
+	"update_alarm": {
+		Name:        "update_alarm",
+		Description: "Update an existing Insights alarm. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"alarm_id":          map[string]any{"description": "The ID of the alarm to update", "type": "string"},
+				"description":       map[string]any{"description": "A new description. Pass an empty string to clear it.", "type": []any{"string", "null"}},
+				"evaluation_period": map[string]any{"description": "A new evaluation window, as a compact duration: '5m', '10m', '1h', '1d'.", "pattern": "^\\d+[smhd]$", "type": "string"},
+				"lookback_lag":      map[string]any{"description": "A new lookback lag, in the same compact format ('1m').", "pattern": "^\\d+[smhdw]$", "type": "string"},
+				"name":              map[string]any{"description": "A new name for the alarm", "type": "string"},
+				"project_id":        map[string]any{"description": "The ID of the project the alarm belongs to", "type": "string"},
+				"query":             map[string]any{"description": "A new BadgerQL query. Verify it via query_insights first.", "type": "string"},
+				"stream_ids":        map[string]any{"description": "Array of stream IDs, replacing the current set; it must name at least one. Send null to reset the alarm to every current stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": an ID that isn't one of the project's streams is refused with 422.", "items": map[string]any{"type": "string"}, "minItems": 1, "type": []any{"array", "null"}},
+				"trigger_config":    map[string]any{"description": "Object replacing the whole trigger, in the shape create_alarm takes. Shape: get_reference topic alarms.", "type": "object"},
+			},
+			Required:             []string{"alarm_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Update Alarm",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
 		},
 	},
 	"update_check_in": {
@@ -571,6 +944,27 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
 	},
+	"update_dashboard": {
+		Name:        "update_dashboard",
+		Description: "Update an existing Insights dashboard. Only the parameters given are changed, so a rename needs only title. IMPORTANT: Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference first (skip topics still visible in your context).",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"dashboard_id": map[string]any{"description": "The ID of the dashboard to update", "type": "string"},
+				"default_ts":   map[string]any{"description": "Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month). Pass an empty string to clear it.", "type": []any{"string", "null"}},
+				"project_id":   map[string]any{"description": "The ID of the project the dashboard belongs to", "type": "string"},
+				"title":        map[string]any{"description": "A new title for the dashboard", "maxLength": 255, "type": "string"},
+				"widgets":      map[string]any{"description": "Array of widget objects replacing the dashboard's widgets: one left out is removed, and one keeps its identity only when sent with the id get_dashboard returned. Omit to leave them as they are. Shape: get_reference topic dashboards.", "items": map[string]any{"type": "object"}, "type": "array"},
+			},
+			Required:             []string{"dashboard_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Update Dashboard",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
 	"update_fault_comment": {
 		Name:        "update_fault_comment",
 		Description: "Replace the body of an existing fault comment. Returns the comment as stored. Only the comment's author can edit it, so an account-scoped API Token, which has no author, is refused with access_denied.",
@@ -587,6 +981,56 @@ var generatedTools = map[string]mcp.Tool{
 		},
 		Annotations: mcp.ToolAnnotation{
 			Title:           "Update Fault Comment",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"update_ingestion_key": {
+		Name:        "update_ingestion_key",
+		Description: "Update an Ingestion Key's label.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"ingestion_key_id": map[string]any{"description": "The ID of the Ingestion Key to update", "type": "string"},
+				"label":            map[string]any{"description": "New label for the key; null clears it", "type": []any{"string", "null"}},
+				"project_id":       map[string]any{"description": "The ID of the project the Ingestion Key belongs to", "type": "string"},
+			},
+			Required:             []string{"ingestion_key_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Update Ingestion Key",
+			ReadOnlyHint:    mcp.ToBoolPtr(false),
+			DestructiveHint: mcp.ToBoolPtr(true),
+		},
+	},
+	"update_integration": {
+		Name:        "update_integration",
+		Description: "Update a notification integration. Only the parameters given are changed; the type can't be. IMPORTANT: Requires reference topic: integrations — fetch via get_reference first (skip if still visible in your context) for config settings and event names.",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"active":                map[string]any{"description": "Whether the integration sends notifications", "type": "boolean"},
+				"alarm_alert_ids":       map[string]any{"description": "Alarms whose alert events notify", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"alarm_ok_ids":          map[string]any{"description": "Alarms whose recovery events notify", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"check_in_ids":          map[string]any{"description": "Check-ins whose events notify. null follows every check-in in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every check-in; on update, omit to leave it as it is. An ID from outside the project is refused.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"config":                map[string]any{"additionalProperties": true, "description": "Object of the type's own settings to change, the same keys get_integration returns under config. A secret sent back masked, exactly as read, is left unchanged.", "type": "object"},
+				"events":                map[string]any{"description": "Event names to notify on, e.g. occurred, resolved, assigned, down, check_in_missing. Adding one the type doesn't support is refused. Omit on create, or send null, for the type's defaults.", "items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}, "type": "string"}, "type": []any{"array", "null"}},
+				"excluded_environments": map[string]any{"description": "Environments that never notify; wins over included_environments. Names are stored as given, so one can be excluded before it first reports.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"filters":               map[string]any{"description": "Ordered list of {\"event\": ..., \"query\": ...} objects: each event with a filter notifies only for errors matching its query. event is an event name, or \"all\" for every event. Replaces the stored filters; send [] or null to clear them.", "items": map[string]any{"additionalProperties": false, "properties": map[string]any{"event": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike", "all"}, "type": "string"}, "query": map[string]any{"minLength": 1, "type": "string"}}, "required": []any{"event", "query"}, "type": "object"}, "type": []any{"array", "null"}},
+				"included_environments": map[string]any{"description": "When non-empty, the only environments that notify, including ones that haven't reported yet. Empty means every environment not excluded.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}},
+				"integration_id":        map[string]any{"description": "The ID of the integration to update", "type": "string"},
+				"notification_limit":    map[string]any{"description": "Most notifications in a 10-minute window before flood control (the flooded event) steps in", "type": []any{"integer", "null"}},
+				"project_id":            map[string]any{"description": "The ID of the project the integration belongs to", "type": "string"},
+				"rate":                  map[string]any{"default": "wday", "description": "Period the rate_exceeded threshold counts over: min a minute, hour an hour, wday a day (24 hours, not a weekday), week a week", "enum": []any{"min", "hour", "wday", "week", nil}, "type": []any{"string", "null"}},
+				"site_ids":              map[string]any{"description": "Uptime sites whose up and down events notify. null follows every site in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every site; on update, omit to leave it as it is. An ID from outside the project is refused.", "items": map[string]any{"format": "uuid", "type": "string"}, "type": []any{"array", "null"}},
+				"threshold":             map[string]any{"default": 100, "description": "Occurrences within rate before rate_exceeded fires; must be greater than 0", "type": []any{"integer", "null"}},
+			},
+			Required:             []string{"integration_id", "project_id"},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Update Integration",
 			ReadOnlyHint:    mcp.ToBoolPtr(false),
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
@@ -653,11 +1097,22 @@ var generatedTools = map[string]mcp.Tool{
 
 // generatedStrictSchemas are the schemas calls are checked against, for the
 // tools whose advertised schema leaves a shallow parameter's shape out.
-var generatedStrictSchemas = map[string]map[string]any{}
+var generatedStrictSchemas = map[string]map[string]any{
+	"create_alarm":       map[string]any{"additionalProperties": false, "properties": map[string]any{"description": map[string]any{"description": "Optional description of the alarm", "type": []any{"string", "null"}}, "evaluation_period": map[string]any{"description": "Window each evaluation covers, as a compact duration in minutes, hours or days: '5m', '10m', '1h', '1d'. Spelled-out forms like '5 minutes' are rejected.", "pattern": "^\\d+[smhd]$", "type": "string"}, "lookback_lag": map[string]any{"description": "How far behind now the evaluation window ends, allowing for ingestion delay, in the same compact format ('1m'; weeks allowed too). '0s' for none.", "pattern": "^\\d+[smhdw]$", "type": "string"}, "name": map[string]any{"description": "The name of the alarm", "type": "string"}, "project_id": map[string]any{"description": "The ID of the project to create the alarm in", "type": "string"}, "query": map[string]any{"description": "BadgerQL query evaluated on each check. Requires reference topics: alarms, badgerql (fetch via get_reference).", "type": "string"}, "stream_ids": map[string]any{"description": "Array of stream IDs the query runs against, naming at least one: an empty array is refused. Omit to query every current stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": an ID that isn't one of the project's streams is refused with 422.", "items": map[string]any{"type": "string"}, "minItems": 1, "type": []any{"array", "null"}}, "trigger_config": map[string]any{"additionalProperties": false, "description": "Object describing what turns the alarm on, e.g. {\"type\":\"alert_result_count\",\"config\":{\"operator\":\"gt\",\"value\":10}}. Operators are named (gt, lt), not symbols.", "properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"operator": map[string]any{"enum": []any{"gt", "gte", "lt", "lte", "eq", "neq"}, "type": "string"}, "value": map[string]any{"format": "double", "type": "number"}}, "required": []any{"operator", "value"}, "type": "object"}, "type": map[string]any{"enum": []any{"alert_result_count"}, "type": "string"}}, "required": []any{"type", "config"}, "type": "object"}}, "required": []any{"evaluation_period", "lookback_lag", "name", "project_id", "query", "trigger_config"}, "type": "object"},
+	"create_dashboard":   map[string]any{"additionalProperties": false, "properties": map[string]any{"default_ts": map[string]any{"description": "Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month).", "type": []any{"string", "null"}}, "project_id": map[string]any{"description": "The ID of the project to create the dashboard in", "type": "string"}, "title": map[string]any{"description": "The title of the dashboard", "maxLength": 255, "type": "string"}, "widgets": map[string]any{"default": []any{}, "description": "Array of widget objects. Each needs a type (insights_vis, alarms, errors, deployments, checkins, uptime) and optionally grid, presentation and config.", "items": map[string]any{"additionalProperties": false, "allOf": []any{map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "insights_vis"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"query": map[string]any{"type": "string"}, "streams": map[string]any{"items": map[string]any{"enum": []any{"default", "internal"}, "type": "string"}, "type": "array"}, "vis": map[string]any{"additionalProperties": false, "allOf": []any{map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "table"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "billboard"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "if": map[string]any{"properties": map[string]any{"groupType": map[string]any{"const": "events"}}, "required": []any{"groupType"}}, "properties": map[string]any{"groupType": map[string]any{"enum": []any{"fields", "events"}, "type": "string"}, "statusField": map[string]any{"type": "string"}, "subtitleField": map[string]any{"type": "string"}, "titleField": map[string]any{"type": "string"}, "titleURLField": map[string]any{"type": "string"}, "valueField": map[string]any{"type": "string"}}, "then": map[string]any{"required": []any{"valueField"}}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "bar"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"categoryField": map[string]any{"type": "string"}, "groupField": map[string]any{"type": "string"}, "groupType": map[string]any{"enum": []any{"fields", "events"}, "type": "string"}, "groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "horizontal": map[string]any{"type": "boolean"}, "labelField": map[string]any{"type": "string"}, "stacked": map[string]any{"type": "boolean"}, "valueField": map[string]any{"type": "string"}, "valueFieldUnit": map[string]any{"type": "string"}}, "required": []any{"categoryField", "valueField"}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "line"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "if": map[string]any{"properties": map[string]any{"groupType": map[string]any{"const": "events"}}, "required": []any{"groupType"}}, "properties": map[string]any{"colorField": map[string]any{"type": "string"}, "groupType": map[string]any{"enum": []any{"fields", "events"}, "type": "string"}, "groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"axis": map[string]any{"enum": []any{"left", "right"}, "type": "string"}, "color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "rightYAxisFormat": map[string]any{"type": "string"}, "rightYAxisLabel": map[string]any{"type": "string"}, "rightYAxisMax": map[string]any{"type": "number"}, "rightYAxisMin": map[string]any{"type": "number"}, "xField": map[string]any{"type": "string"}, "xFieldUnit": map[string]any{"type": "string"}, "yAxisLabel": map[string]any{"type": "string"}, "yAxisMax": map[string]any{"type": "number"}, "yAxisMin": map[string]any{"type": "number"}, "yField": map[string]any{"type": "string"}, "yFieldUnit": map[string]any{"type": "string"}, "zField": map[string]any{"type": "string"}}, "then": map[string]any{"required": []any{"yField"}}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "area"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "if": map[string]any{"properties": map[string]any{"groupType": map[string]any{"const": "events"}}, "required": []any{"groupType"}}, "properties": map[string]any{"groupType": map[string]any{"enum": []any{"fields", "events"}, "type": "string"}, "groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "stacked": map[string]any{"type": "boolean"}, "xField": map[string]any{"type": "string"}, "yField": map[string]any{"type": "string"}, "zField": map[string]any{"type": "string"}}, "then": map[string]any{"required": []any{"yField"}}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "histogram"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "xField": map[string]any{"type": "string"}, "xFieldUnit": map[string]any{"type": "string"}, "yField": map[string]any{"type": "string"}, "yFieldUnit": map[string]any{"type": "string"}, "zField": map[string]any{"type": "string"}}, "required": []any{"xField", "yField"}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "scatter"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"groupField": map[string]any{"type": "string"}, "groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "scaleField": map[string]any{"type": "string"}, "xField": map[string]any{"type": "string"}, "yField": map[string]any{"type": "string"}}, "required": []any{"xField", "yField"}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "heatmap"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "steps": map[string]any{"minimum": 1, "type": "integer"}, "xField": map[string]any{"type": "string"}, "yField": map[string]any{"type": "string"}, "yFieldUnit": map[string]any{"type": "string"}, "zField": map[string]any{"type": "string"}}, "required": []any{"xField", "yField", "zField"}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "pie"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "nameField": map[string]any{"type": "string"}, "valueField": map[string]any{"type": "string"}}, "required": []any{"nameField", "valueField"}, "type": "object"}}}}}, "properties": map[string]any{"chart_config": map[string]any{"type": "object"}, "view": map[string]any{"enum": []any{"billboard", "bar", "line", "pie", "area", "histogram", "scatter", "heatmap", "table"}, "type": "string"}}, "required": []any{"view"}, "type": "object"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "alarms"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"filter_state": map[string]any{"enum": []any{"all", "triggered", "ok"}, "type": "string"}, "limit": map[string]any{"minimum": 1, "type": "integer"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "errors"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"limit": map[string]any{"minimum": 1, "type": "integer"}, "query": map[string]any{"type": "string"}, "sort": map[string]any{"enum": []any{"last_seen_desc", "last_seen_asc", "times_desc", "times_asc"}, "type": "string"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "deployments"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"limit": map[string]any{"minimum": 1, "type": "integer"}, "override_time": map[string]any{"type": "boolean"}, "ts": map[string]any{"type": "string"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "checkins"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"limit": map[string]any{"minimum": 1, "type": "integer"}, "sort_order": map[string]any{"enum": []any{"state_name", "name", "last_reported"}, "type": "string"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "uptime"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"limit": map[string]any{"minimum": 1, "type": "integer"}}}}}}}, "properties": map[string]any{"config": map[string]any{"additionalProperties": true, "type": "object"}, "grid": map[string]any{"additionalProperties": false, "default": map[string]any{"h": 3, "w": 12, "x": 0, "y": 0}, "properties": map[string]any{"h": map[string]any{"minimum": 1, "type": "integer"}, "w": map[string]any{"minimum": 1, "type": "integer"}, "x": map[string]any{"minimum": 0, "type": "integer"}, "y": map[string]any{"minimum": 0, "type": "integer"}}, "type": "object"}, "id": map[string]any{"type": "string"}, "presentation": map[string]any{"additionalProperties": false, "properties": map[string]any{"subtitle": map[string]any{"maxLength": 255, "type": "string"}, "title": map[string]any{"maxLength": 255, "type": "string"}}, "type": "object"}, "type": map[string]any{"enum": []any{"insights_vis", "alarms", "deployments", "checkins", "uptime", "errors"}, "type": "string"}}, "required": []any{"type"}, "type": "object"}, "type": "array"}}, "required": []any{"project_id", "title"}, "type": "object"},
+	"create_integration": map[string]any{"additionalProperties": false, "allOf": []any{map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "CampfireV3"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"chatbot_url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"chatbot_url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Datadog"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "endpoint": map[string]any{"default": "US1", "enum": []any{"US1", "US3", "US5", "US1-FED", "EU1", "AP1", nil}, "type": []any{"string", "null"}}, "label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "send_metrics": map[string]any{"type": []any{"boolean", "null"}}}, "type": "object"}, map[string]any{"required": []any{"api_key"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "DiscordWebhook"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Github"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"issue_fields": map[string]any{"type": []any{"string", "null"}}, "issue_type": map[string]any{"type": []any{"string", "null"}}, "labels": map[string]any{"type": []any{"string", "null"}}, "repo": map[string]any{"type": []any{"string", "null"}}, "rich_body": map[string]any{"type": []any{"boolean", "null"}}, "title_format": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"repo"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Gitlab"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"labels": map[string]any{"type": []any{"string", "null"}}, "personal_access_token": map[string]any{"format": "password", "type": []any{"string", "null"}}, "repo": map[string]any{"type": []any{"string", "null"}}, "rich_body": map[string]any{"type": []any{"boolean", "null"}}, "server_url": map[string]any{"default": "https://gitlab.com", "type": []any{"string", "null"}}, "title_format": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"repo"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Bitbucket"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"repo": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"repo"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Asana"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"asana_project_id": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"asana_project_id"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Jira"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"component_names": map[string]any{"type": []any{"string", "null"}}, "issue_type": map[string]any{"default": "Bug", "type": []any{"string", "null"}}, "labels": map[string]any{"type": []any{"string", "null"}}, "password": map[string]any{"format": "password", "type": []any{"string", "null"}}, "project_key": map[string]any{"type": []any{"string", "null"}}, "reopen_transition": map[string]any{"default": "3", "type": []any{"string", "null"}}, "resolve_transition": map[string]any{"default": "5", "type": []any{"string", "null"}}, "rich_body": map[string]any{"type": []any{"boolean", "null"}}, "server_url": map[string]any{"type": []any{"string", "null"}}, "summary_format": map[string]any{"type": []any{"string", "null"}}, "username": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"username", "password", "server_url", "project_key"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "JiraCloud"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"component_names": map[string]any{"type": []any{"string", "null"}}, "issue_type": map[string]any{"default": "Bug", "type": []any{"string", "null"}}, "labels": map[string]any{"type": []any{"string", "null"}}, "project_key": map[string]any{"type": []any{"string", "null"}}, "reopen_transition": map[string]any{"default": "3", "type": []any{"string", "null"}}, "resolve_transition": map[string]any{"default": "5", "type": []any{"string", "null"}}, "rich_body": map[string]any{"type": []any{"boolean", "null"}}, "summary_format": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"project_key"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "OpsGenieV2"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "endpoint": map[string]any{"default": "US", "enum": []any{"US", "EU", "Sandbox", nil}, "type": []any{"string", "null"}}, "label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"api_key"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Redmine"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "reopen_transition": map[string]any{"default": "4", "type": []any{"string", "null"}}, "resolve_transition": map[string]any{"default": "3", "type": []any{"string", "null"}}, "server_url": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"server_url", "api_key"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "PagerDutyV2"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"integration_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "severity": map[string]any{"default": "error", "enum": []any{"critical", "error", "warning", "info", nil}, "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"integration_key"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "resolved", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Sprintly"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"account_email": map[string]any{"type": []any{"string", "null"}}, "api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "product_id": map[string]any{"type": []any{"string", "null"}}, "tags": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"account_email", "api_key", "product_id"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Trello"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"board_id": map[string]any{"type": []any{"string", "null"}}, "list_id": map[string]any{"type": []any{"string", "null"}}, "title_format": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"board_id", "list_id"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Linear"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"description_format": map[string]any{"default": "[class]: [message]\n\nBacktrace:\n\n[backtrace]\n\nView full backtrace and more info at honeybadger.io: [url]", "type": []any{"string", "null"}}, "label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "label_ids": map[string]any{"items": map[string]any{"type": "string"}, "type": []any{"array", "null"}}, "linear_project_id": map[string]any{"type": []any{"string", "null"}}, "resolved_state_id": map[string]any{"type": []any{"string", "null"}}, "team_id": map[string]any{"type": []any{"string", "null"}}, "title_format": map[string]any{"default": "[[project]] Occurred: [class] ([fault_id])", "type": []any{"string", "null"}}, "unresolved_state_id": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"team_id"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Slack"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"additionalProperties": false, "properties": map[string]any{"disable_backtrace": map[string]any{"type": []any{"boolean", "null"}}, "label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}}, "type": "object"}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Mattermost"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "GoogleHangoutsChat"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "VictorOps"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "routing_key": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"api_key"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "up", "down", "cert_will_expire", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "WebHook"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"bearer_token": map[string]any{"format": "password", "type": []any{"string", "null"}}, "label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "payload_version": map[string]any{"default": "v2", "enum": []any{"v2", "v3", nil}, "type": []any{"string", "null"}}, "url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Email"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"email": map[string]any{"type": []any{"string", "null"}}, "email_subject": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"email"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Intercom"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"context_field": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"context_field"}}}}, "events": map[string]any{"maxItems": 0}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "AlertOps"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "MicrosoftTeamsV2"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "ShortcutV2"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "custom_fields": map[string]any{"type": []any{"string", "null"}}, "description_format": map[string]any{"default": "[class]: [message]\n\nBacktrace:\n\n[backtrace]\n\nView full backtrace and more info at honeybadger.io: [url]", "type": []any{"string", "null"}}, "initial_state": map[string]any{"type": []any{"string", "null"}}, "organization_name": map[string]any{"type": []any{"string", "null"}}, "reopen_transition": map[string]any{"type": []any{"string", "null"}}, "resolve_transition": map[string]any{"type": []any{"string", "null"}}, "team": map[string]any{"type": []any{"string", "null"}}, "title_format": map[string]any{"default": "[[project]] Occurred: [class] ([fault_id])", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"organization_name", "api_key", "team", "initial_state", "resolve_transition", "reopen_transition"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "PagerTree"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Instatus"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"up", "down"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "ClickUp"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"description_format": map[string]any{"default": "[class]: [message]\n\nBacktrace:\n\n[backtrace]\n\nView full backtrace and more info at honeybadger.io: [url]", "type": []any{"string", "null"}}, "folder_id": map[string]any{"type": []any{"string", "null"}}, "initial_status_id": map[string]any{"type": []any{"string", "null"}}, "list_id": map[string]any{"type": []any{"string", "null"}}, "reopen_status_id": map[string]any{"type": []any{"string", "null"}}, "resolve_status_id": map[string]any{"type": []any{"string", "null"}}, "tags": map[string]any{"type": []any{"string", "null"}}, "teamspace_id": map[string]any{"type": []any{"string", "null"}}, "title_format": map[string]any{"default": "[[project]] Occurred: [class] ([fault_id])", "type": []any{"string", "null"}}, "workspace_id": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"workspace_id", "teamspace_id", "list_id", "initial_status_id", "resolve_status_id", "reopen_status_id"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "ClickUpChat"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"channel_id": map[string]any{"type": []any{"string", "null"}}, "workspace_id": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"workspace_id", "channel_id"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Ilert"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "url": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"url"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Zulip"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "bot_email": map[string]any{"type": []any{"string", "null"}}, "channel": map[string]any{"type": []any{"string", "null"}}, "server_url": map[string]any{"type": []any{"string", "null"}}, "topic": map[string]any{"type": []any{"string", "null"}}, "zulip_domain": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"bot_email", "api_key", "channel", "topic"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "IncidentIo"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"alert_source_label": map[string]any{"type": []any{"string", "null"}}, "api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"api_key", "alert_source_label"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "resolved", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Rootly"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "notification_target_id": map[string]any{"type": []any{"string", "null"}}, "notification_target_type": map[string]any{"enum": []any{"service", "team", "escalationPolicy", nil}, "type": []any{"string", "null"}}, "webhook_authorization_token": map[string]any{"format": "password", "type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"webhook_authorization_token"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}}}}, "required": []any{"config"}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "Backlog"}}, "required": []any{"type"}}, "then": map[string]any{"properties": map[string]any{"active": map[string]any{"default": true}, "config": map[string]any{"allOf": []any{map[string]any{"additionalProperties": false, "properties": map[string]any{"api_key": map[string]any{"format": "password", "type": []any{"string", "null"}}, "backlog_project_id": map[string]any{"type": []any{"string", "null"}}, "description_format": map[string]any{"type": []any{"string", "null"}}, "enable_webhook": map[string]any{"default": true, "type": []any{"boolean", "null"}}, "issue_type_id": map[string]any{"type": []any{"string", "null"}}, "label": map[string]any{"maxLength": 100, "type": []any{"string", "null"}}, "priority_id": map[string]any{"type": []any{"string", "null"}}, "reopen_status_id": map[string]any{"type": []any{"string", "null"}}, "resolve_status_id": map[string]any{"type": []any{"string", "null"}}, "space_url": map[string]any{"type": []any{"string", "null"}}, "subject_format": map[string]any{"type": []any{"string", "null"}}}, "type": "object"}, map[string]any{"required": []any{"space_url", "api_key", "backlog_project_id", "issue_type_id", "priority_id", "resolve_status_id", "reopen_status_id"}}}}, "events": map[string]any{"items": map[string]any{"enum": []any{"occurred", "resolved", "unresolved", "rate_exceeded"}}}}, "required": []any{"config"}}}}, "properties": map[string]any{"active": map[string]any{"description": "Whether the integration sends notifications", "type": "boolean"}, "alarm_alert_ids": map[string]any{"default": []any{}, "description": "Alarms whose alert events notify", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}}, "alarm_ok_ids": map[string]any{"default": []any{}, "description": "Alarms whose recovery events notify", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}}, "check_in_ids": map[string]any{"description": "Check-ins whose events notify. null follows every check-in in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every check-in; on update, omit to leave it as it is. An ID from outside the project is refused.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}}, "config": map[string]any{"additionalProperties": true, "description": "Object of the type's own settings, e.g. {\"url\":\"https://example.com/hook\",\"label\":\"Deploys\"} for WebHook or {\"integration_key\":\"...\"} for PagerDutyV2. The shared settings (events, site_ids and the rest) are separate parameters, not part of config.", "type": "object"}, "events": map[string]any{"description": "Event names to notify on, e.g. occurred, resolved, assigned, down, check_in_missing. Adding one the type doesn't support is refused. Omit on create, or send null, for the type's defaults.", "items": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike"}, "type": "string"}, "type": []any{"array", "null"}}, "excluded_environments": map[string]any{"default": []any{}, "description": "Environments that never notify; wins over included_environments. Names are stored as given, so one can be excluded before it first reports.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}}, "filters": map[string]any{"default": []any{}, "description": "Ordered list of {\"event\": ..., \"query\": ...} objects: each event with a filter notifies only for errors matching its query. event is an event name, or \"all\" for every event. Replaces the stored filters; send [] or null to clear them.", "items": map[string]any{"additionalProperties": false, "properties": map[string]any{"event": map[string]any{"enum": []any{"occurred", "rate_exceeded", "assigned", "resolved", "unresolved", "commented", "deployed", "up", "down", "cert_will_expire", "flooded", "check_in_missing", "check_in_reporting", "alarm_alert", "alarm_ok", "volume_spike", "all"}, "type": "string"}, "query": map[string]any{"minLength": 1, "type": "string"}}, "required": []any{"event", "query"}, "type": "object"}, "type": []any{"array", "null"}}, "included_environments": map[string]any{"default": []any{}, "description": "When non-empty, the only environments that notify, including ones that haven't reported yet. Empty means every environment not excluded.", "items": map[string]any{"type": "string"}, "type": []any{"array", "null"}}, "notification_limit": map[string]any{"description": "Most notifications in a 10-minute window before flood control (the flooded event) steps in", "type": []any{"integer", "null"}}, "project_id": map[string]any{"description": "The ID of the project to create the integration in", "type": "string"}, "rate": map[string]any{"default": "wday", "description": "Period the rate_exceeded threshold counts over: min a minute, hour an hour, wday a day (24 hours, not a weekday), week a week", "enum": []any{"min", "hour", "wday", "week", nil}, "type": []any{"string", "null"}}, "site_ids": map[string]any{"description": "Uptime sites whose up and down events notify. null follows every site in the project, including ones added later; [] follows none; a list follows just those. On create, omit to follow every site; on update, omit to leave it as it is. An ID from outside the project is refused.", "items": map[string]any{"format": "uuid", "type": "string"}, "type": []any{"array", "null"}}, "threshold": map[string]any{"default": 100, "description": "Occurrences within rate before rate_exceeded fires; must be greater than 0", "type": []any{"integer", "null"}}, "type": map[string]any{"description": "Integration type: WebHook, Email, PagerDutyV2, Slack, and so on. OAuth types (Slack, GitHub and the like) are created unconnected: send the user to the result's links.web to connect it. They can be active from the start; they send nothing until connected.", "enum": []any{"CampfireV3", "Datadog", "DiscordWebhook", "Github", "Gitlab", "Bitbucket", "Asana", "Jira", "JiraCloud", "OpsGenieV2", "Redmine", "PagerDutyV2", "Sprintly", "Trello", "Linear", "Slack", "Mattermost", "GoogleHangoutsChat", "VictorOps", "WebHook", "Email", "Intercom", "AlertOps", "MicrosoftTeamsV2", "ShortcutV2", "PagerTree", "Instatus", "ClickUp", "ClickUpChat", "Ilert", "Zulip", "IncidentIo", "Rootly", "Backlog"}, "type": "string"}}, "required": []any{"project_id", "type"}, "type": "object"},
+	"update_alarm":       map[string]any{"additionalProperties": false, "properties": map[string]any{"alarm_id": map[string]any{"description": "The ID of the alarm to update", "type": "string"}, "description": map[string]any{"description": "A new description. Pass an empty string to clear it.", "type": []any{"string", "null"}}, "evaluation_period": map[string]any{"description": "A new evaluation window, as a compact duration: '5m', '10m', '1h', '1d'.", "pattern": "^\\d+[smhd]$", "type": "string"}, "lookback_lag": map[string]any{"description": "A new lookback lag, in the same compact format ('1m').", "pattern": "^\\d+[smhdw]$", "type": "string"}, "name": map[string]any{"description": "A new name for the alarm", "type": "string"}, "project_id": map[string]any{"description": "The ID of the project the alarm belongs to", "type": "string"}, "query": map[string]any{"description": "A new BadgerQL query. Verify it via query_insights first.", "type": "string"}, "stream_ids": map[string]any{"description": "Array of stream IDs, replacing the current set; it must name at least one. Send null to reset the alarm to every current stream on the project. Use the opaque IDs from list_streams, not slugs like \"default\": an ID that isn't one of the project's streams is refused with 422.", "items": map[string]any{"type": "string"}, "minItems": 1, "type": []any{"array", "null"}}, "trigger_config": map[string]any{"additionalProperties": false, "description": "Object replacing the whole trigger, in the shape create_alarm takes.", "properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"operator": map[string]any{"enum": []any{"gt", "gte", "lt", "lte", "eq", "neq"}, "type": "string"}, "value": map[string]any{"format": "double", "type": "number"}}, "required": []any{"operator", "value"}, "type": "object"}, "type": map[string]any{"enum": []any{"alert_result_count"}, "type": "string"}}, "required": []any{"type", "config"}, "type": "object"}}, "required": []any{"alarm_id", "project_id"}, "type": "object"},
+	"update_dashboard":   map[string]any{"additionalProperties": false, "properties": map[string]any{"dashboard_id": map[string]any{"description": "The ID of the dashboard to update", "type": "string"}, "default_ts": map[string]any{"description": "Default time range for the dashboard. ISO 8601 duration (e.g. P1D, PT3H) or a keyword (today, yesterday, week, month). Pass an empty string to clear it.", "type": []any{"string", "null"}}, "project_id": map[string]any{"description": "The ID of the project the dashboard belongs to", "type": "string"}, "title": map[string]any{"description": "A new title for the dashboard", "maxLength": 255, "type": "string"}, "widgets": map[string]any{"default": []any{}, "description": "Array of widget objects replacing the dashboard's widgets: one left out is removed, and one keeps its identity only when sent with the id get_dashboard returned. Omit to leave them as they are.", "items": map[string]any{"additionalProperties": false, "allOf": []any{map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "insights_vis"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"query": map[string]any{"type": "string"}, "streams": map[string]any{"items": map[string]any{"enum": []any{"default", "internal"}, "type": "string"}, "type": "array"}, "vis": map[string]any{"additionalProperties": false, "allOf": []any{map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "table"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "billboard"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "if": map[string]any{"properties": map[string]any{"groupType": map[string]any{"const": "events"}}, "required": []any{"groupType"}}, "properties": map[string]any{"groupType": map[string]any{"enum": []any{"fields", "events"}, "type": "string"}, "statusField": map[string]any{"type": "string"}, "subtitleField": map[string]any{"type": "string"}, "titleField": map[string]any{"type": "string"}, "titleURLField": map[string]any{"type": "string"}, "valueField": map[string]any{"type": "string"}}, "then": map[string]any{"required": []any{"valueField"}}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "bar"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"categoryField": map[string]any{"type": "string"}, "groupField": map[string]any{"type": "string"}, "groupType": map[string]any{"enum": []any{"fields", "events"}, "type": "string"}, "groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "horizontal": map[string]any{"type": "boolean"}, "labelField": map[string]any{"type": "string"}, "stacked": map[string]any{"type": "boolean"}, "valueField": map[string]any{"type": "string"}, "valueFieldUnit": map[string]any{"type": "string"}}, "required": []any{"categoryField", "valueField"}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "line"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "if": map[string]any{"properties": map[string]any{"groupType": map[string]any{"const": "events"}}, "required": []any{"groupType"}}, "properties": map[string]any{"colorField": map[string]any{"type": "string"}, "groupType": map[string]any{"enum": []any{"fields", "events"}, "type": "string"}, "groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"axis": map[string]any{"enum": []any{"left", "right"}, "type": "string"}, "color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "rightYAxisFormat": map[string]any{"type": "string"}, "rightYAxisLabel": map[string]any{"type": "string"}, "rightYAxisMax": map[string]any{"type": "number"}, "rightYAxisMin": map[string]any{"type": "number"}, "xField": map[string]any{"type": "string"}, "xFieldUnit": map[string]any{"type": "string"}, "yAxisLabel": map[string]any{"type": "string"}, "yAxisMax": map[string]any{"type": "number"}, "yAxisMin": map[string]any{"type": "number"}, "yField": map[string]any{"type": "string"}, "yFieldUnit": map[string]any{"type": "string"}, "zField": map[string]any{"type": "string"}}, "then": map[string]any{"required": []any{"yField"}}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "area"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "if": map[string]any{"properties": map[string]any{"groupType": map[string]any{"const": "events"}}, "required": []any{"groupType"}}, "properties": map[string]any{"groupType": map[string]any{"enum": []any{"fields", "events"}, "type": "string"}, "groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "stacked": map[string]any{"type": "boolean"}, "xField": map[string]any{"type": "string"}, "yField": map[string]any{"type": "string"}, "zField": map[string]any{"type": "string"}}, "then": map[string]any{"required": []any{"yField"}}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "histogram"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "xField": map[string]any{"type": "string"}, "xFieldUnit": map[string]any{"type": "string"}, "yField": map[string]any{"type": "string"}, "yFieldUnit": map[string]any{"type": "string"}, "zField": map[string]any{"type": "string"}}, "required": []any{"xField", "yField"}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "scatter"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"groupField": map[string]any{"type": "string"}, "groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "scaleField": map[string]any{"type": "string"}, "xField": map[string]any{"type": "string"}, "yField": map[string]any{"type": "string"}}, "required": []any{"xField", "yField"}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "heatmap"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "steps": map[string]any{"minimum": 1, "type": "integer"}, "xField": map[string]any{"type": "string"}, "yField": map[string]any{"type": "string"}, "yFieldUnit": map[string]any{"type": "string"}, "zField": map[string]any{"type": "string"}}, "required": []any{"xField", "yField", "zField"}, "type": "object"}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"view": map[string]any{"const": "pie"}}}, "then": map[string]any{"properties": map[string]any{"chart_config": map[string]any{"additionalProperties": false, "properties": map[string]any{"groups": map[string]any{"patternProperties": map[string]any{"^.*$": map[string]any{"additionalProperties": false, "properties": map[string]any{"color": map[string]any{"type": "string"}}, "type": "object"}}, "type": "object"}, "nameField": map[string]any{"type": "string"}, "valueField": map[string]any{"type": "string"}}, "required": []any{"nameField", "valueField"}, "type": "object"}}}}}, "properties": map[string]any{"chart_config": map[string]any{"type": "object"}, "view": map[string]any{"enum": []any{"billboard", "bar", "line", "pie", "area", "histogram", "scatter", "heatmap", "table"}, "type": "string"}}, "required": []any{"view"}, "type": "object"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "alarms"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"filter_state": map[string]any{"enum": []any{"all", "triggered", "ok"}, "type": "string"}, "limit": map[string]any{"minimum": 1, "type": "integer"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "errors"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"limit": map[string]any{"minimum": 1, "type": "integer"}, "query": map[string]any{"type": "string"}, "sort": map[string]any{"enum": []any{"last_seen_desc", "last_seen_asc", "times_desc", "times_asc"}, "type": "string"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "deployments"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"limit": map[string]any{"minimum": 1, "type": "integer"}, "override_time": map[string]any{"type": "boolean"}, "ts": map[string]any{"type": "string"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "checkins"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"limit": map[string]any{"minimum": 1, "type": "integer"}, "sort_order": map[string]any{"enum": []any{"state_name", "name", "last_reported"}, "type": "string"}}}}}}, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": "uptime"}}}, "then": map[string]any{"properties": map[string]any{"config": map[string]any{"additionalProperties": false, "properties": map[string]any{"limit": map[string]any{"minimum": 1, "type": "integer"}}}}}}}, "properties": map[string]any{"config": map[string]any{"additionalProperties": true, "type": "object"}, "grid": map[string]any{"additionalProperties": false, "default": map[string]any{"h": 3, "w": 12, "x": 0, "y": 0}, "properties": map[string]any{"h": map[string]any{"minimum": 1, "type": "integer"}, "w": map[string]any{"minimum": 1, "type": "integer"}, "x": map[string]any{"minimum": 0, "type": "integer"}, "y": map[string]any{"minimum": 0, "type": "integer"}}, "type": "object"}, "id": map[string]any{"type": "string"}, "presentation": map[string]any{"additionalProperties": false, "properties": map[string]any{"subtitle": map[string]any{"maxLength": 255, "type": "string"}, "title": map[string]any{"maxLength": 255, "type": "string"}}, "type": "object"}, "type": map[string]any{"enum": []any{"insights_vis", "alarms", "deployments", "checkins", "uptime", "errors"}, "type": "string"}}, "required": []any{"type"}, "type": "object"}, "type": "array"}}, "required": []any{"dashboard_id", "project_id"}, "type": "object"},
+}
 
 // generatedShallowTopics names, per tool and parameter, the get_reference
 // topic that describes a shallow parameter's shape.
-var generatedShallowTopics = map[string]map[string]string{}
+var generatedShallowTopics = map[string]map[string]string{
+	"create_alarm":     {"trigger_config": "alarms"},
+	"create_dashboard": {"widgets": "dashboards"},
+	"update_alarm":     {"trigger_config": "alarms"},
+	"update_dashboard": {"widgets": "dashboards"},
+}
 
 // generatedHandwritten are the tools whose definitions stay in Go.
 var generatedHandwritten = []string{"get_reference", "search_tools", "update_fault"}

@@ -9,18 +9,6 @@ import (
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 )
 
-// notYetGenerated are the tools still defined in Go while the overlay grows a
-// domain at a time. It shrinks to nothing; then every tool is generated or
-// listed as hand-written in openapi/tools.yaml.
-var notYetGenerated = []string{
-	"get_project_integrations",
-	"list_dashboards", "get_dashboard", "create_dashboard", "update_dashboard", "delete_dashboard",
-	"list_alarms", "get_alarm", "get_alarm_history", "create_alarm", "update_alarm", "delete_alarm",
-	"get_integration", "create_integration", "update_integration", "delete_integration",
-	"list_ingestion_keys", "create_ingestion_key", "update_ingestion_key", "delete_ingestion_key",
-	"query_insights", "list_streams",
-}
-
 // Every registered tool comes from the overlay, generated or hand-written, and
 // every generated tool is registered with exactly its generated definition.
 func TestToolsComeFromTheOverlay(t *testing.T) {
@@ -32,7 +20,7 @@ func TestToolsComeFromTheOverlay(t *testing.T) {
 			if !reflect.DeepEqual(st.Tool, gen) {
 				t.Errorf("%s is registered with a definition other than the generated one", name)
 			}
-		case slices.Contains(generatedHandwritten, name), slices.Contains(notYetGenerated, name):
+		case slices.Contains(generatedHandwritten, name):
 		default:
 			t.Errorf("%s isn't in openapi/tools.yaml", name)
 		}
