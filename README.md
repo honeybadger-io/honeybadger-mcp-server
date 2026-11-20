@@ -248,6 +248,8 @@ This version talks to Honeybadger's v3 Data API. If you're upgrading:
   | `notices_by_location` | Notice events have no component or action. The nearest grouping is the top backtrace file: `filter event_type::str == "notice" \| stats count() as notices by file::str as file \| sort notices desc` |
 
 - **Parameters v3 can't honour are refused**, not ignored: `account_id` (the account comes from the credential), `created_after`/`created_before` on `list_fault_notices`, `query` on `list_streams`, and an integration's `filter_events`, `filter_queries`, `all_sites` and `all_check_ins` (now `filters`, and `site_ids`/`check_in_ids` set to null).
+- **Arguments are checked before a tool runs.** An unknown, misspelled or wrongly typed argument is refused with a message naming the field and the fix, instead of being dropped while the call reports success. If a client's cached tool list is out of date, reconnect to refresh it.
+- **Parameters follow the v3 spec's names and types:** `get_project`, `update_project` and `delete_project` take `project_id` (not `id`); `list_faults` takes `per_page` (not `limit`); `trigger_config`, `config`, `widgets` and `stream_ids` take the JSON object or array itself, not a string holding it; IDs, including `fault_id`, are strings.
 
 ## Tools
 
