@@ -46,6 +46,15 @@ type Tool struct {
 	StrictSchema map[string]any
 	// Shallow maps a parameter to the get_reference topic describing its shape.
 	Shallow map[string]string
+	// Wire says where the API takes each parameter, by MCP name.
+	Wire map[string]Wire
+}
+
+// Wire is where an operation takes a parameter: In is path, query or body,
+// and Name is the spec's name, which a rename makes differ from the tool's.
+type Wire struct {
+	In   string
+	Name string
 }
 
 type toolSpec struct {
@@ -113,7 +122,8 @@ func build(bundle, overlay []byte) ([]Tool, []string, error) {
 // param is one tool input gathered from an operation.
 type param struct {
 	schema   map[string]any
-	required int // how many of the tool's operations require it
+	required int    // how many of the tool's operations require it
+	in       string // path, query or body
 }
 
 // toolBuilder builds one tool, collecting every problem rather than stopping
@@ -141,6 +151,7 @@ func (d *spec) buildTool(name string, spec toolSpec) (Tool, []string) {
 	advertised := map[string]any{}
 	strict := map[string]any{}
 	shallow := map[string]string{}
+	wire := map[string]Wire{}
 	var required []any
 	for _, pname := range sortedKeys(params) {
 		ps := spec.Params[pname]
@@ -156,6 +167,7 @@ func (d *spec) buildTool(name string, spec toolSpec) (Tool, []string) {
 			mcpName = ps.Rename
 		}
 		advertised[mcpName] = shown
+		wire[mcpName] = Wire{In: params[pname].in, Name: pname}
 		strict[mcpName] = full
 		if ps.Shallow != "" {
 			shallow[pname] = ps.Shallow
@@ -173,6 +185,7 @@ func (d *spec) buildTool(name string, spec toolSpec) (Tool, []string) {
 		ReadOnly:    readOnly(ops),
 		Confirm:     spec.Confirm,
 		Schema:      objectSchema(advertised, required),
+		Wire:        wire,
 	}
 	var rules []any
 	for _, op := range ops {
@@ -221,7 +234,7 @@ func (b *toolBuilder) mergeParams(ops []*operation) map[string]*param {
 		for pname, p := range op.params {
 			have, ok := params[pname]
 			if !ok {
-				params[pname] = &param{schema: p.schema, required: p.required}
+				params[pname] = &param{schema: p.schema, required: p.required, in: p.in}
 				continue
 			}
 			if !reflect.DeepEqual(have.schema, p.schema) {

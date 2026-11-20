@@ -89,7 +89,7 @@ func (d *spec) describe(method string, shared []any, raw map[string]any, default
 			if in == "path" || p["required"] == true {
 				required = 1
 			}
-			op.params[name] = param{schema: schema, required: required}
+			op.params[name] = param{schema: schema, required: required, in: in}
 		}
 	}
 
@@ -147,7 +147,7 @@ func (d *spec) addBodyParams(op *operation, requestBody any) {
 	b.add(schema)
 	op.rules = b.rules
 	for name, s := range b.props {
-		p := param{schema: s.(map[string]any)}
+		p := param{schema: s.(map[string]any), in: "body"}
 		if b.required[name] {
 			p.required = 1
 		}

@@ -393,3 +393,30 @@ update_widget:
 		t.Errorf("update_widget.note default = %v, want none on a PATCH", got)
 	}
 }
+
+// Each parameter records where the API takes it and under which name, so a
+// test can check every advertised parameter reaches the request.
+func TestToolsRecordWhereEachParameterGoes(t *testing.T) {
+	tool := buildOne(t, `
+list_widgets:
+  operation: listWidgets
+  title: List Widgets
+  description: List widgets.
+  params:
+    project_id: { description: x }
+    since: { description: x, as: date, reason: x }
+    label: { exclude: x }
+    per_page: { description: x, rename: limit, reason: x }
+`)
+	want := map[string]Wire{
+		"project_id": {In: "path", Name: "project_id"},
+		"since":      {In: "query", Name: "since"},
+		"limit":      {In: "query", Name: "per_page"},
+	}
+	if !reflect.DeepEqual(tool.Wire, want) {
+		t.Errorf("Wire = %v, want %v", tool.Wire, want)
+	}
+	if got := buildOne(t, createWidget).Wire["name"]; got != (Wire{In: "body", Name: "name"}) {
+		t.Errorf("create_widget name = %v, want body", got)
+	}
+}
