@@ -1,0 +1,222 @@
+openapi: 3.1.0
+info:
+  title: fixture
+  version: "1"
+security:
+- bearer_auth: []
+paths:
+  "/projects/{project_id}/widgets":
+    parameters:
+    - name: project_id
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: listWidgets
+      security:
+      - bearer_auth:
+        - widgets:read
+      parameters:
+      - name: since
+        in: query
+        description: Unix seconds.
+        schema:
+          type: number
+          format: double
+      - name: label
+        in: query
+        schema:
+          type: string
+      - name: per_page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+    post:
+      operationId: createWidget
+      security:
+      - bearer_auth:
+        - widgets:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/WidgetInput"
+  "/projects/{project_id}/widgets/{widget_id}":
+    parameters:
+    - name: project_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: widget_id
+      in: path
+      required: true
+      schema:
+        type: string
+    delete:
+      operationId: deleteWidget
+      security:
+      - bearer_auth:
+        - widgets:write
+    patch:
+      operationId: updateWidget
+      security:
+      - bearer_auth:
+        - widgets:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+              - "$ref": "#/components/schemas/Part"
+              - type: object
+                required:
+                - weight
+                properties:
+                  note:
+                    type: string
+  "/projects/{project_id}/counts":
+    get:
+      operationId: getProjectCounts
+      security:
+      - bearer_auth:
+        - counts:read
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: period
+        in: query
+        schema:
+          type: string
+          enum:
+          - day
+          - week
+  "/counts":
+    get:
+      operationId: listAccountCounts
+      security:
+      - bearer_auth:
+        - counts:read
+      parameters:
+      - name: period
+        in: query
+        schema:
+          type: string
+          enum:
+          - day
+          - week
+  "/counts/by-size":
+    get:
+      operationId: listCountsBySize
+      security:
+      - bearer_auth:
+        - counts:read
+      parameters:
+      - name: period
+        in: query
+        schema:
+          type: integer
+  "/widgets/search":
+    post:
+      operationId: searchWidgets
+      security:
+      - bearer_auth:
+        - widgets:read
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                q:
+                  type: string
+components:
+  securitySchemes:
+    bearer_auth:
+      type: http
+      scheme: bearer
+  schemas:
+    WidgetInput:
+      type: object
+      required:
+      - name
+      - id
+      allOf:
+      - if:
+          properties:
+            kind:
+              const: b
+        then:
+          required:
+          - size
+      properties:
+        id:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          description: Shown to humans.
+          example: Gizmo
+        color:
+          anyOf:
+          - "$ref": "#/components/schemas/Color"
+          - type: 'null'
+        size:
+          type:
+          - integer
+          - 'null'
+          x-hb:
+            group: Widgets
+        parts:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Part"
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        kind:
+          description: The kind.
+          allOf:
+          - "$ref": "#/components/schemas/Kind"
+    Color:
+      type: string
+      enum:
+      - red
+      - blue
+    Kind:
+      type: string
+      enum:
+      - a
+      - b
+    Part:
+      type: object
+      required:
+      - label
+      properties:
+        label:
+          type: string
+          description: Part label.
+        weight:
+          type: number
+      allOf:
+      - if:
+          properties:
+            label:
+              const: heavy
+        then:
+          properties:
+            weight:
+              "$ref": "#/components/schemas/Weight"
+          required:
+          - label
+    Weight:
+      type: number
+      minimum: 10
