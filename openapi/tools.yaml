@@ -50,8 +50,7 @@ create_project:
     disable_public_links: { description: Whether to allow fault details to be publicly shareable via a button on the fault detail page }
     user_url: { description: "A URL format like 'http://example.com/admin/users/[user_id]' that will be displayed on the fault detail page" }
     source_url:
-      description: "A URL format like 'https://gitlab.com/username/reponame/blob/[sha]/[file]#L[line]' that is used to link lines in the backtrace to your git browser"
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Link format for backtrace lines, e.g. 'https://gitlab.com/u/r/blob/[sha]/[file]#L[line]'."
     purge_days: { description: The number of days to retain data (up to the max number of days available to your subscription plan) }
     user_search_field: { description: "A field such as 'context.user_email' that you provide in your error context" }
     language: { description: "Primary language, used to format backtraces." }
@@ -70,11 +69,9 @@ update_project:
     resolve_errors_on_deploy: { description: Whether all unresolved faults should be marked as resolved when a deploy is recorded }
     disable_public_links: { description: Whether to allow fault details to be publicly shareable via a button on the fault detail page }
     user_url:
-      description: "A URL format like 'http://example.com/admin/users/[user_id]' that will be displayed on the fault detail page. Null clears it."
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "User link shown on faults, e.g. 'http://example.com/admin/users/[user_id]'. Null clears it."
     source_url:
-      description: "A URL format like 'https://gitlab.com/username/reponame/blob/[sha]/[file]#L[line]' that is used to link lines in the backtrace to your git browser. Null clears it."
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Link format for backtrace lines, e.g. 'https://gitlab.com/u/r/blob/[sha]/[file]#L[line]'. Null clears it."
     purge_days: { description: The number of days to retain data (up to the max number of days available to your subscription plan) }
     user_search_field: { description: "A field such as 'context.user_email' that you provide in your error context. Null clears it." }
     language: { description: "Primary language, used to format backtraces. Null clears it." }
@@ -96,8 +93,7 @@ get_project_occurrence_counts:
   params:
     project_id: { description: Optional project ID. Omit to report across every project the credential can reach. }
     period:
-      description: "Window to report over: 'hour' (61 one-minute buckets), 'day' (25 hourly), 'week' (8 daily), or 'month' (31 daily). Defaults to 'hour'"
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "hour (61 one-minute buckets), day (25 hourly), week (8 daily) or month (31 daily). Defaults to hour."
     environment: { description: Optional environment name to filter results }
     page: { exclude: The tool returns every project's series. }
     per_page: { exclude: The tool returns every project's series. }
@@ -112,18 +108,15 @@ list_faults:
     project_id: { description: The ID of the project to get faults for }
     q: { description: Search string to filter faults (see the errors reference topic for the search query syntax) }
     created_after: &created_after
-      description: "Filter faults created after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Faults created after this time: RFC 3339, or a date (YYYY-MM-DD, midnight UTC)."
       as: date
       reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
     occurred_after: &occurred_after
-      description: "Filter faults that occurred after this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Faults that occurred after this time: RFC 3339, or a date (YYYY-MM-DD, midnight UTC)."
       as: date
       reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
     occurred_before: &occurred_before
-      description: "Filter faults that occurred before this time: an RFC 3339 timestamp (2026-01-02T15:04:05Z) or a date (2026-01-02, midnight UTC)"
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Faults that occurred before this time: RFC 3339, or a date (YYYY-MM-DD, midnight UTC)."
       as: date
       reason: Agents write dates reliably and Unix seconds unreliably; the handler converts.
     order: { description: "Order results by 'recent' or 'frequent'" }
@@ -161,8 +154,7 @@ list_fault_notices:
     before: { description: "Cursor for older notices: pass time_series.oldest_cursor from the previous response" }
     after: { description: "Cursor for newer notices: pass time_series.newest_cursor from the previous response" }
     breadcrumbs:
-      description: "Include each notice's breadcrumbs: the clicks, logs, requests and other events recorded before the error, oldest first. Off by default because each trail can hold up to 40 entries"
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Include each notice's breadcrumbs: events before the error, oldest first, up to 40 each. Off by default."
     unmapped: { exclude: api-go has no option for it. }
 
 list_fault_affected_users:
@@ -256,14 +248,12 @@ create_site:
     locations: { description: "Locations to check from. [] or null checks from every location." }
     match: { description: "What match_type compares against. Required unless match_type is success; null clears it." }
     match_type:
-      description: "How a response passes: success (any 2xx; leave match out), exact (status code equals match), include or exclude (the body does or doesn't contain match), jmespath (match is a JMESPath expression over the JSON body). Defaults to success."
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "success (any 2xx), exact (status equals match), include/exclude (body does/doesn't contain match), jmespath (JSON body)."
     request_method: { description: Defaults to GET }
     request_body: { description: "A body to send with the request, up to 32 KB; null clears it" }
     request_headers: { description: "Headers to send, as name to value. Replaces the stored headers; {} or null clears them." }
     timeout:
-      description: "Request timeout in seconds, 1 to 120, shorter than the frequency. Defaults to 30; only accounts with the uptime-timeout feature can change it."
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Seconds, 1 to 120, under the frequency. Defaults to 30; changing it needs the uptime-timeout feature."
     outage_threshold: { description: Consecutive failures before an outage is declared. null declares one when half the locations fail. }
     validate_ssl: { description: "Fail the check when the TLS certificate doesn't validate. Defaults to true." }
     active: { description: Whether the site is checked. Defaults to true. }
@@ -331,8 +321,7 @@ get_check_in:
 create_check_in:
   operation: createCheckIn
   title: Create Check-In
-  description: "Create a new check-in for a Honeybadger project. Check-ins monitor cron jobs and scheduled tasks by alerting when an expected report doesn't arrive. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule types, the required field per type, plan gating (cron needs the Business plan), and the timezone format."
-  long: Carried over from the hand-written definition; trimmed in task 6.
+  description: "Create a check-in, which alerts when a cron job or scheduled task doesn't report on time. Requires reference topic checkins (schedule types, required fields, plan gating, timezone format)."
   params:
     project_id: { description: The ID of the project to create the check-in in }
     name: { description: "The name of the check-in. Optional: an unnamed check-in shows its ID." }
@@ -341,15 +330,13 @@ create_check_in:
     grace_period: { description: "Optional amount of time to allow a late report before alerting, e.g. '5 minutes'" }
     cron_schedule: { description: "Cron expression defining when the check-in is expected to report, e.g. '0 5 * * *'. Required for cron schedules." }
     cron_timezone:
-      description: "Optional timezone for the cron schedule. Rails/ActiveSupport zone name (e.g. 'Eastern Time (US & Canada)', 'London'), NOT an IANA identifier like 'America/New_York'. Defaults to UTC."
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Rails time zone name, e.g. 'Eastern Time (US & Canada)' or 'London', not IANA. Defaults to UTC."
     slug: { description: "Optional URL-friendly identifier used to report the check-in (e.g. 'nightly-backups')" }
 
 update_check_in:
   operation: updateCheckIn
   title: Update Check-In
-  description: "Update an existing check-in. Only the provided fields change, and null clears one. IMPORTANT: Requires reference topic: checkins — fetch via get_reference first (skip if still visible in your context) for schedule fields, plan gating, and the timezone format."
-  long: Carried over from the hand-written definition; trimmed in task 6.
+  description: "Update a check-in. Only the given fields change; null clears one. Requires reference topic checkins."
   params:
     project_id: { description: The ID of the project the check-in belongs to }
     check_in_id: { description: The ID of the check-in to update }
@@ -359,8 +346,7 @@ update_check_in:
     grace_period: { description: "Amount of time to allow a late report before alerting, e.g. '5 minutes'" }
     cron_schedule: { description: Cron expression defining when the check-in is expected to report. Used by cron schedules. }
     cron_timezone:
-      description: "Timezone for the cron schedule. Rails/ActiveSupport zone name (e.g. 'Eastern Time (US & Canada)', 'London'), NOT an IANA identifier like 'America/New_York'."
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Rails time zone name, e.g. 'Eastern Time (US & Canada)' or 'London', not IANA."
     slug: { description: URL-friendly identifier used to report the check-in }
 
 delete_check_in:
@@ -446,59 +432,31 @@ create_integration:
     alarm_ok_ids:
       description: Alarms whose recovery events notify
     check_in_ids:
-      description: Check-ins whose events notify. null follows every check-in in the
-        project, including ones added later; [] follows none; a list follows just
-        those. On create, omit to follow every check-in; on update, omit to leave
-        it as it is. An ID from outside the project is refused.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Check-ins that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create."
     config:
-      description: Object of the type's own settings, e.g. {"url":"https://example.com/hook","label":"Deploys"}
-        for WebHook or {"integration_key":"..."} for PagerDutyV2. The shared settings
-        (events, site_ids and the rest) are separate parameters, not part of config.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "The type's own settings, e.g. {\"url\": ...} for WebHook. Shared settings (events, site_ids, ...) are separate."
     events:
-      description: Event names to notify on, e.g. occurred, resolved, assigned, down,
-        check_in_missing. Adding one the type doesn't support is refused. Omit on
-        create, or send null, for the type's defaults.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Event names to notify on; one the type doesn't support is refused. Null (or omit on create) for the type's defaults."
     excluded_environments:
-      description: Environments that never notify; wins over included_environments.
-        Names are stored as given, so one can be excluded before it first reports.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Environments that never notify, even ones yet to report; wins over included_environments."
     filters:
-      description: 'Ordered list of {"event": ..., "query": ...} objects: each event
-        with a filter notifies only for errors matching its query. event is an event
-        name, or "all" for every event. Replaces the stored filters; send [] or null
-        to clear them.'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "{event, query} pairs: an event with filters notifies only for errors matching one. event \"all\" for every event."
     included_environments:
-      description: When non-empty, the only environments that notify, including ones
-        that haven't reported yet. Empty means every environment not excluded.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "If not empty, the only environments that notify, reported yet or not. Empty: every one not excluded."
     notification_limit:
       description: Most notifications in a 10-minute window before flood control (the
         flooded event) steps in
     project_id:
       description: The ID of the project to create the integration in
     rate:
-      description: 'Period the rate_exceeded threshold counts over: min a minute,
-        hour an hour, wday a day (24 hours, not a weekday), week a week'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Period the rate_exceeded threshold counts over; wday is 24 hours, not a weekday."
     site_ids:
-      description: Uptime sites whose up and down events notify. null follows every
-        site in the project, including ones added later; [] follows none; a list follows
-        just those. On create, omit to follow every site; on update, omit to leave
-        it as it is. An ID from outside the project is refused.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Sites that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create."
     threshold:
       description: Occurrences within rate before rate_exceeded fires; must be greater
         than 0
     type:
-      description: 'Integration type: WebHook, Email, PagerDutyV2, Slack, and so on.
-        OAuth types (Slack, GitHub and the like) are created unconnected: send the
-        user to the result''s links.web to connect it. They can be active from the
-        start; they send nothing until connected.'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Integration type. OAuth types (Slack, GitHub, ...) start unconnected: give the user the result's links.web to connect."
 
 update_integration:
   operation: updateIntegration
@@ -515,35 +473,17 @@ update_integration:
     alarm_ok_ids:
       description: Alarms whose recovery events notify
     check_in_ids:
-      description: Check-ins whose events notify. null follows every check-in in the
-        project, including ones added later; [] follows none; a list follows just
-        those. On create, omit to follow every check-in; on update, omit to leave
-        it as it is. An ID from outside the project is refused.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Check-ins that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create."
     config:
-      description: Object of the type's own settings to change, the same keys get_integration
-        returns under config. A secret sent back masked, exactly as read, is left
-        unchanged.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "The type's settings to change, keyed as get_integration returns them. A secret sent back masked stays as it is."
     events:
-      description: Event names to notify on, e.g. occurred, resolved, assigned, down,
-        check_in_missing. Adding one the type doesn't support is refused. Omit on
-        create, or send null, for the type's defaults.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Event names to notify on; one the type doesn't support is refused. Null (or omit on create) for the type's defaults."
     excluded_environments:
-      description: Environments that never notify; wins over included_environments.
-        Names are stored as given, so one can be excluded before it first reports.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Environments that never notify, even ones yet to report; wins over included_environments."
     filters:
-      description: 'Ordered list of {"event": ..., "query": ...} objects: each event
-        with a filter notifies only for errors matching its query. event is an event
-        name, or "all" for every event. Replaces the stored filters; send [] or null
-        to clear them.'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "{event, query} pairs: an event with filters notifies only for errors matching one. event \"all\" for every event."
     included_environments:
-      description: When non-empty, the only environments that notify, including ones
-        that haven't reported yet. Empty means every environment not excluded.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "If not empty, the only environments that notify, reported yet or not. Empty: every one not excluded."
     integration_id:
       description: The ID of the integration to update
     notification_limit:
@@ -552,15 +492,9 @@ update_integration:
     project_id:
       description: The ID of the project the integration belongs to
     rate:
-      description: 'Period the rate_exceeded threshold counts over: min a minute,
-        hour an hour, wday a day (24 hours, not a weekday), week a week'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Period the rate_exceeded threshold counts over; wday is 24 hours, not a weekday."
     site_ids:
-      description: Uptime sites whose up and down events notify. null follows every
-        site in the project, including ones added later; [] follows none; a list follows
-        just those. On create, omit to follow every site; on update, omit to leave
-        it as it is. An ID from outside the project is refused.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Sites that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create."
     threshold:
       description: Occurrences within rate before rate_exceeded fires; must be greater
         than 0
@@ -604,11 +538,7 @@ get_dashboard:
 create_dashboard:
   operation: createDashboard
   title: Create Dashboard
-  description: 'Create a new Insights dashboard for a Honeybadger project. IMPORTANT:
-    Requires reference topics: dashboards, charts, queries, badgerql — fetch via get_reference
-    first (skip topics still visible in your context). Verify each widget''s query
-    returns the expected results via query_insights before creating the dashboard.'
-  long: Carried over from the hand-written definition; trimmed in task 6.
+  description: "Create an Insights dashboard. Requires reference topics dashboards, charts, queries and badgerql. Check each widget's query with query_insights first."
   params:
     default_ts:
       description: Default time range for the dashboard. ISO 8601 duration (e.g. P1D,
@@ -618,10 +548,7 @@ create_dashboard:
     title:
       description: The title of the dashboard
     widgets:
-      description: Array of widget objects. Each needs a type (insights_vis, alarms,
-        errors, deployments, checkins, uptime) and optionally grid, presentation and
-        config.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Widgets, each with a type and optional grid, presentation and config."
       shallow: dashboards
 
 update_dashboard:
@@ -635,19 +562,13 @@ update_dashboard:
     dashboard_id:
       description: The ID of the dashboard to update
     default_ts:
-      description: Default time range for the dashboard. ISO 8601 duration (e.g. P1D,
-        PT3H) or a keyword (today, yesterday, week, month). Pass an empty string to
-        clear it.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Default time range: ISO 8601 duration (P1D, PT3H) or today, yesterday, week, month. Null clears it."
     project_id:
       description: The ID of the project the dashboard belongs to
     title:
       description: A new title for the dashboard
     widgets:
-      description: 'Array of widget objects replacing the dashboard''s widgets: one
-        left out is removed, and one keeps its identity only when sent with the id
-        get_dashboard returned. Omit to leave them as they are.'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Replaces the widgets: one left out is removed; send a widget's id from get_dashboard to keep it."
       shallow: dashboards
 
 delete_dashboard:
@@ -700,24 +621,14 @@ get_alarm_history:
 create_alarm:
   operation: createAlarm
   title: Create Alarm
-  description: 'Create a new Insights alarm for a Honeybadger project. IMPORTANT:
-    Requires reference topics: alarms, queries, badgerql — fetch via get_reference
-    first (skip topics still visible in your context) for the trigger_config schema
-    and query guidelines. Verify the query returns the expected results via query_insights
-    before creating the alarm.'
-  long: Carried over from the hand-written definition; trimmed in task 6.
+  description: "Create an Insights alarm. Requires reference topics alarms, queries and badgerql. Check the query with query_insights first."
   params:
     description:
       description: Optional description of the alarm
     evaluation_period:
-      description: 'Window each evaluation covers, as a compact duration in minutes,
-        hours or days: ''5m'', ''10m'', ''1h'', ''1d''. Spelled-out forms like ''5
-        minutes'' are rejected.'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Window each evaluation covers: '5m', '1h', '1d'. Spelled-out forms like '5 minutes' are refused."
     lookback_lag:
-      description: How far behind now the evaluation window ends, allowing for ingestion
-        delay, in the same compact format ('1m'; weeks allowed too). '0s' for none.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "How far behind now the window ends, for ingestion delay: '1m', '1h', '1w'; '0s' for none."
     name:
       description: The name of the alarm
     project_id:
@@ -726,15 +637,9 @@ create_alarm:
       description: 'BadgerQL query evaluated on each check. Requires reference topics:
         alarms, badgerql (fetch via get_reference).'
     stream_ids:
-      description: 'Array of stream IDs the query runs against, naming at least one:
-        an empty array is refused. Omit to query every current stream on the project.
-        Use the opaque IDs from list_streams, not slugs like "default": an ID that
-        isn''t one of the project''s streams is refused with 422.'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Stream IDs from list_streams (not slugs), at least one. Omit for every current stream."
     trigger_config:
-      description: Object describing what turns the alarm on, e.g. {"type":"alert_result_count","config":{"operator":"gt","value":10}}.
-        Operators are named (gt, lt), not symbols.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "What turns the alarm on, e.g. {\"type\":\"alert_result_count\",\"config\":{\"operator\":\"gt\",\"value\":10}}."
       shallow: alarms
 
 update_alarm:
@@ -760,11 +665,7 @@ update_alarm:
     query:
       description: A new BadgerQL query. Verify it via query_insights first.
     stream_ids:
-      description: 'Array of stream IDs, replacing the current set; it must name at
-        least one. Send null to reset the alarm to every current stream on the project.
-        Use the opaque IDs from list_streams, not slugs like "default": an ID that
-        isn''t one of the project''s streams is refused with 422.'
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Stream IDs from list_streams (not slugs), replacing the set; at least one. Null resets to every current stream."
     trigger_config:
       description: Object replacing the whole trigger, in the shape create_alarm takes.
       shallow: alarms
@@ -846,11 +747,7 @@ query_insights:
     query:
       description: BadgerQL query string to execute against your Insights data
     stream_ids:
-      description: Optional list of stream IDs to restrict the query to specific Insights
-        streams. Use list_streams to discover a project's stream IDs; pass the 'id'
-        field (not the slug). Omit to query all streams. An ID that isn't one of the
-        project's streams is refused with an error.
-      long: Carried over from the hand-written definition; trimmed in task 6.
+      description: "Stream IDs from list_streams (not slugs) to query. Omit for every stream."
     timezone:
       description: IANA timezone identifier (e.g., 'America/New_York') for timestamp
         interpretation
