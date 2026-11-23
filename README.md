@@ -523,7 +523,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 - **update_alarm** - Update an existing Insights alarm. IMPORTANT: Requires reference topics: alarms, queries, badgerql — fetch via get_reference first (skip topics still visible in your context) for the trigger_config schema and query guidelines. _(changes data; hidden in read-only mode)_
   - `alarm_id` : The ID of the alarm to update (string, required)
   - `project_id` : The ID of the project the alarm belongs to (string, required)
-  - `description` : A new description. Pass an empty string to clear it. (string or null, optional)
+  - `description` : A new description. Null clears it. (string or null, optional)
   - `evaluation_period` : A new evaluation window, as a compact duration: '5m', '10m', '1h', '1d'. (string, optional)
   - `lookback_lag` : A new lookback lag, in the same compact format ('1m'). (string, optional)
   - `name` : A new name for the alarm (string, optional)

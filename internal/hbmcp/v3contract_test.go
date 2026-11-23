@@ -68,18 +68,23 @@ func TestUpdateAlarmTakesStreamIDsAsAnArray(t *testing.T) {
 	}
 }
 
-// An empty description clears it, sent as null; an absent one is left alone.
-func TestUpdateAlarmClearsDescriptionWithEmptyString(t *testing.T) {
-	client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
-	result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]any{
-		"project_id": "Xk9mZp", "alarm_id": "a1", "description": "",
-	}))
-	mustSucceed(t, result, err)
-	if v, present := (*body)["description"]; !present || v != nil {
-		t.Errorf("description = %v (present %v), want an explicit null", v, present)
-	}
-	if _, present := (*body)["name"]; present {
-		t.Error("name was sent though it wasn't given")
+// Null clears the description; an empty string is sent as given, like every
+// other setting; an absent one is left alone.
+func TestUpdateAlarmClearsDescriptionWithNull(t *testing.T) {
+	for _, tc := range []struct {
+		sent, want any
+	}{{nil, nil}, {"", ""}} {
+		client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
+		result, err := handleUpdateAlarm(context.Background(), client, alarmArgs(map[string]any{
+			"project_id": "Xk9mZp", "alarm_id": "a1", "description": tc.sent,
+		}))
+		mustSucceed(t, result, err)
+		if v, present := (*body)["description"]; !present || v != tc.want {
+			t.Errorf("sent %#v: description = %#v (present %v), want %#v", tc.sent, v, present, tc.want)
+		}
+		if _, present := (*body)["name"]; present {
+			t.Error("name was sent though it wasn't given")
+		}
 	}
 }
 

@@ -264,3 +264,19 @@ func TestDashboardToolsCarryTheUILink(t *testing.T) {
 		}
 	}
 }
+
+// Null clears default_ts; an empty string is sent as given.
+func TestUpdateDashboardClearsDefaultTsWithNull(t *testing.T) {
+	for _, tc := range []struct {
+		sent, want any
+	}{{nil, nil}, {"", ""}} {
+		client, body := bodyCapture(t, `{"data":{"id":"d1","title":"Ops","widgets":[]}}`)
+		result, err := handleUpdateDashboard(context.Background(), client, dashboardArgs(map[string]any{
+			"project_id": "Xk9mZp", "dashboard_id": "d1", "default_ts": tc.sent,
+		}))
+		mustSucceed(t, result, err)
+		if v, present := (*body)["default_ts"]; !present || v != tc.want {
+			t.Errorf("sent %#v: default_ts = %#v (present %v), want %#v", tc.sent, v, present, tc.want)
+		}
+	}
+}

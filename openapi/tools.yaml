@@ -650,7 +650,7 @@ update_alarm:
     alarm_id:
       description: The ID of the alarm to update
     description:
-      description: A new description. Pass an empty string to clear it.
+      description: A new description. Null clears it.
     evaluation_period:
       description: 'A new evaluation window, as a compact duration: ''5m'', ''10m'',
         ''1h'', ''1d''.'
