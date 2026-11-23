@@ -96,3 +96,28 @@ func TestListToolsPassWarningsThrough(t *testing.T) {
 		testWarningsPassThrough(t, tc)
 	}
 }
+
+// The summary and a single project's occurrences return one object rather than
+// a list; api-go flattens their warnings next to the data.
+func TestCountToolsPassWarningsThrough(t *testing.T) {
+	for _, tc := range []warningsCase{
+		{
+			name:    "get_fault_counts",
+			handler: handleGetFaultCounts,
+			args:    map[string]any{"project_id": "Xk9mZp"},
+			body: func(meta string) string {
+				return `{"data":{"total":3,"environments":[{"environment":"production","resolved":false,"ignored":false,"count":3}]},"meta":` + meta + `}`
+			},
+		},
+		{
+			name:    "get_project_occurrence_counts",
+			handler: handleGetProjectOccurrenceCounts,
+			args:    map[string]any{"project_id": "Xk9mZp"},
+			body: func(meta string) string {
+				return `{"data":{"project_id":"Xk9mZp","buckets":[{"timestamp":1795428000,"count":2}]},"meta":` + meta + `}`
+			},
+		},
+	} {
+		testWarningsPassThrough(t, tc)
+	}
+}
