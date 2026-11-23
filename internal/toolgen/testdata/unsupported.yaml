@@ -134,6 +134,27 @@ paths:
                         type: string
                   - required:
                     - extra
+  "/twice":
+    patch:
+      operationId: duplicateProp
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+              - type: object
+                properties:
+                  count:
+                    type: integer
+                    minimum: 1
+              - type: object
+                properties:
+                  count:
+                    type: integer
+                    maximum: 10
 components:
   schemas:
     Count:

@@ -2,6 +2,7 @@ package toolgen
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -171,6 +172,9 @@ func (d *spec) addBodyParams(op *operation, requestBody any) {
 	op.rules = b.rules
 	for _, name := range b.conditionalOnly() {
 		d.fail("body property %s is defined only inside a condition", name)
+	}
+	for _, name := range b.twice {
+		d.fail("body property %s is defined twice, differently", name)
 	}
 	for name, s := range b.props {
 		if have, ok := op.params[name]; ok {
@@ -410,6 +414,9 @@ type flatBody struct {
 	props    map[string]any
 	required map[string]bool
 	rules    []any
+	// twice are properties two allOf parts define differently; one would
+	// replace the other.
+	twice []string
 }
 
 func (b *flatBody) add(schema map[string]any) {
@@ -417,6 +424,9 @@ func (b *flatBody) add(schema map[string]any) {
 		b.props, b.required = map[string]any{}, map[string]bool{}
 	}
 	for name, p := range asMap(schema["properties"]) {
+		if have, ok := b.props[name]; ok && !reflect.DeepEqual(have, p) {
+			b.twice = append(b.twice, name)
+		}
 		b.props[name] = p
 	}
 	for _, r := range asSlice(schema["required"]) {

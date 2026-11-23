@@ -416,6 +416,7 @@ func TestUnsupportedSpecShapesFailGeneration(t *testing.T) {
 		"conditionalOnly":   "conditional_only: operation conditionalOnly: body property extra is defined only inside a condition",
 		"refInAllOf":        "ref_in_all_of: operation refInAllOf: maximum next to a $ref to Count would be lost",
 		"nestedConditional": "nested_conditional: operation nestedConditional: body property extra is defined only inside a condition",
+		"duplicateProp":     "duplicate_prop: operation duplicateProp: body property count is defined twice, differently",
 	} {
 		name := toSnake(op)
 		overlay := name + ":\n  operation: " + op + "\n  title: T\n  description: D.\n"
