@@ -251,7 +251,7 @@ update_fault has no parameter "colour". Its parameters are: assignee_id, fault_i
 
 list_projects no longer accepts "account_id": v3 takes the account from the credential. The call was not made. Your tool list is stale; reconnect to refresh tool schemas.
 
-update_site: frequency must be one of 1, 5, 15 or null; got a string ("60"). The call was not made.
+update_site: frequency must be one of 1, 2, 5, 15 or null; got a string ("60"). The call was not made.
 
 update_site: name can't be null; omit it to leave the setting unchanged. The call was not made.
 
@@ -362,7 +362,9 @@ End to end, for real:
    shows only expected changes.
 2. Add a throwaway field to a body schema in a local honeybadger checkout,
    re-bundle, `make update-spec && make generate`: generation fails naming
-   `<tool>.<field>: no description`. Revert.
+   `<tool>.<field>: no description`. Revert the honeybadger change, re-bundle,
+   and run `make update-spec` again, or `git checkout openapi/`, so the
+   vendored bundle and its recorded checksum are the real ones again.
 3. Run the server (`make build`, stdio), send `tools/list` over JSON-RPC: tools
    have `additionalProperties: false`, `update_site.frequency` is
    `[integer, null]` with the spec's enum, `create_dashboard.widgets` is shallow
