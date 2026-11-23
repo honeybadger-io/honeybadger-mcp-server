@@ -78,6 +78,9 @@ func handleQueryInsights(ctx context.Context, client *apiv3.Client, req mcp.Call
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to query insights: %v", err)), nil
 	}
+	// The raw meta repeats the warnings the result already carries at the top
+	// level, where every other tool reports them.
+	delete(response.Meta, "warnings")
 
 	// Return JSON response
 	jsonBytes, err := json.Marshal(response)

@@ -121,3 +121,41 @@ func TestCountToolsPassWarningsThrough(t *testing.T) {
 		testWarningsPassThrough(t, tc)
 	}
 }
+
+func TestQueryInsightsPassesWarningsThrough(t *testing.T) {
+	testWarningsPassThrough(t, warningsCase{
+		name:    "query_insights",
+		handler: handleQueryInsights,
+		args:    map[string]any{"project_id": "Xk9mZp", "query": "stats count()"},
+		body: func(meta string) string {
+			return `{"data":{"results":[{"count":3}],"fields":["count"]},"links":{"web":"https://app.honeybadger.io/x"},"meta":` + meta + `}`
+		},
+	})
+}
+
+// query_insights also returns the API's meta, which repeats the warnings. The
+// tool reports them once, at the top level like the other tools.
+func TestQueryInsightsReportsWarningsOnce(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusOK, `{"data":{"results":[]},"links":{"web":"https://app.honeybadger.io/x"},`+
+			`"meta":{"request_id":"r1","warnings":`+droppedDataWarnings+`}}`)
+	})
+	result, err := handleQueryInsights(context.Background(), client,
+		mcpRequest(map[string]any{"project_id": "Xk9mZp", "query": "stats count()"}))
+	if err != nil || result.IsError {
+		t.Fatalf("error = %v, result = %s", err, getResultText(result))
+	}
+
+	var out struct {
+		Meta map[string]any `json:"meta"`
+	}
+	if err := json.Unmarshal([]byte(getResultText(result)), &out); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := out.Meta["warnings"]; ok {
+		t.Errorf("meta.warnings = %#v, want it left out", got)
+	}
+	if out.Meta["request_id"] != "r1" {
+		t.Errorf("meta = %#v, want the rest of meta kept", out.Meta)
+	}
+}
