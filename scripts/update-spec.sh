@@ -14,6 +14,15 @@ if [ ! -f "$src" ]; then
 	exit 1
 fi
 
+# The bundle is a gitignored build artifact, so a pull or checkout in honeybadger
+# doesn't rebuild it. A source newer than the bundle means the copy would be
+# stale while recording the current commit as its source.
+newer=$(find "$hb/openapi/v3" -name "*.yaml" ! -name bundled.yaml -newer "$src" | head -1)
+if [ -n "$newer" ]; then
+	echo "update-spec: $src is older than $newer. Run bin/rails openapi:bundle in honeybadger first." >&2
+	exit 1
+fi
+
 sha256() {
 	if command -v sha256sum >/dev/null 2>&1; then
 		sha256sum "$1" | cut -d' ' -f1
