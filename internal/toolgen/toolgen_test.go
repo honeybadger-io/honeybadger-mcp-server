@@ -400,3 +400,58 @@ list_widgets:
 		t.Errorf("create_widget name = %v, want body", got)
 	}
 }
+
+// Spec shapes the generator can't flatten faithfully fail generation, naming
+// the shape, rather than quietly producing a schema that drops a constraint or
+// a field.
+func TestUnsupportedSpecShapesFailGeneration(t *testing.T) {
+	bundle, err := os.ReadFile("testdata/unsupported.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for op, want := range map[string]string{
+		"getThing":          "get_thing.thing_id: in both path and query",
+		"refSiblings":       "ref_siblings: operation refSiblings: minimum next to a $ref to Count would be lost",
+		"allOfOverlap":      "all_of_overlap: operation allOfOverlap: minimum both beside and inside a single-entry allOf",
+		"conditionalOnly":   "conditional_only: operation conditionalOnly: body property extra is defined only inside a condition",
+		"refInAllOf":        "ref_in_all_of: operation refInAllOf: maximum next to a $ref to Count would be lost",
+		"nestedConditional": "nested_conditional: operation nestedConditional: body property extra is defined only inside a condition",
+	} {
+		name := toSnake(op)
+		overlay := name + ":\n  operation: " + op + "\n  title: T\n  description: D.\n"
+		_, err := Build(bundle, []byte(overlay))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v\nwant it to contain %q", op, err, want)
+		}
+	}
+}
+
+// A delete gated on confirm takes the confirm token in its strict schema too,
+// or a tool with body rules would refuse the confirming call.
+func TestConfirmIsInTheStrictSchema(t *testing.T) {
+	bundle, err := os.ReadFile("testdata/unsupported.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools, err := Build(bundle, []byte("delete_things:\n  operation: deleteThings\n  confirm: true\n  title: T\n  description: D.\n  params:\n    thing_id: { description: x }\n    kind: { description: x }\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := tools[0].StrictSchema["properties"].(map[string]any)["confirm"]; !ok {
+		t.Errorf("strict schema lacks confirm: %s", asJSON(t, tools[0].StrictSchema))
+	}
+}
+
+func toSnake(s string) string {
+	var b strings.Builder
+	for i, r := range s {
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 {
+				b.WriteByte('_')
+			}
+			r += 'a' - 'A'
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}

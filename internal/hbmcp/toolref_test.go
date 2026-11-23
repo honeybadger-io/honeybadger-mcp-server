@@ -44,3 +44,20 @@ func TestToolReferenceListsEveryToolOnce(t *testing.T) {
 		t.Error("a write tool isn't marked as hidden in read-only mode")
 	}
 }
+
+// A tag the spec doesn't group would leave its tools out of the README, so it
+// fails generation instead.
+func TestToolReferenceRefusesAnUngroupedTag(t *testing.T) {
+	bundle, err := os.ReadFile("../../openapi/bundled.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ungrouped := strings.Replace(string(bundle), "  tags:\n  - Faults\n", "  tags:\n", 1)
+	if ungrouped == string(bundle) {
+		t.Fatal("couldn't take Faults out of x-tagGroups; the bundle's layout changed")
+	}
+	_, err = ToolReference([]byte(ungrouped))
+	if err == nil || !strings.Contains(err.Error(), `tag "Faults" isn't in the spec's x-tagGroups`) {
+		t.Errorf("err = %v, want the ungrouped tag named", err)
+	}
+}

@@ -3,6 +3,7 @@ package hbmcp
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -34,6 +35,12 @@ func ToolReference(bundle []byte) (string, error) {
 			section = tag
 		}
 		sections[section] = append(sections[section], st.Tool)
+	}
+
+	for section := range sections {
+		if !slices.Contains(order, section) {
+			return "", fmt.Errorf("tag %q isn't in the spec's x-tagGroups, so its tools would be left out", section)
+		}
 	}
 
 	var b strings.Builder

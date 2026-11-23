@@ -2,6 +2,7 @@ package toolgen
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -11,17 +12,25 @@ import (
 type spec struct {
 	root map[string]any
 	ops  map[string]*operation
+	// problems collects, while an operation is described, the shapes in it the
+	// generator can't flatten faithfully.
+	problems *[]string
 }
 
 // operation is one API operation's inputs, flattened: path, query and JSON body
 // parameters by name, each resolved to plain JSON Schema.
 type operation struct {
+	id     string
 	method string
 	params map[string]param
 	scopes []string
 	// rules are the body's top-level conditions (allOf, if/then and the like),
 	// which still apply once its properties are flattened into arguments.
 	rules []any
+	// problems are reported only if a tool uses the operation, as
+	// "<tool>: operation <id>: <problem>" or, for one starting with "." (a
+	// parameter), "<tool><problem>".
+	problems []string
 }
 
 // Keys that describe a schema for humans or docs tooling. Tool descriptions come
@@ -57,6 +66,7 @@ func loadSpec(bundle []byte) (*spec, error) {
 			if err != nil {
 				return nil, fmt.Errorf("bundle: %s: %w", id, err)
 			}
+			op.id = id
 			d.ops[id] = op
 		}
 	}
@@ -65,31 +75,16 @@ func loadSpec(bundle []byte) (*spec, error) {
 
 func (d *spec) describe(method string, shared []any, raw map[string]any, defaultScopes []string) (*operation, error) {
 	op := &operation{method: method, params: map[string]param{}, scopes: defaultScopes}
+	d.problems = &op.problems
+	defer func() { d.problems = nil }()
 	if sec, ok := raw["security"]; ok {
 		op.scopes = scopesOf(sec)
 	}
 
 	own, _ := raw["parameters"].([]any)
 	for _, list := range [][]any{shared, own} { // an operation's own parameter replaces a shared one
-		for _, rawParam := range list {
-			p, ok := d.deref(rawParam).(map[string]any)
-			if !ok {
-				continue
-			}
-			name, _ := p["name"].(string)
-			in, _ := p["in"].(string)
-			if in != "path" && in != "query" {
-				continue
-			}
-			schema, ok := d.resolve(p["schema"]).(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("parameter %s has no schema", name)
-			}
-			required := 0
-			if in == "path" || p["required"] == true {
-				required = 1
-			}
-			op.params[name] = param{schema: schema, required: required, in: in}
+		if err := d.addParams(op, list); err != nil {
+			return nil, err
 		}
 	}
 
@@ -131,6 +126,34 @@ func dropDefaults(node any) {
 	}
 }
 
+// addParams adds an operation's path and query parameters.
+func (d *spec) addParams(op *operation, list []any) error {
+	for _, rawParam := range list {
+		p, ok := d.deref(rawParam).(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := p["name"].(string)
+		in, _ := p["in"].(string)
+		if in != "path" && in != "query" {
+			continue
+		}
+		schema, ok := d.resolve(p["schema"]).(map[string]any)
+		if !ok {
+			return fmt.Errorf("parameter %s has no schema", name)
+		}
+		required := 0
+		if in == "path" || p["required"] == true {
+			required = 1
+		}
+		if have, ok := op.params[name]; ok && have.in != in {
+			d.fail(".%s: in both %s and %s", name, have.in, in)
+		}
+		op.params[name] = param{schema: schema, required: required, in: in}
+	}
+	return nil
+}
+
 // addBodyParams adds a JSON request body's properties as parameters.
 func (d *spec) addBodyParams(op *operation, requestBody any) {
 	body, ok := d.deref(requestBody).(map[string]any)
@@ -146,7 +169,13 @@ func (d *spec) addBodyParams(op *operation, requestBody any) {
 	var b flatBody
 	b.add(schema)
 	op.rules = b.rules
+	for _, name := range b.conditionalOnly() {
+		d.fail("body property %s is defined only inside a condition", name)
+	}
 	for name, s := range b.props {
+		if have, ok := op.params[name]; ok {
+			d.fail(".%s: in both %s and body", name, have.in)
+		}
 		p := param{schema: s.(map[string]any), in: "body"}
 		if b.required[name] {
 			p.required = 1
@@ -198,6 +227,7 @@ func (d *spec) lookup(ref string) any {
 // docs-only keys dropped, read-only properties removed, and objects closed to
 // unknown properties unless the spec gives a schema for them.
 func (d *spec) resolve(node any) any {
+	d.checkRefSiblings(node)
 	switch n := d.deref(node).(type) {
 	case map[string]any:
 		return d.resolveMap(n)
@@ -241,7 +271,12 @@ func (d *spec) resolveMap(n map[string]any) map[string]any {
 func (d *spec) simplify(out map[string]any) {
 	if all, ok := out["allOf"].([]any); ok && len(all) == 1 {
 		delete(out, "allOf")
-		mergeMissing(out, d.resolveMap(d.deref(all[0]).(map[string]any)))
+		d.checkRefSiblings(all[0])
+		inner := d.resolveMap(d.deref(all[0]).(map[string]any))
+		if both := sharedKeywords(out, inner); len(both) > 0 {
+			d.fail("%s both beside and inside a single-entry allOf", strings.Join(both, ", "))
+		}
+		mergeMissing(out, inner)
 	}
 	for _, key := range []string{"anyOf", "oneOf"} {
 		alts, ok := out[key].([]any)
@@ -319,6 +354,7 @@ func (d *spec) foldNullable(alts []any) (map[string]any, bool) {
 	var other map[string]any
 	nulls := 0
 	for _, a := range alts {
+		d.checkRefSiblings(a)
 		m, _ := d.deref(a).(map[string]any)
 		if m["type"] == "null" && len(m) == 1 {
 			nulls++
@@ -403,4 +439,95 @@ func (b *flatBody) add(schema map[string]any) {
 func asMap(v any) map[string]any {
 	m, _ := v.(map[string]any)
 	return m
+}
+
+// fail records a shape the generator can't flatten faithfully in the
+// operation being described.
+func (d *spec) fail(format string, args ...any) {
+	if d.problems != nil {
+		*d.problems = append(*d.problems, fmt.Sprintf(format, args...))
+	}
+}
+
+// checkRefSiblings fails on constraints written next to a $ref: resolving the
+// reference replaces the node, and they would be lost. readOnly is honoured
+// where properties are resolved, and docs keys are dropped anyway.
+func (d *spec) checkRefSiblings(node any) {
+	m, ok := node.(map[string]any)
+	if !ok {
+		return
+	}
+	ref, ok := m["$ref"].(string)
+	if !ok {
+		return
+	}
+	var lost []string
+	for k := range m {
+		if k != "$ref" && k != "readOnly" && !droppedKeys[k] && !strings.HasPrefix(k, "x-") {
+			lost = append(lost, k)
+		}
+	}
+	if len(lost) > 0 {
+		sort.Strings(lost)
+		d.fail("%s next to a $ref to %s would be lost", strings.Join(lost, ", "), ref[strings.LastIndex(ref, "/")+1:])
+	}
+}
+
+// sharedKeywords are the keywords a schema and its single allOf entry both
+// set, which merging would collapse to one.
+func sharedKeywords(outer, inner map[string]any) []string {
+	var both []string
+	for k := range inner {
+		if _, ok := outer[k]; ok && k != "readOnly" {
+			both = append(both, k)
+		}
+	}
+	sort.Strings(both)
+	return both
+}
+
+// conditionalOnly lists properties a body defines only inside a condition
+// (then, else, oneOf, anyOf): flattening exposes only its plain properties.
+func (b *flatBody) conditionalOnly() []string {
+	seen := map[string]bool{}
+	var only []string
+	note := func(props map[string]any) {
+		for name := range props {
+			if _, plain := b.props[name]; !plain && !seen[name] {
+				seen[name] = true
+				only = append(only, name)
+			}
+		}
+	}
+	// branch notes a conditional schema's properties, and those of the
+	// schemas it composes, however deep.
+	var branch func(schema map[string]any)
+	branch = func(schema map[string]any) {
+		note(asMap(schema["properties"]))
+		for _, k := range []string{"then", "else"} {
+			if sub := asMap(schema[k]); sub != nil {
+				branch(sub)
+			}
+		}
+		for _, k := range []string{"allOf", "oneOf", "anyOf"} {
+			for _, sub := range asSlice(schema[k]) {
+				branch(asMap(sub))
+			}
+		}
+	}
+	for _, rule := range b.rules {
+		r := asMap(rule)
+		for _, k := range []string{"then", "else"} {
+			if sub := asMap(r[k]); sub != nil {
+				branch(sub)
+			}
+		}
+		for _, k := range []string{"oneOf", "anyOf"} {
+			for _, alt := range asSlice(r[k]) {
+				branch(asMap(alt))
+			}
+		}
+	}
+	sort.Strings(only)
+	return only
 }

@@ -1,0 +1,140 @@
+openapi: 3.1.0
+info:
+  title: shapes toolgen can't flatten faithfully
+  version: "1"
+paths:
+  "/things/{thing_id}":
+    parameters:
+    - name: thing_id
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getThing
+      security:
+      - bearer_auth:
+        - things:read
+      parameters:
+      - name: thing_id
+        in: query
+        schema:
+          type: string
+    patch:
+      operationId: refSiblings
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  "$ref": "#/components/schemas/Count"
+                  minimum: 1
+    put:
+      operationId: allOfOverlap
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  minimum: 0
+                  allOf:
+                  - minimum: 10
+    post:
+      operationId: conditionalOnly
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+              allOf:
+              - if:
+                  properties:
+                    kind:
+                      const: big
+                then:
+                  properties:
+                    extra:
+                      type: string
+    delete:
+      operationId: deleteThings
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+              allOf:
+              - if:
+                  properties:
+                    kind:
+                      const: big
+                then:
+                  required:
+                  - kind
+  "/more":
+    patch:
+      operationId: refInAllOf
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  allOf:
+                  - "$ref": "#/components/schemas/Count"
+                    maximum: 9
+    post:
+      operationId: nestedConditional
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+              allOf:
+              - if:
+                  properties:
+                    kind:
+                      const: big
+                then:
+                  allOf:
+                  - properties:
+                      extra:
+                        type: string
+                  - required:
+                    - extra
+components:
+  schemas:
+    Count:
+      type: integer

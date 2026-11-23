@@ -129,6 +129,7 @@ func (d *spec) buildTool(name string, spec toolSpec) (Tool, []string) {
 	if len(b.problems) > 0 {
 		return Tool{}, b.problems
 	}
+	b.reportShapes(ops)
 	params := b.mergeParams(ops)
 	b.checkTool(ops)
 	b.checkOverridesMatchSpec(params)
@@ -168,22 +169,49 @@ func (d *spec) buildTool(name string, spec toolSpec) (Tool, []string) {
 		Schema:      objectSchema(advertised, required),
 		Wire:        wire,
 	}
-	var rules []any
-	for _, op := range ops {
-		rules = append(rules, op.rules...)
-	}
-	// Shallow parameters and body rules are checked but not advertised: rules
-	// at the top of a tool's schema make some clients refuse the tool.
-	if len(shallow) > 0 || len(rules) > 0 {
-		tool.StrictSchema = objectSchema(strict, required)
-		if len(rules) > 0 {
-			tool.StrictSchema["allOf"] = rules
-		}
-	}
+	tool.StrictSchema = strictSchema(ops, spec, strict, required, len(shallow) > 0)
 	if len(shallow) > 0 {
 		tool.Shallow = shallow
 	}
 	return tool, b.problems
+}
+
+// reportShapes fails on the shapes in the tool's operations the generator
+// can't flatten faithfully.
+func (b *toolBuilder) reportShapes(ops []*operation) {
+	for _, op := range ops {
+		for _, p := range op.problems {
+			if strings.HasPrefix(p, ".") {
+				b.fail("%s%s", b.name, p)
+			} else {
+				b.fail("%s: operation %s: %s", b.name, op.id, p)
+			}
+		}
+	}
+}
+
+// strictSchema is the schema calls are checked against when it differs from
+// the advertised one: when a parameter is shallow, or the body has rules.
+// Rules at the top of a tool's schema make some clients refuse the tool, so
+// they're checked, not advertised.
+func strictSchema(ops []*operation, spec toolSpec, props map[string]any, required []any, shallow bool) map[string]any {
+	var rules []any
+	for _, op := range ops {
+		rules = append(rules, op.rules...)
+	}
+	if !shallow && len(rules) == 0 {
+		return nil
+	}
+	s := objectSchema(props, required)
+	if len(rules) > 0 {
+		s["allOf"] = rules
+	}
+	// The confirming call sends confirm, which render adds to the advertised
+	// schema; the checked one needs it too.
+	if spec.Confirm {
+		props["confirm"] = map[string]any{"type": "string"}
+	}
+	return s
 }
 
 // operations looks up the operations the tool names.
