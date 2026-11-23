@@ -554,7 +554,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `asana_workspace_id` : Asana workspace for the project's Asana integration. (string or null, optional)
   - `customer_throttle` : Notices accepted per minute before throttling. (integer or null, optional)
   - `disable_email_notifications` : Add the project's members with email notifications off. (boolean, optional)
-  - `disable_public_links` : Whether to allow fault details to be publicly shareable via a button on the fault detail page (boolean or null, optional)
+  - `disable_public_links` : Turns off shareable public links to faults. (boolean or null, optional)
   - `language` : Primary language, used to format backtraces. (string or null, optional)
   - `purge_days` : The number of days to retain data (up to the max number of days available to your subscription plan) (integer or null, optional)
   - `resolve_errors_on_deploy` : Whether all unresolved faults should be marked as resolved when a deploy is recorded (boolean or null, optional)
@@ -567,7 +567,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `project_id` : The ID of the project to update (string, required)
   - `asana_workspace_id` : Asana workspace for the project's Asana integration. Null clears it. (string or null, optional)
   - `customer_throttle` : Notices accepted per minute before throttling. Null clears it. (integer or null, optional)
-  - `disable_public_links` : Whether to allow fault details to be publicly shareable via a button on the fault detail page (boolean or null, optional)
+  - `disable_public_links` : Turns off shareable public links to faults. Null resets it to false. (boolean or null, optional)
   - `language` : Primary language, used to format backtraces. Null clears it. (string or null, optional)
   - `name` : A new name for the project (string, optional)
   - `purge_days` : The number of days to retain data (up to the max number of days available to your subscription plan) (integer or null, optional)
@@ -623,7 +623,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `site_ids` : Sites that notify: a list, [] for none, or null for all (including later ones). Omit to follow all on create. (array or null, optional)
   - `threshold` : Occurrences within rate before rate_exceeded fires; must be greater than 0 (integer or null, optional)
 
-- **delete_integration** - Delete a notification integration. Also deletes all associated tickets and configurations. Deleting takes two calls: the first deletes nothing and returns a preview with a confirmation token. Show the preview to the user, and only if they approve, call again with the same arguments and confirm set to that token. _(changes data; hidden in read-only mode)_
+- **delete_integration** - Delete a notification integration. Faults lose their links to the issues it created; the issues stay in the tracker. Deleting takes two calls: the first deletes nothing and returns a preview with a confirmation token. Show the preview to the user, and only if they approve, call again with the same arguments and confirm set to that token. _(changes data; hidden in read-only mode)_
   - `integration_id` : The ID of the integration to delete (string, required)
   - `project_id` : The ID of the project the integration belongs to (string, required)
   - `confirm` : Confirmation token from this tool's previous preview. Pass it only after the user has approved the deletion shown in that preview. (string, optional)

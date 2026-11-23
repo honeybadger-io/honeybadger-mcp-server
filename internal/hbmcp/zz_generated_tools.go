@@ -152,7 +152,7 @@ var generatedTools = map[string]mcp.Tool{
 				"asana_workspace_id":          map[string]any{"description": "Asana workspace for the project's Asana integration.", "type": []any{"string", "null"}},
 				"customer_throttle":           map[string]any{"description": "Notices accepted per minute before throttling.", "type": []any{"integer", "null"}},
 				"disable_email_notifications": map[string]any{"description": "Add the project's members with email notifications off.", "type": "boolean"},
-				"disable_public_links":        map[string]any{"default": false, "description": "Whether to allow fault details to be publicly shareable via a button on the fault detail page", "type": []any{"boolean", "null"}},
+				"disable_public_links":        map[string]any{"default": false, "description": "Turns off shareable public links to faults.", "type": []any{"boolean", "null"}},
 				"language":                    map[string]any{"description": "Primary language, used to format backtraces.", "type": []any{"string", "null"}},
 				"name":                        map[string]any{"description": "The name of the new project", "type": "string"},
 				"purge_days":                  map[string]any{"description": "The number of days to retain data (up to the max number of days available to your subscription plan)", "type": []any{"integer", "null"}},
@@ -299,7 +299,7 @@ var generatedTools = map[string]mcp.Tool{
 	},
 	"delete_integration": {
 		Name:        "delete_integration",
-		Description: "Delete a notification integration. Also deletes all associated tickets and configurations." + confirmNote,
+		Description: "Delete a notification integration. Faults lose their links to the issues it created; the issues stay in the tracker." + confirmNote,
 		InputSchema: mcp.ToolInputSchema{
 			Type: "object",
 			Properties: map[string]any{
@@ -1043,7 +1043,7 @@ var generatedTools = map[string]mcp.Tool{
 			Properties: map[string]any{
 				"asana_workspace_id":       map[string]any{"description": "Asana workspace for the project's Asana integration. Null clears it.", "type": []any{"string", "null"}},
 				"customer_throttle":        map[string]any{"description": "Notices accepted per minute before throttling. Null clears it.", "type": []any{"integer", "null"}},
-				"disable_public_links":     map[string]any{"description": "Whether to allow fault details to be publicly shareable via a button on the fault detail page", "type": []any{"boolean", "null"}},
+				"disable_public_links":     map[string]any{"description": "Turns off shareable public links to faults. Null resets it to false.", "type": []any{"boolean", "null"}},
 				"language":                 map[string]any{"description": "Primary language, used to format backtraces. Null clears it.", "type": []any{"string", "null"}},
 				"name":                     map[string]any{"description": "A new name for the project", "type": "string"},
 				"project_id":               map[string]any{"description": "The ID of the project to update", "type": "string"},
