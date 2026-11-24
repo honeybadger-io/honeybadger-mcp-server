@@ -311,7 +311,7 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
 
 ### Accounts
 
-- **get_account_usage** - Get the account's usage against its plan's quotas. Errors count per billing period, Insights bytes per UTC day. Monitors are capped separately (uptime_limit, check_ins_limit) or pooled (monitors_limit). A null limit means no cap; 0 is a real cap. Needs a one-account credential.
+- **get_account_usage** - Usage against the account's plan quotas. Errors count per billing period, Insights bytes per UTC day. Monitor caps are separate (uptime_limit, check_ins_limit) or pooled (monitors_limit). uptime_limit may be per project; uptime_consumed is account-wide. A null limit means no cap; 0 is a real cap.
 
 ### Faults
 
