@@ -12,14 +12,16 @@
 #   confirm: true                delete gated on a confirmation token
 #   handwritten: true            the definition stays in Go
 #   long: <reason>               a description over the cap (300 tool, 120 parameter)
+#
+# The order here is README's order: a section (the spec tag of a tool's first
+# operation) appears where its first tool is listed, and tools and parameters
+# appear as listed.
 
-# Hand-written: no single operation fits.
+# Hand-written: no operation fits. update_fault is with the fault tools.
 get_reference:
   handwritten: true
 search_tools:
   handwritten: true
-update_fault:
-  handwritten: true # resolved/ignored booleans and snooze null map onto nine operations
 
 # Projects
 
@@ -130,6 +132,9 @@ get_fault:
   params:
     project_id: { description: The ID of the project containing the fault }
     fault_id: { description: The ID of the fault to retrieve }
+
+update_fault:
+  handwritten: true # resolved/ignored booleans and snooze null map onto nine operations
 
 get_fault_counts:
   operation: getFaultSummary
@@ -262,10 +267,10 @@ update_site:
   title: Update Site
   description: "Change an uptime site's settings. Only the parameters given are changed, and null resets a setting to its default; name and url have no default, so they can be changed but not reset."
   params:
-    <<: *site_settings
     project_id: { description: The ID of the project the site belongs to }
     site_id: { description: "The ID of the site, a UUID" }
     url: { description: "A new URL to check. Must start with http:// or https://." }
+    <<: *site_settings
 
 delete_site:
   operation: deleteSite

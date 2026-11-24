@@ -3,7 +3,6 @@ package hbmcp
 import (
 	"encoding/json"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 
@@ -17,15 +16,27 @@ const noOperationSection = "Reference and search"
 
 // ToolReference renders the README's tool reference from the registered tools,
 // so it says what tools/list says. Each tool sits under the spec tag of the
-// first operation it calls, in the spec's tag order.
-func ToolReference(bundle []byte) (string, error) {
-	tagOf, order, err := specTags(bundle)
+// first operation it calls. The overlay's order is the layout: a section
+// appears where its first tool is listed, and tools and parameters appear as
+// the overlay lists them.
+func ToolReference(bundle, overlay []byte) (string, error) {
+	tagOf, err := specTags(bundle)
+	if err != nil {
+		return "", err
+	}
+	toolOrder, paramOrder, err := overlayOrder(overlay)
 	if err != nil {
 		return "", err
 	}
 
+	registered := NewServer(&config.Config{APIURL: "http://localhost"}, "").ListTools()
+	var order []string
 	sections := map[string][]mcp.Tool{}
-	for name, st := range NewServer(&config.Config{APIURL: "http://localhost"}, "").ListTools() {
+	for _, name := range toolOrder {
+		st, ok := registered[name]
+		if !ok {
+			continue
+		}
 		section := noOperationSection
 		if ops := toolOperations[name]; len(ops) > 0 {
 			tag, ok := tagOf[ops[0]]
@@ -34,43 +45,31 @@ func ToolReference(bundle []byte) (string, error) {
 			}
 			section = tag
 		}
-		sections[section] = append(sections[section], st.Tool)
-	}
-
-	for section := range sections {
-		if !slices.Contains(order, section) {
-			return "", fmt.Errorf("tag %q isn't in the spec's x-tagGroups, so its tools would be left out", section)
+		if _, seen := sections[section]; !seen {
+			order = append(order, section)
 		}
+		sections[section] = append(sections[section], st.Tool)
 	}
 
 	var b strings.Builder
 	for _, section := range order {
-		tools := sections[section]
-		if len(tools) == 0 {
-			continue
-		}
-		sort.Slice(tools, func(i, j int) bool { return toolRank(tools[i].Name) < toolRank(tools[j].Name) })
 		fmt.Fprintf(&b, "### %s\n\n", section)
-		for _, t := range tools {
-			writeToolEntry(&b, t)
+		for _, t := range sections[section] {
+			writeToolEntry(&b, t, paramOrder[t.Name])
 		}
 	}
 	return strings.TrimSuffix(b.String(), "\n"), nil
 }
 
-// specTags reads each operation's first tag, and the tags in the order the
-// spec groups them.
-func specTags(bundle []byte) (tagOf map[string]string, order []string, err error) {
+// specTags reads each operation's first tag.
+func specTags(bundle []byte) (map[string]string, error) {
 	var spec struct {
-		Paths     map[string]map[string]yaml.Node `yaml:"paths"`
-		TagGroups []struct {
-			Tags []string `yaml:"tags"`
-		} `yaml:"x-tagGroups"`
+		Paths map[string]map[string]yaml.Node `yaml:"paths"`
 	}
 	if err := yaml.Unmarshal(bundle, &spec); err != nil {
-		return nil, nil, fmt.Errorf("reading the bundle: %w", err)
+		return nil, fmt.Errorf("reading the bundle: %w", err)
 	}
-	tagOf = map[string]string{}
+	tagOf := map[string]string{}
 	for _, item := range spec.Paths {
 		for _, node := range item {
 			var op struct {
@@ -82,25 +81,62 @@ func specTags(bundle []byte) (tagOf map[string]string, order []string, err error
 			}
 		}
 	}
-	order = []string{noOperationSection}
-	for _, g := range spec.TagGroups {
-		order = append(order, g.Tags...)
-	}
-	return tagOf, order, nil
+	return tagOf, nil
 }
 
-// toolRank orders a section's tools list, get, create, update, delete, then
-// the rest, by name within each.
-func toolRank(name string) string {
-	for i, verb := range []string{"list_", "get_", "create_", "update_", "delete_"} {
-		if strings.HasPrefix(name, verb) {
-			return fmt.Sprintf("%d %s", i, name)
+// overlayOrder reads the tools in the order the overlay lists them, and each
+// tool's parameters likewise. A YAML mapping keeps its order only as nodes.
+func overlayOrder(overlay []byte) (tools []string, params map[string][]string, err error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(overlay, &doc); err != nil {
+		return nil, nil, fmt.Errorf("reading the overlay: %w", err)
+	}
+	if len(doc.Content) == 0 {
+		return nil, nil, nil
+	}
+	params = map[string][]string{}
+	root := doc.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		name, spec := root.Content[i].Value, root.Content[i+1]
+		tools = append(tools, name)
+		for j := 0; j+1 < len(spec.Content); j += 2 {
+			if spec.Content[j].Value != "params" {
+				continue
+			}
+			params[name] = mappingKeys(spec.Content[j+1])
 		}
 	}
-	return "9 " + name
+	return tools, params, nil
 }
 
-func writeToolEntry(b *strings.Builder, t mcp.Tool) {
+// mappingKeys lists a mapping's keys in order, with a YAML merge (<<: *anchor,
+// or a list of anchors) expanded in place into the keys it brings in.
+func mappingKeys(m *yaml.Node) []string {
+	if m.Kind == yaml.AliasNode {
+		m = m.Alias
+	}
+	var keys []string
+	for k := 0; k+1 < len(m.Content); k += 2 {
+		key, value := m.Content[k], m.Content[k+1]
+		if key.Value != "<<" {
+			keys = append(keys, key.Value)
+			continue
+		}
+		merged := []*yaml.Node{value}
+		if value.Kind == yaml.SequenceNode {
+			merged = value.Content
+		}
+		for _, mm := range merged {
+			keys = append(keys, mappingKeys(mm)...)
+		}
+	}
+	return keys
+}
+
+// writeToolEntry lists a tool's parameters in the overlay's order, then any
+// it doesn't list (confirm, a hand-written tool's), required first and by
+// name.
+func writeToolEntry(b *strings.Builder, t mcp.Tool, order []string) {
 	suffix := ""
 	if t.Annotations.ReadOnlyHint == nil || !*t.Annotations.ReadOnlyHint {
 		suffix = " _(changes data; hidden in read-only mode)_"
@@ -111,15 +147,28 @@ func writeToolEntry(b *strings.Builder, t mcp.Tool) {
 	for _, r := range t.InputSchema.Required {
 		required[r] = true
 	}
+	rank := map[string]int{}
+	for i, n := range order {
+		if rank[n] == 0 { // a key listed again through a merge keeps its first place
+			rank[n] = i + 1
+		}
+	}
 	names := make([]string, 0, len(t.InputSchema.Properties))
 	for n := range t.InputSchema.Properties {
 		names = append(names, n)
 	}
 	sort.Slice(names, func(i, j int) bool {
-		if required[names[i]] != required[names[j]] {
-			return required[names[i]]
+		x, y := names[i], names[j]
+		if (rank[x] > 0) != (rank[y] > 0) {
+			return rank[x] > 0
 		}
-		return names[i] < names[j]
+		if rank[x] != rank[y] {
+			return rank[x] < rank[y]
+		}
+		if required[x] != required[y] {
+			return required[x]
+		}
+		return x < y
 	})
 	for _, n := range names {
 		raw, _ := json.Marshal(t.InputSchema.Properties[n])

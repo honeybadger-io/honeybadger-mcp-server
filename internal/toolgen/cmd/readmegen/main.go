@@ -17,14 +17,18 @@ const (
 )
 
 func main() {
-	if err := run("openapi/bundled.yaml", "README.md"); err != nil {
+	if err := run("openapi/bundled.yaml", "openapi/tools.yaml", "README.md"); err != nil {
 		fmt.Fprintln(os.Stderr, "readmegen:", err)
 		os.Exit(1)
 	}
 }
 
-func run(bundlePath, readmePath string) error {
+func run(bundlePath, overlayPath, readmePath string) error {
 	bundle, err := os.ReadFile(bundlePath)
+	if err != nil {
+		return err
+	}
+	overlay, err := os.ReadFile(overlayPath)
 	if err != nil {
 		return err
 	}
@@ -40,7 +44,7 @@ func run(bundlePath, readmePath string) error {
 	if !ok {
 		return fmt.Errorf("%s has no %q marker", readmePath, end)
 	}
-	reference, err := hbmcp.ToolReference(bundle)
+	reference, err := hbmcp.ToolReference(bundle, overlay)
 	if err != nil {
 		return err
 	}

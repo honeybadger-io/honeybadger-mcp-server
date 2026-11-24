@@ -13,7 +13,7 @@ func TestToolReferenceListsEveryToolOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	md, err := ToolReference(bundle)
+	md, err := ToolReference(bundle, overlayBytes(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,19 +45,65 @@ func TestToolReferenceListsEveryToolOnce(t *testing.T) {
 	}
 }
 
-// A tag the spec doesn't group would leave its tools out of the README, so it
-// fails generation instead.
-func TestToolReferenceRefusesAnUngroupedTag(t *testing.T) {
+// Projects come first after the API-free tools: every other tool takes a
+// project_id, so it's where a reader starts.
+func TestToolReferenceListsProjectsFirst(t *testing.T) {
 	bundle, err := os.ReadFile("../../openapi/bundled.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ungrouped := strings.Replace(string(bundle), "  tags:\n  - Faults\n", "  tags:\n", 1)
-	if ungrouped == string(bundle) {
-		t.Fatal("couldn't take Faults out of x-tagGroups; the bundle's layout changed")
+	md, err := ToolReference(bundle, overlayBytes(t))
+	if err != nil {
+		t.Fatal(err)
 	}
-	_, err = ToolReference([]byte(ungrouped))
-	if err == nil || !strings.Contains(err.Error(), `tag "Faults" isn't in the spec's x-tagGroups`) {
-		t.Errorf("err = %v, want the ungrouped tag named", err)
+	ref, projects, faults := strings.Index(md, "### Reference and search\n"), strings.Index(md, "### Projects\n"), strings.Index(md, "### Faults\n")
+	if ref >= projects || projects >= faults {
+		t.Errorf("section offsets: reference %d, projects %d, faults %d; want reference, then projects, then faults", ref, projects, faults)
 	}
+}
+
+// The overlay's order is the README's: a section where its first tool is,
+// tools and parameters as the overlay lists them.
+func TestToolReferenceFollowsTheOverlaysOrder(t *testing.T) {
+	bundle, err := os.ReadFile("../../openapi/bundled.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	overlay, err := os.ReadFile("../../openapi/tools.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	md, err := ToolReference(bundle, overlay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inOrder := func(what, text string, items ...string) {
+		t.Helper()
+		last := -1
+		for _, s := range items {
+			i := strings.Index(text, s)
+			if i < 0 || i < last {
+				t.Errorf("%s: %q is out of order (at %d, after %d)", what, s, i, last)
+			}
+			last = i
+		}
+	}
+	inOrder("tools", md, "- **list_faults** - ", "- **get_fault** - ", "- **update_fault** - ", "- **get_fault_counts** - ")
+	get := md[strings.Index(md, "- **get_fault** - "):]
+	get = get[:strings.Index(get, "\n\n")]
+	inOrder("get_fault's parameters", get, "  - `project_id` :", "  - `fault_id` :")
+	// update_site takes the create settings through a YAML merge; they keep the
+	// overlay's order after the tool's own.
+	upd := md[strings.Index(md, "- **update_site** - "):]
+	upd = upd[:strings.Index(upd, "\n\n")]
+	inOrder("update_site's parameters", upd, "  - `project_id` :", "  - `site_id` :", "  - `url` :", "  - `name` :", "  - `frequency` :", "  - `active` :")
+}
+
+func overlayBytes(t *testing.T) []byte {
+	t.Helper()
+	b, err := os.ReadFile("../../openapi/tools.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
