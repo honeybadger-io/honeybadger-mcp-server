@@ -515,7 +515,7 @@ func TestHandleGetFaultCounts(t *testing.T) {
 	var gotPath, gotQuery string
 	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		gotPath, gotQuery = r.URL.Path, r.URL.Query().Get("q")
-		v3JSON(w, http.StatusOK, `{"data":{"total":42,"unresolved":7}}`)
+		v3JSON(w, http.StatusOK, `{"data":{"total":42,"environments":[{"environment":"production","resolved":false,"ignored":false,"count":42}]}}`)
 	})
 
 	result, err := handleGetFaultCounts(context.Background(), client, faultArgs(map[string]interface{}{

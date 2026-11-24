@@ -353,6 +353,20 @@ var generatedTools = map[string]mcp.Tool{
 			DestructiveHint: mcp.ToBoolPtr(true),
 		},
 	},
+	"get_account_usage": {
+		Name:        "get_account_usage",
+		Description: "Usage against the account's plan quotas. Errors count per billing period, Insights bytes per UTC day. Monitor caps are separate (uptime_limit, check_ins_limit) or pooled (monitors_limit). uptime_limit may be per project; uptime_consumed is account-wide. A null limit means no cap; 0 is a real cap.",
+		InputSchema: mcp.ToolInputSchema{
+			Type:                 "object",
+			Properties:           map[string]any{},
+			AdditionalProperties: false,
+		},
+		Annotations: mcp.ToolAnnotation{
+			Title:           "Get Account Usage",
+			ReadOnlyHint:    mcp.ToBoolPtr(true),
+			DestructiveHint: mcp.ToBoolPtr(false),
+		},
+	},
 	"get_alarm": {
 		Name:        "get_alarm",
 		Description: "Get a single Insights alarm by ID. To interpret alarm configuration, fetch reference topic: alarms (via get_reference).",

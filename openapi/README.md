@@ -12,6 +12,6 @@ older than its sources, which catches the usual stale copy.
 | | |
 | --- | --- |
 | Source | `honeybadger/openapi/v3/bundled.yaml` |
-| Checkout when copied | `master` @ `b5c72c6763` |
-| Copied | 2026-11-20 |
-| sha256 | `82e8043ae536cb99155d1a6e16306008adad3d9786754238100f00bcaffab499` |
+| Checkout when copied | `master` @ `4d078e38e4` (api-go v0.14.0's vendored bundle) |
+| Copied | 2026-11-24 |
+| sha256 | `75a3e76a82c6309aab5812d7d479706135dabcd425c8a314ebd1336560227cf8` |

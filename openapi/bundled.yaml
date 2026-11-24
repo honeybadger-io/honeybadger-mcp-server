@@ -442,10 +442,11 @@ paths:
                         required:
                         - errors_limit
                         - errors_consumed
-                        - uptime_limit
                         - uptime_consumed
-                        - check_ins_limit
                         - check_ins_consumed
+                        - insights_daily_limit
+                        - insights_daily_consumed
+                        - insights_limited
                         properties:
                           errors_limit:
                             type: integer
@@ -454,21 +455,51 @@ paths:
                             type: integer
                             description: Errors recorded this billing period
                           uptime_limit:
-                            type:
-                            - integer
-                            - 'null'
-                            description: Uptime monitors allowed; null when unlimited
+                            type: integer
+                            description: Uptime monitors allowed. Present only on
+                              plans without a monitor pool; otherwise see monitors_limit.
+                              On plans with a project limit, this cap applies to each
+                              project.
                           uptime_consumed:
                             type: integer
-                            description: Uptime monitors in use
+                            description: Uptime monitors in use across the account,
+                              including on plans where uptime_limit applies to each
+                              project
                           check_ins_limit:
-                            type:
-                            - integer
-                            - 'null'
-                            description: Check-ins allowed; null when unlimited
+                            type: integer
+                            description: Check-ins allowed. Present only on plans
+                              without a monitor pool; otherwise see monitors_limit.
                           check_ins_consumed:
                             type: integer
                             description: Check-ins in use
+                          monitors_limit:
+                            type:
+                            - integer
+                            - 'null'
+                            description: Uptime monitors and check-ins allowed together.
+                              Present only on plans where both share one pool, in
+                              place of uptime_limit and check_ins_limit; null when
+                              the pool is uncapped (metered plans bill each monitor
+                              beyond those included).
+                          monitors_consumed:
+                            type: integer
+                            description: Uptime monitors and check-ins in use. Present
+                              with monitors_limit.
+                          insights_daily_limit:
+                            type:
+                            - integer
+                            - 'null'
+                            format: int64
+                            description: Insights bytes allowed per day; null when
+                              uncapped. 0 blocks all ingestion.
+                          insights_daily_consumed:
+                            type: integer
+                            format: int64
+                            description: Insights bytes ingested today (UTC)
+                          insights_limited:
+                            type: boolean
+                            description: True while Insights ingestion is being dropped
+                              for exceeding the quota
                   meta:
                     "$ref": "#/components/schemas/ResponseMeta"
         '401':
@@ -479,6 +510,8 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '422':
           "$ref": "#/components/responses/AmbiguousAccount"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
       security:
       - bearer_auth:
         - account:read
@@ -12114,6 +12147,15 @@ components:
           - hour
           - day
           description: Bucket width implied by the period
+        warnings:
+          type: array
+          description: 'Present only when something about this result needs saying,
+            such as errors dropped by a plan limit during the period it covers. Only
+            on a single project''s occurrences.
+
+            '
+          items:
+            "$ref": "#/components/schemas/ResponseWarning"
     OccurrenceSeries:
       type: object
       required:
@@ -12563,6 +12605,57 @@ components:
           type: string
           description: Unique identifier for the request, for correlating with support
           example: 6f1c2b0e-8d4a-4f6e-9b2a-3c5d7e9f1a2b
+        warnings:
+          type: array
+          description: 'Present only when something about this result needs saying,
+            such as data dropped by a plan limit during the period it covers.
+
+            '
+          items:
+            "$ref": "#/components/schemas/ResponseWarning"
+    ResponseWarning:
+      type: object
+      description: |
+        Something about this result a caller should know before drawing
+        conclusions from it. `code` names the warning and is stable; branch on it.
+        `message` is for people and may change.
+
+        `start_at` and `end_at` bound the period the warning is about, in UTC.
+        `end_at` is in the future while the limit is still in force: data is
+        accepted again from then, unless the limit is lifted sooner.
+
+        | `code` | Meaning |
+        | --- | --- |
+        | `insights_quota_exceeded` | The account reached its daily Insights ingestion quota and Insights dropped the events sent between `start_at` and `end_at`. Results covering that period are incomplete. When the time the quota was reached isn't known, `start_at` is the start of that UTC day. Covers the last 14 days. |
+        | `error_quota_exceeded` | The account's monthly error quota is used up, and errors reported for this project between `start_at` and `end_at` are dropped. Only reported while in force. |
+        | `error_rate_limited` | Between `start_at` and `end_at`, this project accepts `limit_per_minute` errors a minute from each of its API keys and drops the rest. Only reported while in force. |
+      required:
+      - code
+      - message
+      - start_at
+      - end_at
+      properties:
+        code:
+          type: string
+          example: insights_quota_exceeded
+        message:
+          type: string
+          example: Insights dropped events sent for this account between start_at
+            and end_at because the daily ingestion quota was reached. Results covering
+            that period are incomplete.
+        start_at:
+          type: string
+          format: date-time
+          example: '2026-11-18T14:12:00Z'
+        end_at:
+          type: string
+          format: date-time
+          example: '2026-11-19T00:00:00Z'
+        limit_per_minute:
+          type: integer
+          description: On `error_rate_limited`, the errors a minute the project accepts
+            from each API key.
+          example: 1
     Site:
       type: object
       description: 'A URL Honeybadger checks for uptime from several locations on
