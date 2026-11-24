@@ -48,13 +48,14 @@ copied by \`make update-spec\`. Don't edit it: fix the spec in honeybadger, then
 copy the new bundle into every downstream project (api-go, docs, terraform, this server).
 
 The sha256 identifies the bundle. In honeybadger the bundle is a generated,
-gitignored file, so the branch and commit identify only the source
-definitions it was built from.
+gitignored file, so the branch and commit are honeybadger's checkout when the
+bundle was copied, not a record of what built it. update-spec refuses a bundle
+older than its sources, which catches the usual stale copy.
 
 | | |
 | --- | --- |
 | Source | \`honeybadger/openapi/v3/bundled.yaml\` |
-| Sources built from | \`$branch\` @ \`$commit\` |
+| Checkout when copied | \`$branch\` @ \`$commit\` |
 | Copied | $(date +%Y-%m-%d) |
 | sha256 | \`$sha\` |
 EOF
