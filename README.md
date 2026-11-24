@@ -571,6 +571,11 @@ Creating, updating, and deleting comments require write access (`--read-only=fal
   - `project_id` : The ID of the project (string, required)
   - `deploy_id` : The ID of the deploy (string, required)
 
+### Account
+
+- **get_account_usage** - Get the account's usage against its plan's quotas, as the API returns it: errors this billing period, Insights bytes today (UTC) and whether Insights data is being dropped, and uptime monitors and check-ins in use, capped separately or as one shared monitor pool depending on the plan. A null limit means no cap; 0 is a real cap. Needs the `account:read` scope and a credential for one account: an account-bound API Token (hba_), or a personal token for a user with one account. Project-bound credentials are refused.
+  - No parameters
+
 ### Tool Search
 
 - **search_tools** - Search available Honeybadger tools by name or description. Use this to discover tools before calling them. In read-only mode, only read-only tools are returned.
