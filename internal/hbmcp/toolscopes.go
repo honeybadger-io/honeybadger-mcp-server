@@ -60,6 +60,8 @@ var toolOperations = map[string][]string{
 	"list_deploys": {"listDeploys"},
 	"get_deploy":   {"getDeploy"},
 
+	"get_account_usage": {"getAccountUsage"},
+
 	"list_dashboards":  {"listDashboards"},
 	"get_dashboard":    {"getDashboard"},
 	"create_dashboard": {"createDashboard"},

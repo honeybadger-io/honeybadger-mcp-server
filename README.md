@@ -309,6 +309,10 @@ Delete tools (`delete_project`, `delete_dashboard`, `delete_alarm`, `delete_chec
   - `period` : hour (61 one-minute buckets), day (25 hourly), week (8 daily) or month (31 daily). Defaults to hour. (string, optional)
   - `environment` : Optional environment name to filter results (string, optional)
 
+### Accounts
+
+- **get_account_usage** - Get the account's usage against its plan's quotas. Errors count per billing period, Insights bytes per UTC day. Monitors are capped separately (uptime_limit, check_ins_limit) or pooled (monitors_limit). A null limit means no cap; 0 is a real cap. Needs a one-account credential.
+
 ### Faults
 
 - **list_faults** - Get a list of faults for a project with optional filtering and ordering. Requires reference topic: errors (fetch via get_reference; skip if still visible in your context) for the fault/notice model and the q search syntax.

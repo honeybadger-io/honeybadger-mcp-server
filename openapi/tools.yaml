@@ -99,6 +99,13 @@ get_project_occurrence_counts:
     page: { exclude: The tool returns every project's series. }
     per_page: { exclude: The tool returns every project's series. }
 
+# Accounts
+
+get_account_usage:
+  operation: getAccountUsage
+  title: Get Account Usage
+  description: "Get the account's usage against its plan's quotas. Errors count per billing period, Insights bytes per UTC day. Monitors are capped separately (uptime_limit, check_ins_limit) or pooled (monitors_limit). A null limit means no cap; 0 is a real cap. Needs a one-account credential."
+
 # Faults and notices
 
 list_faults:
