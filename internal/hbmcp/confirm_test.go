@@ -106,12 +106,12 @@ func withArg(args map[string]any, key string, value any) map[string]any {
 // deleteToolArgs holds valid arguments for every delete tool. A new delete tool
 // fails TestDeleteToolsRequireConfirmation until it is added here.
 var deleteToolArgs = map[string]map[string]any{
-	"delete_project":       {"id": "Xk9mZp"},
+	"delete_project":       {"project_id": "Xk9mZp"},
 	"delete_dashboard":     {"project_id": "Xk9mZp", "dashboard_id": "dash1"},
 	"delete_alarm":         {"project_id": "Xk9mZp", "alarm_id": "alarm1"},
 	"delete_check_in":      {"project_id": "Xk9mZp", "check_in_id": "chk1"},
 	"delete_site":          {"project_id": "Xk9mZp", "site_id": "9f8b6d2e-4c1a-4b7f-9e35-2a6c8d0f1b47"},
-	"delete_fault_comment": {"project_id": "Xk9mZp", "fault_id": 456, "comment_id": "cmt1"},
+	"delete_fault_comment": {"project_id": "Xk9mZp", "fault_id": "456", "comment_id": "cmt1"},
 	"delete_integration":   {"project_id": "Xk9mZp", "integration_id": "int1"},
 	"delete_ingestion_key": {"project_id": "Xk9mZp", "ingestion_key_id": "key1"},
 }
@@ -147,24 +147,13 @@ func TestDeleteToolsRequireConfirmation(t *testing.T) {
 		seen++
 		t.Run(tool.Name, func(t *testing.T) {
 			if _, ok := tool.InputSchema.Properties["confirm"]; !ok {
-				t.Fatal("missing confirm parameter; declare withConfirmParam()")
+				t.Fatal("missing confirm parameter; set confirm: true in openapi/tools.yaml")
 			}
 			args, ok := deleteToolArgs[tool.Name]
 			if !ok {
 				t.Fatal("add this tool to deleteToolArgs")
 			}
 			gets0, deletes0 := api.counts()
-
-			// A truncated 123.9 would preview and delete a different resource.
-			for key, value := range args {
-				if _, numeric := value.(int); !numeric {
-					continue
-				}
-				text, isErr := callTool(t, s, ctx, tool.Name, withArg(args, key, 123.9))
-				if gets, deletes := api.counts(); !isErr || gets != gets0 || deletes != deletes0 {
-					t.Fatalf("fractional %s must be rejected before any API call; isError=%v text=%q", key, isErr, text)
-				}
-			}
 
 			text, isErr := callTool(t, s, ctx, tool.Name, args)
 			gets, deletes := api.counts()

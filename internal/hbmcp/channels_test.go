@@ -51,7 +51,7 @@ func TestCreateIntegrationSendsTheAPIShape(t *testing.T) {
 		"events":       []any{"occurred", "resolved"},
 		"check_in_ids": []any{},
 		"threshold":    float64(10),
-		"config":       `{"url":"https://example.com/hook","label":"Deploys"}`,
+		"config":       mustJSON(`{"url":"https://example.com/hook","label":"Deploys"}`),
 	}))
 	if err != nil || result.IsError {
 		t.Fatalf("create = %s, %v", getResultText(result), err)
@@ -77,7 +77,7 @@ func TestCreateIntegrationSendsTheAPIShape(t *testing.T) {
 func TestCreateIntegrationRefusesSharedSettingsInsideConfig(t *testing.T) {
 	result, err := handleCreateIntegration(context.Background(), noRequestClient(t), integrationArgs(map[string]any{
 		"project_id": "Xk9mZp", "type": "WebHook",
-		"config": `{"url":"https://example.com/hook","events":["occurred"]}`,
+		"config": mustJSON(`{"url":"https://example.com/hook","events":["occurred"]}`),
 	}))
 	if err != nil {
 		t.Fatalf("error = %v", err)

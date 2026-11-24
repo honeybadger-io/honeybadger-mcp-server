@@ -1,6 +1,8 @@
 package hbmcp
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -51,4 +53,13 @@ func noRequestClient(t *testing.T) *apiv3.Client {
 		t.Errorf("request reached the API: %s %s", r.Method, r.URL.Path)
 		w.WriteHeader(http.StatusTeapot)
 	})
+}
+
+// mustJSON decodes a JSON literal into the value a client would send.
+func mustJSON(s string) any {
+	var v any
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		panic(fmt.Sprintf("bad JSON in test: %v: %s", err, s))
+	}
+	return v
 }

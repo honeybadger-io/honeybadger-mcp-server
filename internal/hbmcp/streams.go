@@ -13,16 +13,7 @@ import (
 func RegisterStreamTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 	// list_streams tool
 	r.AddTool(
-		mcp.NewTool("list_streams",
-			mcp.WithTitleAnnotation("List Streams"),
-			mcp.WithDescription("List Insights data streams for a Honeybadger project. Streams partition Insights event data (e.g. default vs internal)."),
-			mcp.WithReadOnlyHintAnnotation(true),
-			mcp.WithDestructiveHintAnnotation(false),
-			mcp.WithString("project_id",
-				mcp.Required(),
-				mcp.Description("The ID of the project to list streams for"),
-			),
-		),
+		generatedTool("list_streams"),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListStreams(ctx, v3ClientFor(ctx), req)
 		},
@@ -30,9 +21,6 @@ func RegisterStreamTools(r *toolRegistrar, v3ClientFor V3ClientFactory) {
 }
 
 func handleListStreams(ctx context.Context, client *apiv3.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if msg := rejectStaleSchemaFields("list_streams", req); msg != "" {
-		return mcp.NewToolResultError(msg), nil
-	}
 	projectID := req.GetString("project_id", "")
 	if projectID == "" {
 		return mcp.NewToolResultError("project_id is required"), nil

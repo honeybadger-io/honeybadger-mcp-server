@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // toolSchemas lists every registered tool's input schema properties.
@@ -94,7 +93,7 @@ func TestUpdateSiteWithNothingToChange(t *testing.T) {
 func TestCreateIntegrationLeavesScopeOutUnlessGiven(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"i1","project_id":"Xk9mZp","type":"WebHook","active":true,"links":{"web":"https://app/x"}}}`)
 	result, err := handleCreateIntegration(context.Background(), client, integrationArgs(map[string]any{
-		"project_id": "Xk9mZp", "type": "WebHook", "config": `{"url":"https://example.com/hook"}`, "check_in_ids": []any{},
+		"project_id": "Xk9mZp", "type": "WebHook", "config": mustJSON(`{"url":"https://example.com/hook"}`), "check_in_ids": []any{},
 	}))
 	mustSucceed(t, result, err)
 	if _, present := (*body)["site_ids"]; present {
@@ -109,7 +108,7 @@ func TestCreateIntegrationLeavesScopeOutUnlessGiven(t *testing.T) {
 func TestUpdateProjectClearsASettingWithNull(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"Xk9mZp","account_id":"Ab3kL9","name":"App","active":true}}`)
 	result, err := handleUpdateProject(context.Background(), client, projectArgs(map[string]any{
-		"id": "Xk9mZp", "source_url": nil,
+		"project_id": "Xk9mZp", "source_url": nil,
 	}))
 	mustSucceed(t, result, err)
 	if v, present := (*body)["source_url"]; !present || v != nil {
@@ -131,14 +130,14 @@ func TestIntegrationSettingErrorsAreStable(t *testing.T) {
 }
 
 func TestPagingInputsAreRefusedRatherThanDropped(t *testing.T) {
+	tools := registeredTools(t)
 	for name, args := range map[string]map[string]any{
 		"fractional limit":     {"limit": 2.5},
 		"created_before a URL": {"created_before": "/v3/projects/Xk9mZp/sites/x/outages?created_before=1704153600.5"},
 	} {
 		args["project_id"], args["site_id"] = "Xk9mZp", siteUUID
-		result, err := handleListSiteOutages(context.Background(), noRequestClient(t), mcpRequest(args))
-		if err != nil || !result.IsError {
-			t.Errorf("%s: result = %s, %v; want it refused", name, getResultText(result), err)
+		if text, ran, _ := checked(t, tools, "list_site_outages", args); ran {
+			t.Errorf("%s: ran, want it refused: %s", name, text)
 		}
 	}
 }
@@ -159,12 +158,12 @@ func TestDeleteSitePreviewForAnUnnamedSite(t *testing.T) {
 }
 
 // On create, stream_ids null means every current stream, the same as leaving
-// it out; the create input doesn't accept null.
+// it out, so it isn't sent.
 func TestCreateAlarmTreatsNullStreamsAsOmitted(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
 	result, err := handleCreateAlarm(context.Background(), client, alarmArgs(map[string]any{
 		"project_id": "Xk9mZp", "name": "Spike", "query": "q", "evaluation_period": "5m", "lookback_lag": "1m",
-		"trigger_config": `{"type":"alert_result_count","config":{"operator":"gt","value":1}}`, "stream_ids": "null",
+		"trigger_config": mustJSON(`{"type":"alert_result_count","config":{"operator":"gt","value":1}}`), "stream_ids": nil,
 	}))
 	mustSucceed(t, result, err)
 	if _, present := (*body)["stream_ids"]; present {
@@ -177,7 +176,7 @@ func TestCreateAlarmSendsGivenStreams(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"id":"a1","name":"Spike"}}`)
 	result, err := handleCreateAlarm(context.Background(), client, alarmArgs(map[string]any{
 		"project_id": "Xk9mZp", "name": "Spike", "query": "q", "evaluation_period": "5m", "lookback_lag": "1m",
-		"trigger_config": `{"type":"alert_result_count","config":{"operator":"gt","value":1}}`, "stream_ids": `["s1","s2"]`,
+		"trigger_config": mustJSON(`{"type":"alert_result_count","config":{"operator":"gt","value":1}}`), "stream_ids": mustJSON(`["s1","s2"]`),
 	}))
 	mustSucceed(t, result, err)
 	if got, _ := json.Marshal((*body)["stream_ids"]); string(got) != `["s1","s2"]` {
@@ -185,22 +184,23 @@ func TestCreateAlarmSendsGivenStreams(t *testing.T) {
 	}
 }
 
-// purge_days arrives as a number or a numeric string; anything else is refused
-// rather than dropped while the rest of the update succeeds.
+// purge_days is a whole number, or null to clear it; anything else is refused
+// rather than dropped while the rest of the update succeeds. Its range is the
+// API's to check: the spec sets none.
 func TestProjectPurgeDays(t *testing.T) {
-	for _, sent := range []any{30.0, "30"} {
+	for _, sent := range []any{30.0} {
 		client, body := bodyCapture(t, `{"data":{"id":"Xk9mZp","name":"New"}}`)
 		result, err := handleUpdateProject(context.Background(), client, mcpRequest(map[string]any{
-			"id": "Xk9mZp", "name": "New", "purge_days": sent,
+			"project_id": "Xk9mZp", "name": "New", "purge_days": sent,
 		}))
 		mustSucceed(t, result, err)
 		if got := (*body)["purge_days"]; got != 30.0 {
 			t.Errorf("sent %#v: purge_days = %#v, want 30", sent, got)
 		}
 	}
-	for _, sent := range []any{0.0, -5.0, 2.5, "thirty", true} {
+	for _, sent := range []any{2.5, "30", "thirty", true} {
 		result, err := handleUpdateProject(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
-			"id": "Xk9mZp", "name": "New", "purge_days": sent,
+			"project_id": "Xk9mZp", "name": "New", "purge_days": sent,
 		}))
 		if err != nil || !result.IsError {
 			t.Errorf("sent %#v: result = %s, want an error", sent, getResultText(result))
@@ -210,11 +210,9 @@ func TestProjectPurgeDays(t *testing.T) {
 
 // list_streams no longer filters; a cached schema's query is refused, not ignored.
 func TestListStreamsRefusesQuery(t *testing.T) {
-	result, err := handleListStreams(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "query": "prod",
-	}))
-	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "query") {
-		t.Errorf("result = %s, want query refused", getResultText(result))
+	text, ran, _ := checked(t, registeredTools(t), "list_streams", map[string]any{"project_id": "Xk9mZp", "query": "prod"})
+	if ran || !strings.Contains(text, "query") {
+		t.Errorf("result = %s, want query refused", text)
 	}
 }
 
@@ -231,8 +229,7 @@ func TestUpdateSiteRefusesNullNameAndURL(t *testing.T) {
 	}
 }
 
-// Parameters documented as a string holding JSON also take the JSON value
-// itself; reading only strings dropped it while the call reported success.
+// Object and array parameters reach the API as sent.
 func TestJSONParametersTakeNativeValues(t *testing.T) {
 	ctx := context.Background()
 
@@ -272,12 +269,12 @@ func TestJSONParametersTakeNativeValues(t *testing.T) {
 	}
 }
 
-// query_insights takes stream_ids as the alarm tools do, as a JSON string too,
-// rather than running over every stream.
-func TestQueryInsightsTakesStreamIDsAsAString(t *testing.T) {
+// query_insights sends the stream_ids it's given rather than running over every
+// stream.
+func TestQueryInsightsSendsStreamIDs(t *testing.T) {
 	client, body := bodyCapture(t, `{"data":{"results":[],"fields":[],"meta":{}}}`)
 	_, _ = handleQueryInsights(context.Background(), client, mcpRequest(map[string]any{
-		"project_id": "Xk9mZp", "query": "fields @ts", "stream_ids": `["s1"]`,
+		"project_id": "Xk9mZp", "query": "fields @ts", "stream_ids": mustJSON(`["s1"]`),
 	}))
 	if ids, _ := (*body)["stream_ids"].([]any); len(ids) != 1 || ids[0] != "s1" {
 		t.Errorf("stream_ids = %v, want [s1]", (*body)["stream_ids"])
@@ -287,7 +284,7 @@ func TestQueryInsightsTakesStreamIDsAsAString(t *testing.T) {
 // Project flags that aren't booleans are refused rather than dropped.
 func TestUpdateProjectRefusesNonBooleanFlags(t *testing.T) {
 	result, err := handleUpdateProject(context.Background(), offlineV3Client(), mcpRequest(map[string]any{
-		"id": "Xk9mZp", "name": "X", "disable_public_links": "true",
+		"project_id": "Xk9mZp", "name": "X", "disable_public_links": "true",
 	}))
 	if err != nil || !result.IsError || !strings.Contains(getResultText(result), "disable_public_links") {
 		t.Errorf("result = %s, want disable_public_links refused", getResultText(result))
@@ -315,27 +312,18 @@ func TestAlarmTriggerNeedsItsValue(t *testing.T) {
 // absent project_id widens occurrence counts to every project, an absent time
 // filter returns everything, an absent period leaves a check-in unchanged.
 func TestStringParametersRefuseOtherTypes(t *testing.T) {
-	ctx := context.Background()
-	cases := []struct {
-		name string
-		call func() (*mcp.CallToolResult, error)
+	tools := registeredTools(t)
+	for name, c := range map[string]struct {
+		tool string
+		args map[string]any
 	}{
-		{"occurrence counts project_id", func() (*mcp.CallToolResult, error) {
-			return handleGetProjectOccurrenceCounts(ctx, offlineV3Client(), mcpRequest(map[string]any{"project_id": 12345.0}))
-		}},
-		{"list_faults created_after", func() (*mcp.CallToolResult, error) {
-			return handleListFaults(ctx, offlineV3Client(), mcpRequest(map[string]any{"project_id": "Xk9mZp", "created_after": 1767225600.0}))
-		}},
-		{"update_check_in report_period", func() (*mcp.CallToolResult, error) {
-			return handleUpdateCheckIn(ctx, offlineV3Client(), mcpRequest(map[string]any{
-				"project_id": "Xk9mZp", "check_in_id": "c1", "name": "nightly", "report_period": 3600.0,
-			}))
-		}},
-	}
-	for _, c := range cases {
-		result, err := c.call()
-		if err != nil || !result.IsError || !strings.Contains(getResultText(result), "must be a string") {
-			t.Errorf("%s: result = %s, want a type error", c.name, getResultText(result))
+		"occurrence counts project_id":  {"get_project_occurrence_counts", map[string]any{"project_id": 12345.0}},
+		"list_faults created_after":     {"list_faults", map[string]any{"project_id": "Xk9mZp", "created_after": 1767225600.0}},
+		"update_check_in report_period": {"update_check_in", map[string]any{"project_id": "Xk9mZp", "check_in_id": "c1", "name": "nightly", "report_period": 3600.0}},
+	} {
+		text, ran, _ := checked(t, tools, c.tool, c.args)
+		if ran || !strings.Contains(text, "must be a string") {
+			t.Errorf("%s: ran = %v, result = %s, want a type error", name, ran, text)
 		}
 	}
 }
