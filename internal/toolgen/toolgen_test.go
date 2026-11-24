@@ -417,6 +417,7 @@ func TestUnsupportedSpecShapesFailGeneration(t *testing.T) {
 		"refInAllOf":        "ref_in_all_of: operation refInAllOf: maximum next to a $ref to Count would be lost",
 		"nestedConditional": "nested_conditional: operation nestedConditional: body property extra is defined only inside a condition",
 		"duplicateProp":     "duplicate_prop: operation duplicateProp: body property count is defined twice, differently",
+		"chainedRef":        "chained_ref: operation chainedRef: minimum next to a $ref to Count would be lost",
 	} {
 		name := toSnake(op)
 		overlay := name + ":\n  operation: " + op + "\n  title: T\n  description: D.\n"
@@ -466,5 +467,21 @@ func TestAnOverriddenSharedParameterDoesntFailGeneration(t *testing.T) {
 	}
 	if _, err := Build(bundle, []byte("overrides_shared:\n  operation: overridesShared\n  title: T\n  description: D.\n  params:\n    shared_id: { description: x }\n")); err != nil {
 		t.Errorf("Build: %v", err)
+	}
+}
+
+// readOnly beside a $ref marks the property as set by the server, like
+// readOnly inside the referenced schema: the tool leaves it out.
+func TestReadOnlyBesideARefIsLeftOut(t *testing.T) {
+	bundle, err := os.ReadFile("testdata/unsupported.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools, err := Build(bundle, []byte("read_only_beside_ref:\n  operation: readOnlyBesideRef\n  title: T\n  description: D.\n  params:\n    name: { description: x }\n"))
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if _, ok := tools[0].Schema["properties"].(map[string]any)["created"]; ok {
+		t.Error("created is readOnly but the tool takes it")
 	}
 }

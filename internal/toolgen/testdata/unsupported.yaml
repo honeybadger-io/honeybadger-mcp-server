@@ -174,7 +174,40 @@ paths:
         required: true
         schema:
           type: string
+  "/chained":
+    patch:
+      operationId: chainedRef
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  "$ref": "#/components/schemas/PositiveCount"
+    post:
+      operationId: readOnlyBesideRef
+      security:
+      - bearer_auth:
+        - things:write
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                created:
+                  readOnly: true
+                  "$ref": "#/components/schemas/Count"
 components:
   schemas:
     Count:
       type: integer
+    PositiveCount:
+      "$ref": "#/components/schemas/Count"
+      minimum: 1

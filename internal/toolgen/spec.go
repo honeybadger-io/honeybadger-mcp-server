@@ -3,6 +3,7 @@ package toolgen
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -233,6 +234,28 @@ func (d *spec) deref(node any) any {
 		if !ok {
 			return node
 		}
+		// Every hop, so a constraint beside a $ref deeper in a chain is
+		// caught too.
+		d.checkRefSiblings(m)
+		node = d.lookup(ref)
+	}
+}
+
+// readOnly reports whether a schema, or any schema its $ref chain passes
+// through, is marked readOnly: set by the server, never sent.
+func (d *spec) readOnly(node any) bool {
+	for {
+		m, ok := node.(map[string]any)
+		if !ok {
+			return false
+		}
+		if m["readOnly"] == true {
+			return true
+		}
+		ref, ok := m["$ref"].(string)
+		if !ok {
+			return false
+		}
 		node = d.lookup(ref)
 	}
 }
@@ -251,7 +274,6 @@ func (d *spec) lookup(ref string) any {
 // docs-only keys dropped, read-only properties removed, and objects closed to
 // unknown properties unless the spec gives a schema for them.
 func (d *spec) resolve(node any) any {
-	d.checkRefSiblings(node)
 	switch n := d.deref(node).(type) {
 	case map[string]any:
 		return d.resolveMap(n)
@@ -295,7 +317,6 @@ func (d *spec) resolveMap(n map[string]any) map[string]any {
 func (d *spec) simplify(out map[string]any) {
 	if all, ok := out["allOf"].([]any); ok && len(all) == 1 {
 		delete(out, "allOf")
-		d.checkRefSiblings(all[0])
 		inner := d.resolveMap(d.deref(all[0]).(map[string]any))
 		if both := sharedKeywords(out, inner); len(both) > 0 {
 			d.fail("%s both beside and inside a single-entry allOf", strings.Join(both, ", "))
@@ -331,7 +352,7 @@ func (d *spec) resolveChildren(out map[string]any) map[string]bool {
 		case "properties":
 			props := map[string]any{}
 			for name, raw := range v.(map[string]any) {
-				if m, _ := d.deref(raw).(map[string]any); m["readOnly"] == true {
+				if d.readOnly(raw) {
 					serverSet[name] = true // set by the server, never sent
 					continue
 				}
@@ -378,7 +399,6 @@ func (d *spec) foldNullable(alts []any) (map[string]any, bool) {
 	var other map[string]any
 	nulls := 0
 	for _, a := range alts {
-		d.checkRefSiblings(a)
 		m, _ := d.deref(a).(map[string]any)
 		if m["type"] == "null" && len(m) == 1 {
 			nulls++
@@ -474,14 +494,19 @@ func asMap(v any) map[string]any {
 // fail records a shape the generator can't flatten faithfully in the
 // operation being described.
 func (d *spec) fail(format string, args ...any) {
-	if d.problems != nil {
-		*d.problems = append(*d.problems, fmt.Sprintf(format, args...))
+	if d.problems == nil {
+		return
+	}
+	// The same node can be dereferenced from several places; one report is
+	// enough.
+	if p := fmt.Sprintf(format, args...); !slices.Contains(*d.problems, p) {
+		*d.problems = append(*d.problems, p)
 	}
 }
 
 // checkRefSiblings fails on constraints written next to a $ref: resolving the
 // reference replaces the node, and they would be lost. readOnly is honoured
-// where properties are resolved, and docs keys are dropped anyway.
+// (see readOnly), and docs keys are dropped anyway.
 func (d *spec) checkRefSiblings(node any) {
 	m, ok := node.(map[string]any)
 	if !ok {
