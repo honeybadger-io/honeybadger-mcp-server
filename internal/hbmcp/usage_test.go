@@ -97,3 +97,25 @@ func TestHandleGetAccountUsage_ErrorPassesThrough(t *testing.T) {
 		}
 	}
 }
+
+// A personal token whose user belongs to several accounts can't say whose
+// usage to read; the caller is told which credential works instead.
+func TestHandleGetAccountUsage_AmbiguousAccount(t *testing.T) {
+	client := newV3TestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		v3JSON(w, http.StatusUnprocessableEntity, `{"error":{"code":"ambiguous_account","message":"This credential can access more than one account"}}`)
+	})
+
+	result, err := handleGetAccountUsage(context.Background(), client, mcpRequest(nil))
+	if err != nil {
+		t.Fatalf("handleGetAccountUsage() error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error result")
+	}
+	text := getResultText(result)
+	for _, want := range []string{"more than one account", "account-bound API Token (hba_)", "ambiguous_account"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("error %q does not contain %q", text, want)
+		}
+	}
+}
