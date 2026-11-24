@@ -456,3 +456,15 @@ func toSnake(s string) string {
 	}
 	return b.String()
 }
+
+// A problem in a shared parameter an operation replaces with its own is
+// moot: the operation's parameter is the one the tool takes.
+func TestAnOverriddenSharedParameterDoesntFailGeneration(t *testing.T) {
+	bundle, err := os.ReadFile("testdata/unsupported.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Build(bundle, []byte("overrides_shared:\n  operation: overridesShared\n  title: T\n  description: D.\n  params:\n    shared_id: { description: x }\n")); err != nil {
+		t.Errorf("Build: %v", err)
+	}
+}

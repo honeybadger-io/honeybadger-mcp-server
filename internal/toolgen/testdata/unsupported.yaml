@@ -155,6 +155,25 @@ paths:
                   count:
                     type: integer
                     maximum: 10
+  "/shared/{shared_id}":
+    parameters:
+    - name: shared_id
+      in: path
+      required: true
+      schema:
+        "$ref": "#/components/schemas/Count"
+        minimum: 1
+    get:
+      operationId: overridesShared
+      security:
+      - bearer_auth:
+        - things:read
+      parameters:
+      - name: shared_id
+        in: path
+        required: true
+        schema:
+          type: string
 components:
   schemas:
     Count:

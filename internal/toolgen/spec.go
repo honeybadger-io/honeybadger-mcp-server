@@ -83,10 +83,8 @@ func (d *spec) describe(method string, shared []any, raw map[string]any, default
 	}
 
 	own, _ := raw["parameters"].([]any)
-	for _, list := range [][]any{shared, own} { // an operation's own parameter replaces a shared one
-		if err := d.addParams(op, list); err != nil {
-			return nil, err
-		}
+	if err := d.addParams(op, d.effectiveParams(shared, own)); err != nil {
+		return nil, err
 	}
 
 	d.addBodyParams(op, raw["requestBody"])
@@ -125,6 +123,28 @@ func dropDefaults(node any) {
 			dropDefaults(v)
 		}
 	}
+}
+
+// effectiveParams are the parameters an operation takes: its own, and the
+// shared ones it doesn't replace with one of the same name and location.
+// Resolving only these keeps a replaced shared parameter's schema, and any
+// problem in it, out of the tool.
+func (d *spec) effectiveParams(shared, own []any) []any {
+	key := func(raw any) string {
+		p, _ := d.deref(raw).(map[string]any)
+		return fmt.Sprint(p["name"], "\x00", p["in"])
+	}
+	replaced := map[string]bool{}
+	for _, p := range own {
+		replaced[key(p)] = true
+	}
+	var out []any
+	for _, p := range shared {
+		if !replaced[key(p)] {
+			out = append(out, p)
+		}
+	}
+	return append(out, own...)
 }
 
 // addParams adds an operation's path and query parameters.
