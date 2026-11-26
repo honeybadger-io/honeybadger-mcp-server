@@ -184,3 +184,64 @@ func TestParseAccessToken_EmptyScope(t *testing.T) {
 		t.Errorf("Scopes = %v, want empty", got.Scopes)
 	}
 }
+
+// The AS stamps scope_version on every new token: 1 for legacy read/write, 2 for
+// granular permissions. JSON numbers arrive as float64.
+func TestParseAccessToken_ScopeVersion(t *testing.T) {
+	key, kf := testKey(t)
+	for _, tc := range []struct {
+		name  string
+		claim any
+		want  int
+	}{
+		{"version 1", float64(1), 1},
+		{"version 2", float64(2), 2},
+		{"absent", nil, 0},
+		{"not a number", "2", 0},
+		{"not an integer", float64(1.5), 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := baseClaims()
+			if tc.claim != nil {
+				c["scope_version"] = tc.claim
+			}
+			got, err := ParseAccessToken(signedToken(t, key, c), kf, "", "")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.ScopeVersion != tc.want {
+				t.Errorf("ScopeVersion = %d, want %d", got.ScopeVersion, tc.want)
+			}
+		})
+	}
+}
+
+func TestClaimsGranular(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		claims Claims
+		want   bool
+	}{
+		{"version 2", Claims{ScopeVersion: 2, Scopes: []string{"faults:read"}}, true},
+		{"version 2 with no scopes", Claims{ScopeVersion: 2}, true},
+		// A version 1 token only ever honors read/write. A stray granular name on
+		// it was dropped by the AS and must stay dropped here.
+		{"version 1 with a stray granular name", Claims{ScopeVersion: 1, Scopes: []string{"read", "faults:write"}}, false},
+		{"version 1", Claims{ScopeVersion: 1, Scopes: []string{"read", "write"}}, false},
+		// Tokens minted before the claim existed: the scope names decide.
+		{"no version, legacy names", Claims{Scopes: []string{"read", "write"}}, false},
+		{"no version, read only", Claims{Scopes: []string{"read"}}, false},
+		{"no version, mixed names", Claims{Scopes: []string{"write", "faults:read"}}, false},
+		{"no version, granular names", Claims{Scopes: []string{"faults:read", "faults:write"}}, true},
+		{"no version, no scopes", Claims{}, false},
+		// An unknown future version is neither; callers treat it as legacy, which
+		// grants nothing without a write scope.
+		{"version 3", Claims{ScopeVersion: 3, Scopes: []string{"faults:write"}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.claims.Granular(); got != tc.want {
+				t.Errorf("Granular() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
