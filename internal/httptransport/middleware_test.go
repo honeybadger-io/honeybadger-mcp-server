@@ -14,6 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/honeybadger-io/api-go/apiv3"
+	"github.com/honeybadger-io/honeybadger-mcp-server/internal/config"
 	"github.com/honeybadger-io/honeybadger-mcp-server/internal/hbmcp"
 )
 
@@ -435,5 +436,44 @@ func TestValidateMiddlewareOpaqueRequiresAnIntrospector(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
+	}
+}
+
+// A granular (scope version 2) token keeps its write tools when introspection
+// is down: its JWT names the exact permissions, and faults:write is one.
+func TestValidateMiddlewareGranularTokenDuringIntrospectionOutage(t *testing.T) {
+	key, keyfn := testKey(t)
+	cfg := &config.Config{TransportMode: config.TransportHTTP}
+
+	for _, tc := range []struct {
+		scope    string
+		readOnly bool
+	}{
+		{"faults:read faults:write", false},
+		{"faults:read insights:read", true},
+	} {
+		t.Run(tc.scope, func(t *testing.T) {
+			claims := validClaims()
+			claims["scope"] = tc.scope
+			claims["scope_version"] = float64(2)
+			token := signHBO(t, key, claims)
+
+			var readOnly *bool
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ro := hbmcp.EffectiveReadOnly(r.Context(), cfg)
+				readOnly = &ro
+			})
+			req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			ValidateMiddleware("https://mcp.test/prm", keyfn, "https://issuer.example", "https://host/mcp",
+				&stubIntrospector{err: errors.New("dial tcp: connection refused")}, next).ServeHTTP(httptest.NewRecorder(), req)
+
+			if readOnly == nil {
+				t.Fatal("request did not reach the server")
+			}
+			if *readOnly != tc.readOnly {
+				t.Errorf("EffectiveReadOnly = %v, want %v", *readOnly, tc.readOnly)
+			}
+		})
 	}
 }

@@ -79,8 +79,8 @@ func registerSearchTool(s *server.MCPServer, catalog []ToolInfo, cfg *config.Con
 		}
 		// Search has to apply the same scope filter as tools/list, or it
 		// becomes a way to discover tools the catalog deliberately hid.
-		if info := TokenInfoFromContext(ctx); info != nil {
-			searchable = filterCatalogByScopes(searchable, info.Scopes)
+		if scopes, ok := knownScopes(ctx); ok {
+			searchable = filterCatalogByScopes(searchable, scopes)
 		}
 
 		matches := searchCatalog(searchable, query)

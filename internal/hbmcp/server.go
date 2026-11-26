@@ -20,11 +20,12 @@ type V3ClientFactory func(ctx context.Context) *apiv3.Client
 // Three sources, in descending order of authority:
 //
 //  1. Introspection. The API's own account of what the credential holds, which
-//     covers all three credential kinds and is granular — an OAuth token's JWT
-//     carries only legacy read/write, because the expansion to granular
-//     permissions happens server-side.
-//  2. OAuth claims. Coarse but free, and correct as far as it goes. Used when
-//     introspection was unavailable.
+//     covers all three credential kinds and is granular.
+//  2. OAuth claims, used when introspection was unavailable. A granular (scope
+//     version 2) token's JWT names its exact permissions, so any write or create
+//     permission keeps the writing tools. A legacy (version 1) token's JWT
+//     carries only read/write — the expansion to permissions happens
+//     server-side — so only "write" does.
 //  3. For an opaque credential with neither, the whole catalog. Hiding the
 //     writing tools there would deny an account token writes it legitimately
 //     holds: nothing here knows its scopes, and absent knowledge is not absent
@@ -47,7 +48,28 @@ func EffectiveReadOnly(ctx context.Context, cfg *config.Config) bool {
 	}
 
 	claims := ClaimsFromContext(ctx)
-	return claims == nil || !claims.HasScope("write")
+	if claims == nil {
+		return true
+	}
+	if claims.Granular() {
+		return !grantsAnyWrite(claims.Scopes)
+	}
+	return !claims.HasScope("write")
+}
+
+// knownScopes returns the credential's granular permissions when this server
+// knows them: from introspection, or else from a granular token's JWT, which
+// names them exactly. ok is false when they are unknown — an opaque credential
+// without introspection, or a legacy read/write token — and then no tool is
+// hidden for want of a permission; the API refuses what the credential lacks.
+func knownScopes(ctx context.Context) (scopes []string, ok bool) {
+	if info := TokenInfoFromContext(ctx); info != nil {
+		return info.Scopes, true
+	}
+	if claims := ClaimsFromContext(ctx); claims != nil && claims.Granular() {
+		return claims.Scopes, true
+	}
+	return nil, false
 }
 
 // grantsAnyWrite reports whether any scope permits writing.
@@ -123,12 +145,12 @@ func NewServerWithCatalog(cfg *config.Config, version string) (*server.MCPServer
 			tools = filterReadOnlyTools(tools)
 		}
 
-		// Scope filtering needs the credential's actual permissions, which only
-		// introspection supplies. Without it every tool stays advertised and the
-		// API refuses what the credential cannot do — showing a tool that then
-		// fails is better than hiding one the caller was entitled to.
-		if info := TokenInfoFromContext(ctx); info != nil {
-			tools = filterByScopes(tools, info.Scopes)
+		// Scope filtering needs the credential's actual permissions. Without them
+		// every tool stays advertised and the API refuses what the credential
+		// cannot do — showing a tool that then fails is better than hiding one the
+		// caller was entitled to.
+		if scopes, ok := knownScopes(ctx); ok {
+			tools = filterByScopes(tools, scopes)
 		}
 		return tools
 	}))
